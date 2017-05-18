@@ -18,7 +18,7 @@
 Generic persistent factory.
 """
 import os
-from ovs.extensions.generic.configuration import Configuration
+from ovs_extensions.generic.configuration import Configuration
 
 
 class PersistentFactory(object):
@@ -41,10 +41,10 @@ class PersistentFactory(object):
 
             PersistentFactory.store = None
             if client_type in ['pyrakoon', 'arakoon']:
-                from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore
+                from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
                 PersistentFactory.store = PyrakoonStore(str(Configuration.get('/ovs/framework/arakoon_clusters|ovsdb')))
             if client_type == 'dummy':
-                from ovs.extensions.storage.persistent.dummystore import DummyPersistentStore
+                from ovs_extensions.storage.persistent.dummystore import DummyPersistentStore
                 PersistentFactory.store = DummyPersistentStore()
 
         if PersistentFactory.store is None:

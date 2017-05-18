@@ -19,9 +19,11 @@ Memcache store module
 """
 import re
 import ujson
+import logging
 import memcache
 from threading import Lock
-from ovs.log.log_handler import LogHandler
+
+logger = logging.getLogger(__name__)
 
 
 def locked():
@@ -60,7 +62,6 @@ class MemcacheStore(object):
         """
         Initializes the client
         """
-        self._logger = LogHandler.get('extensions', 'memcache store')
         self._nodes = nodes
         self._client = memcache.Client(self._nodes, cache_cas=True, socket_timeout=0.5)
         self._lock = Lock()
@@ -83,7 +84,7 @@ class MemcacheStore(object):
             if data['key'] == key:
                 return data['value']
             error = 'Invalid data received'
-            self._logger.exception('Invalid data received: Got key {0} instead of {1}'.format(data['key'], key))
+            logger.exception('Invalid data received: Got key {0} instead of {1}'.format(data['key'], key))
             raise RuntimeError(error)
         else:
             return data

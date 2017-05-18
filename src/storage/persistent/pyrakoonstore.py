@@ -19,13 +19,15 @@ Arakoon store module, using pyrakoon
 """
 
 import ujson
+import logging
 from StringIO import StringIO
 from ConfigParser import RawConfigParser
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonAssertionFailed
-from ovs.extensions.db.arakoon.pyrakoon.client import PyrakoonClient
-from ovs.extensions.generic.configuration import Configuration
-from ovs.extensions.storage.exceptions import KeyNotFoundException, AssertException
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonAssertionFailed
+from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
+from ovs_extensions.generic.configuration import Configuration
+from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
+
+logger = logging.getLogger(__name__)
 
 
 class PyrakoonStore(object):
@@ -34,7 +36,6 @@ class PyrakoonStore(object):
     * Uses json serialisation
     * Raises generic exception
     """
-    _logger = LogHandler.get('extensions', name='arakoon_store')
     CONFIG_KEY = '/ovs/arakoon/{0}/config'
 
     def __init__(self, cluster):

@@ -18,7 +18,7 @@
 Generic volatile factory.
 """
 import os
-from ovs.extensions.generic.configuration import Configuration
+from ovs_extensions.generic.configuration import Configuration
 
 
 class VolatileFactory(object):
@@ -39,11 +39,11 @@ class VolatileFactory(object):
 
             VolatileFactory.store = None
             if client_type == 'memcache':
-                from ovs.extensions.storage.volatile.memcachestore import MemcacheStore
+                from ovs_extensions.storage.volatile.memcachestore import MemcacheStore
                 nodes = Configuration.get('/ovs/framework/memcache|endpoints')
                 VolatileFactory.store = MemcacheStore(nodes)
             if client_type == 'dummy':
-                from ovs.extensions.storage.volatile.dummystore import DummyVolatileStore
+                from ovs_extensions.storage.volatile.dummystore import DummyVolatileStore
                 VolatileFactory.store = DummyVolatileStore()
 
         if VolatileFactory.store is None:

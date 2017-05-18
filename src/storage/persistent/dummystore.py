@@ -21,7 +21,7 @@ import os
 import copy
 import json
 import uuid
-from ovs.extensions.storage.exceptions import KeyNotFoundException, AssertException
+from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
 
 
 class DummyPersistentStore(object):
