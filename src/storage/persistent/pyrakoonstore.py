@@ -20,12 +20,12 @@ Arakoon store module, using pyrakoon
 
 import ujson
 import logging
-from StringIO import StringIO
 from ConfigParser import RawConfigParser
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonAssertionFailed
+from StringIO import StringIO
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 from ovs_extensions.generic.configuration import Configuration
-from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
+from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundException
 
 logger = logging.getLogger(__name__)
 

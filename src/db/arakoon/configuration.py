@@ -60,7 +60,7 @@ class ArakoonConfiguration(object):
         :rtype: bool
         """
         key = ArakoonConfiguration._clean_key(key)
-        client = self._get_client()
+        client = self.get_client()
         for entry in list(client.prefix(key)):
             parts = entry.split('/')
             for index in range(len(parts)):
@@ -79,7 +79,7 @@ class ArakoonConfiguration(object):
         from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
         key = ArakoonConfiguration._clean_key(key)
-        client = self._get_client()
+        client = self.get_client()
         entries = []
         for entry in client.prefix(key):
             if key == '' or entry.startswith(key.rstrip('/') + '/'):
@@ -98,13 +98,13 @@ class ArakoonConfiguration(object):
         :return: None
         """
         key = ArakoonConfiguration._clean_key(key)
-        client = self._get_client()
+        client = self.get_client()
         if recursive is True:
             client.delete_prefix(key)
         else:
             client.delete(key)
 
-    def get(self, key):
+    def get(self, key, **kwargs):
         """
         Retrieve the value for specified key
         :param key: Key to retrieve
@@ -112,9 +112,10 @@ class ArakoonConfiguration(object):
         :return: Value of key
         :rtype: str
         """
+        print 'get function {0}'.format(kwargs)
         key = ArakoonConfiguration._clean_key(key)
-        client = self._get_client()
-        return client.get(key)
+        client = self.get_client()
+        return client.get(key, **kwargs)
 
     def set(self, key, value):
         """
@@ -128,10 +129,10 @@ class ArakoonConfiguration(object):
         if isinstance(value, basestring):
             value = str(value)
         key = ArakoonConfiguration._clean_key(key)
-        client = self._get_client()
+        client = self.get_client()
         client.set(key, value)
 
-    def _get_client(self):
+    def get_client(self):
         """
         Builds a PyrakoonClient
         :return: A PyrakoonClient instance

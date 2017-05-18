@@ -100,9 +100,10 @@ class Configuration(object):
         :param raw: Raw data if True else json format
         :return: Value for key
         """
+        print 'public {0}'.format(kwargs)
         try:
             key_entries = key.split('|')
-            data = cls._get(key_entries[0], raw)
+            data = cls._get(key_entries[0], raw, **kwargs)
             if len(key_entries) == 1:
                 return data
             try:
@@ -206,6 +207,13 @@ class Configuration(object):
         return cls._list(key)
 
     @classmethod
+    def get_client(cls):
+        """
+        Retrieve a configuration store client
+        """
+        return cls._passthrough(method='get_client')
+
+    @classmethod
     def _dir_exists(cls, key):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
@@ -265,7 +273,7 @@ class Configuration(object):
                                 key=key, recursive=recursive)
 
     @classmethod
-    def _get(cls, key, raw):
+    def _get(cls, key, raw, **kwargs):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             if key in ['', '/']:
@@ -284,8 +292,10 @@ class Configuration(object):
                 data = None
         else:
             # Forward call to used configuration store
+            print 'private {0}'.format(kwargs)
             data = cls._passthrough(method='get',
-                                    key=key)
+                                    key=key,
+                                    **kwargs)
         if raw is True:
             return data
         return json.loads(data)
@@ -328,7 +338,7 @@ class Configuration(object):
     def get_store_info(cls):
         """
         Retrieve the configuration store method. This can currently only be 'arakoon'
-        :return: A tuple containing the store and params that can be bassed to the configuration implementation instance
+        :return: A tuple containing the store and params that can be passed to the configuration implementation instance
         :rtype: tuple(str, dict)
         """
         raise NotImplementedError()

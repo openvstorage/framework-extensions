@@ -24,12 +24,12 @@ import os
 import json
 import logging
 from ConfigParser import RawConfigParser
+from StringIO import StringIO
 from ovs_extensions.generic.configuration import Configuration
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.volatilemutex import volatile_mutex
 from ovs_extensions.services.servicefactory import ServiceFactory
-from StringIO import StringIO
 
 logger = logging.getLogger(__name__)
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
@@ -983,7 +983,7 @@ class ArakoonInstaller(object):
         :rtype: PyrakoonClient
         """
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
+            from ovs.extensions.db.arakoon.tests.client import MockPyrakoonClient
             return MockPyrakoonClient(config.cluster_id, None)
 
         from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient

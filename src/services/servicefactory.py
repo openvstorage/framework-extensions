@@ -20,9 +20,9 @@ Service Factory module
 import os
 import logging
 from subprocess import check_output
-from ovs_extensions.services.mockups.systemd import SystemdMock
-from ovs_extensions.services.interfaces.upstart import Upstart
 from ovs_extensions.services.interfaces.systemd import Systemd
+from ovs_extensions.services.interfaces.upstart import Upstart
+from ovs_extensions.services.mockups.systemd import SystemdMock
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ class ServiceFactory(object):
 
     @classmethod
     def get_service_type(cls):
-        """ 
-        Gets the service manager type 
+        """
+        Gets the service manager type
         """
         try:
             init_info = check_output('cat /proc/1/comm', shell=True)

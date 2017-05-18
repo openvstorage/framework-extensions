@@ -40,6 +40,7 @@ class timer(object):
         self.start = time.time()
 
     def __exit__(self, *args):
+        _ = args
         duration = time.time() - self.start
         if duration > 2 and self.force_ms is not True:
             logger.debug('{0} took {1:.5f}s'.format(self.identification, duration))

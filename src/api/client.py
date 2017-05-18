@@ -24,9 +24,7 @@ import hashlib
 import logging
 import requests
 from requests.packages.urllib3 import disable_warnings
-from requests.packages.urllib3.exceptions import InsecurePlatformWarning
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.packages.urllib3.exceptions import SNIMissingWarning
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -82,6 +80,7 @@ class OVSClient(object):
         self._version = version
         self._raw_response = raw_response
         try:
+            # noinspection PyUnresolvedReferences
             from ovs_extensions.storage.volatilefactory import VolatileFactory
             self._volatile_client = VolatileFactory.get_client()
         except ImportError:

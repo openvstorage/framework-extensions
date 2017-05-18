@@ -19,9 +19,9 @@ Remote RPyC wrapper module
 
 import os
 import sys
-from subprocess import check_output
-from rpyc.utils.zerodeploy import DeployedServer
 from plumbum import SshMachine
+from rpyc.utils.zerodeploy import DeployedServer
+from subprocess import check_output
 
 
 class remote(object):

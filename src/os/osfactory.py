@@ -19,8 +19,8 @@ OS Factory module
 """
 import logging
 from subprocess import check_output
-from ovs_extensions.os.ubuntu import Ubuntu
-from ovs_extensions.os.centos import Centos
+from ovs_extensions.os.interfaces.centos import Centos
+from ovs_extensions.os.interfaces.ubuntu import Ubuntu
 
 logger = logging.getLogger(__name__)
 

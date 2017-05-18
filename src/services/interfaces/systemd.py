@@ -21,6 +21,7 @@ import re
 import time
 import logging
 from subprocess import CalledProcessError, check_output
+from ovs_extensions.generic.configuration import Configuration
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs_extensions.services.interfaces.manager import Manager

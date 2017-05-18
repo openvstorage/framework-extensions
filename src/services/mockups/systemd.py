@@ -21,13 +21,13 @@ Systemd Mock module
 from ovs_extensions.generic.configuration import Configuration
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from ovs_extensions.services.interfaces.manager import Manager
 
 
-class SystemdMock(object):
+class SystemdMock(Manager):
     """
     Contains all logic related to Systemd Mock services
     """
-    SERVICE_CONFIG_KEY = '/ovs/framework/hosts/{0}/services/{1}'
     services = {}
 
     @staticmethod

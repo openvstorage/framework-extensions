@@ -80,6 +80,7 @@ class file_mutex(object):
         self._start = time.time()
         if wait is None:
             wait = self._wait
+        passed = 0
         if wait is None:
             fcntl.flock(self._handle, fcntl.LOCK_EX)
             passed = time.time() - self._start
