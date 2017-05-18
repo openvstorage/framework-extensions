@@ -15,18 +15,18 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Centos OS module
+Ubuntu OS module
 """
 
 from subprocess import CalledProcessError
 from subprocess import check_output
-from ovs.extensions.generic.configuration import Configuration
-from ovs.extensions.generic.system import System
+from ovs_extensions.generic.configuration import Configuration
+from ovs_extensions.generic.system import System
 
 
-class Centos(object):
+class Ubuntu(object):
     """
-    Contains all logic related to Centos specific
+    Contains all logic related to Ubuntu specific
     """
 
     @staticmethod
@@ -65,7 +65,7 @@ class Centos(object):
         Retrieve SSH service name
         :return: SSH service name
         """
-        return 'sshd'
+        return 'ssh'
 
     @staticmethod
     def get_openstack_web_service_name():
@@ -73,7 +73,7 @@ class Centos(object):
         Retrieve openstack webservice name
         :return: Openstack webservice name
         """
-        return 'httpd'
+        return 'apache2'
 
     @staticmethod
     def get_openstack_cinder_service_name():
@@ -81,7 +81,7 @@ class Centos(object):
         Retrieve openstack cinder service name
         :return: Openstack cinder service name
         """
-        return 'openstack-cinder-volume'
+        return 'cinder-volume'
 
     @staticmethod
     def get_openstack_services():
@@ -89,7 +89,7 @@ class Centos(object):
         Retrieve openstack services
         :return: Openstack services
         """
-        return ['openstack-nova-compute', 'openstack-cinder-volume', 'openstack-cinder-api']
+        return ['nova-compute', 'nova-api-os-compute', 'cinder-volume', 'cinder-api']
 
     @staticmethod
     def get_openstack_users():
@@ -97,7 +97,7 @@ class Centos(object):
         Retrieve openstack users
         :return: Openstack users
         """
-        return ['qemu', 'cinder', 'nova']
+        return ['libvirt-qemu', 'cinder']
 
     @staticmethod
     def get_openstack_package_base_path():
@@ -105,4 +105,4 @@ class Centos(object):
         Retrieve openstack package base path
         :return: Openstack package base path
         """
-        return '/usr/lib/python2.7/site-packages'
+        return '/usr/lib/python2.7/dist-packages'
