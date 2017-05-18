@@ -97,13 +97,13 @@ class remote(object):
             connection.modules['sys'].stdout = sys.stdout
             connection.modules['sys'].stderr = sys.stderr
         remote_modules = {}
-        for module in self.modules:
+        for _module in self.modules:
             if self._unittest_mode is True:
-                remote_modules[module.__name__] = module
-            elif hasattr(module, '__module__'):
-                remote_modules[module.__name__] = getattr(connection.modules[module.__module__], module.__name__)
+                remote_modules[_module.__name__] = _module
+            elif hasattr(_module, '__module__'):
+                remote_modules[_module.__name__] = getattr(connection.modules[_module.__module__], _module.__name__)
             else:
-                remote_modules[module.__name__] = connection.modules[module.__name__]
+                remote_modules[_module.__name__] = connection.modules[_module.__name__]
         return type('remote', (), remote_modules)
 
     def _get_connection(self, ip):

@@ -19,17 +19,18 @@ Disk module
 
 import re
 import uuid
+import logging
 from subprocess import check_output, CalledProcessError
-from ovs.extensions.generic.filemutex import file_mutex
-from ovs.extensions.os.os import OSManager
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.generic.filemutex import file_mutex
+from ovs_extensions.os.osfactory import OSFactory
+
+logger = logging.getLogger(__name__)
 
 
 class DiskTools(object):
     """
     This class contains various helper methods wrt Disk maintenance
     """
-    _logger = LogHandler.get('extensions', name='disk-tools')
 
     @staticmethod
     def create_partition(disk_alias, disk_size, partition_start, partition_size):
@@ -49,17 +50,17 @@ class DiskTools(object):
         disk_alias = disk_alias.replace(r"'", r"'\''")
         try:
             command = "parted '{0}' print | grep 'Partition Table'".format(disk_alias)
-            DiskTools._logger.info('Checking partition label-type with command: {0}'.format(command))
+            logger.info('Checking partition label-type with command: {0}'.format(command))
             label_type = check_output(command, shell=True).strip().split(': ')[1]
         except CalledProcessError:
             label_type = 'error'
         if label_type in ('error', 'unknown'):
             try:
-                DiskTools._logger.info('Adding GPT label and trying to create partition again')
+                logger.info('Adding GPT label and trying to create partition again')
                 check_output("parted '{0}' -s mklabel gpt".format(disk_alias), shell=True)
                 label_type = 'gpt'
             except Exception:
-                DiskTools._logger.exception('Error during label creation')
+                logger.error('Error during label creation')
                 raise
 
         # Determine command to use based upon label type
@@ -78,8 +79,8 @@ class DiskTools(object):
             raise ValueError('Unsupported label-type detected: {0}'.format(label_type))
 
         # Create partition
-        DiskTools._logger.info('Label type detected: {0}'.format(label_type))
-        DiskTools._logger.info('Command to create partition: {0}'.format(command))
+        logger.info('Label type detected: {0}'.format(label_type))
+        logger.info('Command to create partition: {0}'.format(command))
         check_output(command, shell=True)
 
     @staticmethod
@@ -93,7 +94,7 @@ class DiskTools(object):
         try:
             check_output("mkfs.ext4 -q '{0}'".format(partition_alias.replace(r"'", r"'\''")), shell=True)
         except Exception:
-            DiskTools._logger.exception('Error during filesystem creation')
+            logger.error('Error during filesystem creation')
             raise
 
     @staticmethod
@@ -114,6 +115,7 @@ class DiskTools(object):
         with open('/etc/fstab', 'r') as fstab_file:
             lines = [line.strip() for line in fstab_file.readlines()]
 
+        osmanager = OSFactory.get_manager()
         used_path = None
         used_index = None
         mount_line = None
@@ -130,10 +132,10 @@ class DiskTools(object):
                 break
 
         if used_path is None:  # Partition not yet present with any of its possible aliases
-            lines.append(OSManager.get_fstab_entry(partition_aliases[0], mountpoint, filesystem))
+            lines.append(osmanager.get_fstab_entry(partition_aliases[0], mountpoint, filesystem))
         else:  # Partition present, update information
             lines.pop(used_index)
-            lines.insert(used_index, OSManager.get_fstab_entry(used_path, mountpoint, filesystem))
+            lines.insert(used_index, osmanager.get_fstab_entry(used_path, mountpoint, filesystem))
 
         if mount_line is not None:  # Mountpoint already in use by another device (potentially same device, but other device_path)
             lines.remove(mount_line)
@@ -170,7 +172,7 @@ class DiskTools(object):
             check_output("mkdir -p '{0}'".format(mountpoint), shell=True)
             check_output("mount '{0}'".format(mountpoint), shell=True)
         except Exception as ex:
-            DiskTools._logger.exception('Error during mount: {0}'.format(ex))
+            logger.error('Error during mount: {0}'.format(ex))
             raise
 
     @staticmethod
@@ -184,4 +186,4 @@ class DiskTools(object):
         try:
             check_output("umount '{0}'".format(mountpoint.replace(r"'", r"'\''")), shell=True)
         except Exception:
-            DiskTools._logger.exception('Unable to umount mountpoint {0}'.format(mountpoint))
+            logger.exception('Unable to umount mountpoint {0}'.format(mountpoint))

@@ -25,7 +25,6 @@ import grp
 import pwd
 import glob
 import json
-import time
 import types
 import select
 import socket
@@ -35,10 +34,10 @@ import warnings
 import unicodedata
 from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen
-from ovs.dal.helpers import Descriptor
-from ovs.extensions.generic.remote import remote
-from ovs.extensions.generic.tests.sshclient_mock import MockedSSHClient
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.generic.remote import remote
+from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
+
+logger = logging.getLogger(__name__)
 
 
 def connected():
@@ -128,9 +127,7 @@ class SSHClient(object):
     """
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
 
-    _logger = LogHandler.get('extensions', name='sshclient')
     _raise_exceptions = {}  # Used by unit tests
-
     client_cache = {}
 
     def __init__(self, endpoint, username='ovs', password=None, cached=True):
@@ -138,18 +135,12 @@ class SSHClient(object):
         Initializes an SSHClient
         """
         from subprocess import check_output
-        from ovs.dal.hybrids.storagerouter import StorageRouter
-        storagerouter = None
         if isinstance(endpoint, basestring):
             ip = endpoint
             if not re.findall(SSHClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
-        elif Descriptor.isinstance(endpoint, StorageRouter):
-            # Refresh the object before checking its attributes
-            storagerouter = StorageRouter(endpoint.guid)
-            ip = storagerouter.ip
         else:
-            raise ValueError('The endpoint parameter should be either an ip address or a StorageRouter')
+            raise ValueError('The endpoint parameter should be an ip address')
 
         self.ip = ip
         self._client = None
@@ -157,14 +148,6 @@ class SSHClient(object):
         self.is_local = self.ip in self.local_ips
         self.password = password
         self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
-
-        if self.is_local is False and storagerouter is not None and self._unittest_mode is False:
-            process_heartbeat = storagerouter.heartbeats.get('process')
-            if process_heartbeat is not None:
-                if time.time() - process_heartbeat > 300:
-                    message = 'StorageRouter {0} process heartbeat > 300s'.format(ip)
-                    SSHClient._logger.error(message)
-                    raise UnableToConnectException(message)
 
         current_user = check_output('whoami', shell=True).strip()
         if username is None:
@@ -233,7 +216,7 @@ class SSHClient(object):
                 raise
         except socket.error as ex:
             message = str(ex)
-            SSHClient._logger.error(message)
+            logger.error(message)
             if 'No route to host' in message or 'Unable to connect' in message:
                 raise UnableToConnectException(message)
             raise
@@ -285,7 +268,7 @@ class SSHClient(object):
             cleaned = cleaned.encode('ascii', 'ignore')
             return cleaned
         except UnicodeDecodeError:
-            SSHClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
+            logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
     @connected()
@@ -336,15 +319,15 @@ class SSHClient(object):
                 if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                     raise CalledProcessError(exit_code, original_command, stdout)
                 if debug is True:
-                    SSHClient._logger.debug('stdout: {0}'.format(stdout))
-                    SSHClient._logger.debug('stderr: {0}'.format(stderr))
+                    logger.debug('stdout: {0}'.format(stdout))
+                    logger.debug('stderr: {0}'.format(stderr))
                 if return_stderr is True:
                     return stdout, stderr
                 else:
                     return stdout
             except CalledProcessError as cpe:
                 if suppress_logging is False:
-                    SSHClient._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
+                    logger.error('Command "{0}" failed with output "{1}"{2}'.format(
                         original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                     ))
                 raise
@@ -358,7 +341,7 @@ class SSHClient(object):
                 raise CalledProcessTimeout(124, original_command, 'Timeout during command')
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                 if suppress_logging is False:
-                    SSHClient._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'
+                    logger.error('Command "{0}" failed with output "{1}" and error "{2}"'
                                             .format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
             if return_stderr is True:

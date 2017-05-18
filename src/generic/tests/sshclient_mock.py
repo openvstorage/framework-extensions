@@ -19,15 +19,16 @@ Mocked SSHClient Module
 
 import re
 import copy
+import logging
 from subprocess import CalledProcessError
-from ovs.log.log_handler import LogHandler
+
+logger = logging.getLogger(__name__)
 
 
 class MockedSSHClient(object):
     """
     Class
     """
-    _logger = LogHandler.get('extensions', name='sshclient')
     _file_system = {}
     _run_returns = {}
     _run_recordings = {}
@@ -79,12 +80,12 @@ class MockedSSHClient(object):
         """
         if isinstance(command, list):
             command = ' '.join(command)
-        MockedSSHClient._logger.debug('Executing: {0}'.format(command))
+        logger.debug('Executing: {0}'.format(command))
         if client.ip not in MockedSSHClient._run_recordings:
             MockedSSHClient._run_recordings[client.ip] = []
         MockedSSHClient._run_recordings[client.ip].append(command)
         if command in MockedSSHClient._run_returns.get(client.ip, {}):
-            MockedSSHClient._logger.debug('Emulating return value')
+            logger.debug('Emulating return value')
             return MockedSSHClient._run_returns[client.ip][command]
         return client.original_function(client, command, *args, **kwargs)
 

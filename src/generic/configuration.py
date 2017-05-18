@@ -18,10 +18,7 @@
 Generic module for managing configuration somewhere
 """
 import os
-import copy
 import json
-import random
-import string
 
 
 class NotFoundException(Exception):
@@ -60,22 +57,6 @@ class Configuration(object):
 
     _unittest_data = {}
     _store = None
-    BOOTSTRAP_CONFIG_LOCATION = '/opt/OpenvStorage/config/framework.json'
-
-    base_config = {'cluster_id': None,
-                   'external_config': None,
-                   'plugins/installed': {'backends': [],
-                                         'generic': []},
-                   'paths': {'basedir': '/opt/OpenvStorage',
-                             'ovsdb': '/opt/OpenvStorage/db'},
-                   'support': {'enablesupport': False,
-                               'enabled': True,
-                               'interval': 60},
-                   'storagedriver': {'mds_safety': 3,
-                                     'mds_tlogs': 100,
-                                     'mds_maxload': 75},
-                   'webapps': {'html_endpoint': '/',
-                               'oauth2': {'mode': 'local'}}}
 
     def __init__(self):
         """
@@ -83,8 +64,8 @@ class Configuration(object):
         """
         _ = self
 
-    @staticmethod
-    def get_configuration_path(key):
+    @classmethod
+    def get_configuration_path(cls, key):
         """
         Retrieve the configuration path
         For arakoon: 'arakoon://cluster_id/{0}?ini=/path/to/arakoon_cacc.ini:{0}'.format(key)
@@ -95,11 +76,11 @@ class Configuration(object):
         """
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             return 'file://opt/OpenvStorage/config/framework.json?key={0}'.format(key)
-        return Configuration._passthrough(method='get_configuration_path',
-                                          key=key)
+        return cls._passthrough(method='get_configuration_path',
+                                key=key)
 
-    @staticmethod
-    def extract_key_from_path(path):
+    @classmethod
+    def extract_key_from_path(cls, path):
         """
         Used in unittests to retrieve last key from a path
         :param path: Path to extract key from
@@ -111,8 +92,8 @@ class Configuration(object):
             return path.split('=')[-1]
         raise NotImplementedError()
 
-    @staticmethod
-    def get(key, raw=False, **kwargs):
+    @classmethod
+    def get(cls, key, raw=False, **kwargs):
         """
         Get value from the configuration store
         :param key: Key to get
@@ -121,7 +102,7 @@ class Configuration(object):
         """
         try:
             key_entries = key.split('|')
-            data = Configuration._get(key_entries[0], raw)
+            data = cls._get(key_entries[0], raw)
             if len(key_entries) == 1:
                 return data
             try:
@@ -136,8 +117,8 @@ class Configuration(object):
                 return kwargs['default']
             raise
 
-    @staticmethod
-    def set(key, value, raw=False):
+    @classmethod
+    def set(cls, key, value, raw=False):
         """
         Set value in the configuration store
         :param key: Key to store
@@ -147,10 +128,10 @@ class Configuration(object):
         """
         key_entries = key.split('|')
         if len(key_entries) == 1:
-            Configuration._set(key_entries[0], value, raw)
+            cls._set(key_entries[0], value, raw)
             return
         try:
-            data = Configuration._get(key_entries[0], raw)
+            data = cls._get(key_entries[0], raw)
         except NotFoundException:
             data = {}
         temp_config = data
@@ -162,10 +143,10 @@ class Configuration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = value
-        Configuration._set(key_entries[0], data, raw)
+        cls._set(key_entries[0], data, raw)
 
-    @staticmethod
-    def delete(key, remove_root=False, raw=False):
+    @classmethod
+    def delete(cls, key, remove_root=False, raw=False):
         """
         Delete key - value from the configuration store
         :param key: Key to delete
@@ -175,9 +156,9 @@ class Configuration(object):
         """
         key_entries = key.split('|')
         if len(key_entries) == 1:
-            Configuration._delete(key_entries[0], recursive=True)
+            cls._delete(key_entries[0], recursive=True)
             return
-        data = Configuration._get(key_entries[0], raw)
+        data = cls._get(key_entries[0], raw)
         temp_config = data
         entries = key_entries[1].split('.')
         if len(entries) > 1:
@@ -190,10 +171,10 @@ class Configuration(object):
             del temp_config[entries[-1]]
         if len(entries) == 1 and remove_root is True:
             del data[entries[0]]
-        Configuration._set(key_entries[0], data, raw)
+        cls._set(key_entries[0], data, raw)
 
-    @staticmethod
-    def exists(key, raw=False):
+    @classmethod
+    def exists(cls, key, raw=False):
         """
         Check if key exists in the configuration store
         :param key: Key to check
@@ -201,118 +182,50 @@ class Configuration(object):
         :return: True if exists
         """
         try:
-            Configuration.get(key, raw)
+            cls.get(key, raw)
             return True
         except NotFoundException:
             return False
 
-    @staticmethod
-    def dir_exists(key):
+    @classmethod
+    def dir_exists(cls, key):
         """
         Check if directory exists in the configuration store
         :param key: Directory to check
         :return: True if exists
         """
-        return Configuration._dir_exists(key)
+        return cls._dir_exists(key)
 
-    @staticmethod
-    def list(key):
+    @classmethod
+    def list(cls, key):
         """
         List all keys in tree in the configuration store
         :param key: Key to list
         :return: Generator object
         """
-        return Configuration._list(key)
+        return cls._list(key)
 
-    @staticmethod
-    def initialize_host(host_id, port_info=None):
-        """
-        Initialize keys when setting up a host
-        :param host_id: ID of the host
-        :type host_id: str
-        :param port_info: Information about ports to be used
-        :type port_info: dict
-        :return: None
-        """
-        if Configuration.exists('/ovs/framework/hosts/{0}/setupcompleted'.format(host_id)):
-            return
-        if port_info is None:
-            port_info = {}
-
-        mds_port_range = port_info.get('mds', [26300, 26399])
-        arakoon_start_port = port_info.get('arakoon', 26400)
-        storagedriver_port_range = port_info.get('storagedriver', [26200, 26299])
-
-        host_config = {'ports': {'storagedriver': [storagedriver_port_range],
-                                 'mds': [mds_port_range],
-                                 'arakoon': [arakoon_start_port]},
-                       'setupcompleted': False,
-                       'versions': {'ovs': 9},
-                       'type': 'UNCONFIGURED'}
-        for key, value in host_config.iteritems():
-            Configuration.set('/ovs/framework/hosts/{0}/{1}'.format(host_id, key), value, raw=False)
-
-    @staticmethod
-    def initialize(external_config=None, logging_target=None):
-        """
-        Initialize general keys for all hosts in cluster
-        :param external_config: The configuration store runs on another host outside the cluster
-        :param logging_target: Configures (overwrites) logging configuration
-        """
-        cluster_id = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
-        if Configuration.exists('/ovs/framework/cluster_id'):
-            return
-
-        messagequeue_cfg = {'endpoints': [],
-                            'metadata': {'internal': True},
-                            'protocol': 'amqp',
-                            'user': 'ovs',
-                            'password': '0penv5tor4ge',
-                            'queues': {'storagedriver': 'volumerouter'}}
-
-        base_cfg = copy.deepcopy(Configuration.base_config)
-        base_cfg.update({'cluster_id': cluster_id,
-                         'external_config': external_config,
-                         'arakoon_clusters': {},
-                         'stores': {'persistent': 'pyrakoon',
-                                    'volatile': 'memcache'},
-                         'logging': {'type': 'console'}})
-        if logging_target is not None:
-            base_cfg['logging'] = logging_target
-        if Configuration.exists('/ovs/framework/memcache') is False:
-            base_cfg['memcache'] = {'endpoints': [],
-                                    'metadata': {'internal': True}}
-        if Configuration.exists('/ovs/framework/messagequeue') is False:
-            base_cfg['messagequeue'] = messagequeue_cfg
-        else:
-            messagequeue_info = Configuration.get('/ovs/framework/messagequeue')
-            for key, value in messagequeue_cfg.iteritems():
-                if key not in messagequeue_info:
-                    base_cfg['messagequeue'][key] = value
-        for key, value in base_cfg.iteritems():
-            Configuration.set('/ovs/framework/{0}'.format(key), value, raw=False)
-
-    @staticmethod
-    def _dir_exists(key):
+    @classmethod
+    def _dir_exists(cls, key):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            current_dict = Configuration._unittest_data
+            current_dict = cls._unittest_data
             for part in stripped_key.split('/'):
                 if part not in current_dict or not isinstance(current_dict[part], dict):
                     return False
                 current_dict = current_dict[part]
             return True
         # Forward call to used configuration store
-        return Configuration._passthrough(method='dir_exists',
-                                          key=key)
+        return cls._passthrough(method='dir_exists',
+                                key=key)
 
-    @staticmethod
-    def _list(key):
+    @classmethod
+    def _list(cls, key):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             entries = []
-            data = Configuration._unittest_data
+            data = cls._unittest_data
             ends_with_dash = key.endswith('/')
             starts_with_dash = key.startswith('/')
             stripped_key = key.strip('/')
@@ -330,15 +243,15 @@ class Configuration(object):
                 entries.append('/{0}'.format(stripped_key))
             return entries
         # Forward call to used configuration store
-        return Configuration._passthrough(method='list',
-                                          key=key)
+        return cls._passthrough(method='list',
+                                key=key)
 
-    @staticmethod
-    def _delete(key, recursive):
+    @classmethod
+    def _delete(cls, key, recursive):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            data = Configuration._unittest_data
+            data = cls._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in data:
                     raise NotFoundException(key)
@@ -348,17 +261,17 @@ class Configuration(object):
                 del data[key_to_remove]
             return
         # Forward call to used configuration store
-        return Configuration._passthrough(method='delete',
-                                          key=key, recursive=recursive)
+        return cls._passthrough(method='delete',
+                                key=key, recursive=recursive)
 
-    @staticmethod
-    def _get(key, raw):
+    @classmethod
+    def _get(cls, key, raw):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             if key in ['', '/']:
                 return
             stripped_key = key.strip('/')
-            data = Configuration._unittest_data
+            data = cls._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in data:
                     raise NotFoundException(key)
@@ -371,21 +284,21 @@ class Configuration(object):
                 data = None
         else:
             # Forward call to used configuration store
-            data = Configuration._passthrough(method='get',
-                                              key=key)
+            data = cls._passthrough(method='get',
+                                    key=key)
         if raw is True:
             return data
         return json.loads(data)
 
-    @staticmethod
-    def _set(key, value, raw):
+    @classmethod
+    def _set(cls, key, value, raw):
         data = value
         if raw is False:
             data = json.dumps(value)
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
-            ut_data = Configuration._unittest_data
+            ut_data = cls._unittest_data
             for part in stripped_key.split('/')[:-1]:
                 if part not in ut_data:
                     ut_data[part] = {}
@@ -394,33 +307,28 @@ class Configuration(object):
             ut_data[stripped_key.split('/')[-1]] = data
             return
         # Forward call to used configuration store
-        return Configuration._passthrough(method='set',
-                                          key=key,
-                                          value=data)
+        return cls._passthrough(method='set',
+                                key=key,
+                                value=data)
 
-    @staticmethod
-    def _passthrough(method, *args, **kwargs):
-        store = Configuration.get_store()
+    @classmethod
+    def _passthrough(cls, method, *args, **kwargs):
+        store, params = cls.get_store_info()
         if store == 'arakoon':
-            from ovs.extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
-            from ovs.extensions.db.arakoon.configuration import ArakoonConfiguration
+            from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
+            from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
             try:
-                return getattr(ArakoonConfiguration, method)(*args, **kwargs)
+                instance = ArakoonConfiguration(**params)
+                return getattr(instance, method)(*args, **kwargs)
             except ArakoonNotFound as ex:
                 raise NotFoundException(ex.message)
         raise NotImplementedError('Store {0} is not implemented'.format(store))
 
-    @staticmethod
-    def get_store():
+    @classmethod
+    def get_store_info(cls):
         """
         Retrieve the configuration store method. This can currently only be 'arakoon'
-        :return: Store method
-        :rtype: str
+        :return: A tuple containing the store and params that can be bassed to the configuration implementation instance
+        :rtype: tuple(str, dict)
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            return 'unittest'
-        if Configuration._store is None:
-            with open(Configuration.BOOTSTRAP_CONFIG_LOCATION) as config_file:
-                contents = json.load(config_file)
-                Configuration._store = contents['configuration_store']
-        return Configuration._store
+        raise NotImplementedError()

@@ -19,7 +19,7 @@
 Test module for the SSHClient class
 """
 import unittest
-from ovs.extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.sshclient import SSHClient
 
 
 class SSHClientTest(unittest.TestCase):

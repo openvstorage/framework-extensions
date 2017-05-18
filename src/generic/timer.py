@@ -18,6 +18,9 @@ Module with debugging timer
 """
 
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class timer(object):
@@ -39,6 +42,6 @@ class timer(object):
     def __exit__(self, *args):
         duration = time.time() - self.start
         if duration > 2 and self.force_ms is not True:
-            print '{0} took {1:.5f}s'.format(self.identification, duration)
+            logger.debug('{0} took {1:.5f}s'.format(self.identification, duration))
         else:
-            print '{0} took {1:.5f}ms'.format(self.identification, duration * 1000)
+            logger.debug('{0} took {1:.5f}ms'.format(self.identification, duration * 1000))

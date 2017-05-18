@@ -40,7 +40,7 @@ class ExtensionsToolbox(object):
         """
         Edit a run version file in order to mark it for 'reboot' or 'removal'
         :param client: Client on which to edit the version file
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_name: Name of the package to check on in the version file
         :type package_name: str
         :param old_service_name: Name of the service which needs to be edited
