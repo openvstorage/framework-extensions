@@ -1,7 +1,0 @@
-/var/log/ovs/*.log {
-    rotate 5
-    size 20M
-    compress
-    copytruncate
-    notifempty
-}
