@@ -385,6 +385,10 @@ class ArakoonInstaller(object):
     def is_filesystem(self):
         return self._config.source_ip is not None
 
+    @property
+    def ports(self):
+        return dict((node.ip, [node.client_port, node.messaging_port]) for node in self._config.nodes)
+
     def create_cluster(self, cluster_type, ip, base_dir, log_sinks, crash_log_sinks, plugins=None, locked=True, internal=True, port_range=None, preferred_master=False):
         """
         Always creates a cluster but marks it's usage according to the internal flag
@@ -784,8 +788,7 @@ class ArakoonInstaller(object):
         root_clients = [SSHClient(endpoint=node.ip, username='root') for node in self._config.nodes]
         for client in root_clients:
             ArakoonInstaller.start(cluster_name=self.cluster_name, client=client)
-        arakoon_client = self._wait_for_cluster()
-        arakoon_client.set(ArakoonInstaller.INTERNAL_CONFIG_KEY, self._config.export_ini())
+        self.store_config()
 
         self.metadata['in_use'] = True
         arakoon_client.set(ArakoonInstaller.METADATA_KEY, json.dumps(self.metadata, indent=4))
@@ -858,8 +861,7 @@ class ArakoonInstaller(object):
         # Start new node in the cluster
         client = SSHClient(endpoint=new_ip, username='root')
         ArakoonInstaller.start(cluster_name=self.cluster_name, client=client)
-        arakoon_client = self._wait_for_cluster()
-        arakoon_client.set(ArakoonInstaller.INTERNAL_CONFIG_KEY, self._config.export_ini())
+        self.store_config()
         logger.debug('Started node {0} for cluster {1}'.format(new_ip, self.cluster_name))
 
     def restart_cluster_after_shrinking(self):
@@ -878,8 +880,7 @@ class ArakoonInstaller(object):
             if len(self._config.nodes) >= 2:  # A two node cluster needs all nodes running
                 self._wait_for_cluster()
 
-        arakoon_client = self._wait_for_cluster()
-        arakoon_client.set(ArakoonInstaller.INTERNAL_CONFIG_KEY, self._config.export_ini())
+        self.store_config()
 
     def claim_cluster(self):
         """
@@ -902,6 +903,13 @@ class ArakoonInstaller(object):
         metadata = json.loads(arakoon_client.get(ArakoonInstaller.METADATA_KEY))
         metadata['in_use'] = False
         arakoon_client.set(ArakoonInstaller.METADATA_KEY, json.dumps(metadata, indent=4))
+
+    def store_config(self):
+        """
+        Stores the configuration inside the cluster
+        """
+        arakoon_client = self._wait_for_cluster()
+        arakoon_client.set(ArakoonInstaller.INTERNAL_CONFIG_KEY, self._config.export_ini())
 
     @staticmethod
     def build_client(config):
