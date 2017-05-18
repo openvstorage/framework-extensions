@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/openvstorage/framework-extensions.svg?branch=master)](https://travis-ci.org/openvstorage/framework-extensions)
 
-The Framework Extensions contains various generic extensions used by some of the Open vStorage products/packages.
+The Framework Extensions contains various generic extensions used by some of the Open vStorage products/packages. This repository was extracted out of the [Framework](https://github.com/openvstorage/framework) repository to preserve file history.
 
 The Open vStorage Framework extensions is licensed under the [GNU AFFERO GENERAL PUBLIC LICENSE Version 3](https://www.gnu.org/licenses/agpl.html).
 
