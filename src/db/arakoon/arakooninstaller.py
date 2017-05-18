@@ -25,7 +25,6 @@ import json
 import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
-from ovs_extensions.generic.configuration import Configuration
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.volatilemutex import volatile_mutex
@@ -91,7 +90,7 @@ class ArakoonClusterConfig(object):
         """
         Initializes an empty Cluster Config
         """
-        self.plugins = []
+        self.plugins = None
         self._extra_globals = {'tlog_max_entries': 5000}
         if isinstance(plugins, list):
             self.plugins = plugins
@@ -205,8 +204,9 @@ class ArakoonClusterConfig(object):
         :rtype: dict
         """
         data = {'global': {'cluster_id': self.cluster_id,
-                           'cluster': ','.join(sorted(node.name for node in self.nodes)),
-                           'plugins': ','.join(sorted(self.plugins))}}
+                           'cluster': ','.join(sorted(node.name for node in self.nodes))}}
+        if self.plugins is not None:
+            data['global']['plugins'] = ','.join(sorted(self.plugins))
         preferred_masters = [node.name for node in self.nodes if node.preferred_master is True]
         if len(preferred_masters) > 0:
             data['global']['preferred_masters'] = ','.join(preferred_masters)
@@ -450,7 +450,11 @@ class ArakoonInstaller(object):
                 ports = System.get_free_ports(selected_range=port_range, nr=2, client=client)
             else:
                 ports = self._get_free_ports(client=client, port_range=port_range)
-            self._config.source_ip = ip if filesystem is True else None
+
+            self._config = ArakoonClusterConfig(cluster_id=self.cluster_name,
+                                                configuration=self._configuration,
+                                                source_ip=ip if filesystem is True else None,
+                                                load_config=False)
             self._config.plugins = plugins.keys() if plugins is not None else None
             self._config.nodes.append(ArakoonNodeConfig(name=node_name,
                                                         ip=ip,
@@ -479,6 +483,8 @@ class ArakoonInstaller(object):
         :rtype: NoneType
         """
         logger.debug('Deleting cluster {0}'.format(self.cluster_name))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
         service_manager = ServiceFactory.get_manager()
         service_name = ArakoonInstaller.get_service_name_for_cluster(cluster_name=self.cluster_name)
         for node in self._config.nodes:
@@ -512,6 +518,8 @@ class ArakoonInstaller(object):
         :type preferred_master: bool
         """
         logger.debug('Extending cluster {0} to {1}'.format(self.cluster_name, new_ip))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
         client = SSHClient(endpoint=new_ip, username=ArakoonInstaller.SSHCLIENT_USER)
         base_dir = base_dir.rstrip('/')
         home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, self.cluster_name)
@@ -564,6 +572,8 @@ class ArakoonInstaller(object):
             offline_nodes = []
 
         logger.debug('Shrinking cluster {0} from {1}'.format(self.cluster_name, removal_ip))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
         service_manager = ServiceFactory.get_manager()
         removal_node = None
         for node in self._config.nodes[:]:
@@ -791,6 +801,7 @@ class ArakoonInstaller(object):
         self.store_config()
 
         self.metadata['in_use'] = True
+        arakoon_client = self._wait_for_cluster()
         arakoon_client.set(ArakoonInstaller.METADATA_KEY, json.dumps(self.metadata, indent=4))
 
     def restart_node(self, client):
@@ -804,6 +815,8 @@ class ArakoonInstaller(object):
         :rtype: NoneType
         """
         logger.debug('Restarting node {0} for cluster {1}'.format(client.ip, self.cluster_name))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
         if len(self._config.nodes) > 0:
             ArakoonInstaller.stop(cluster_name=self.cluster_name, client=client)
             ArakoonInstaller.start(cluster_name=self.cluster_name, client=client)
@@ -817,6 +830,8 @@ class ArakoonInstaller(object):
         :rtype: NoneType
         """
         logger.debug('Restarting cluster {0}'.format(self.cluster_name))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
         for node in self._config.nodes:
             logger.debug('  Restarting node {0} for cluster {1}'.format(node.ip, self.cluster_name))
             root_client = SSHClient(endpoint=node.ip, username='root')
@@ -836,6 +851,9 @@ class ArakoonInstaller(object):
         :rtype: NoneType
         """
         logger.debug('Restarting cluster {0} after adding node with IP {1}'.format(self.cluster_name, new_ip))
+        if self._config is None:
+            raise RuntimeError('Config not yet loaded')
+
         client = SSHClient(endpoint=new_ip, username=ArakoonInstaller.SSHCLIENT_USER)
         if ArakoonInstaller.is_running(cluster_name=self.cluster_name, client=client):
             logger.info('Arakoon service for {0} is already running'.format(self.cluster_name))
