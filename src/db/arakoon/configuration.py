@@ -18,7 +18,7 @@
 Generic module for managing configuration in Arakoon
 """
 from ConfigParser import RawConfigParser
-from ovs.extensions.db.arakoon.pyrakoon.client import PyrakoonClient
+from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
 
 
 class ArakoonConfiguration(object):
@@ -26,17 +26,13 @@ class ArakoonConfiguration(object):
     Helper for configuration management in Arakoon
     """
 
-    CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
     client = None
 
-    def __init__(self):
-        """
-        Dummy init method
-        """
-        _ = self
+    def __init__(self, cacc_location):
+        self._client = None
+        self.cacc_location = cacc_location
 
-    @staticmethod
-    def get_configuration_path(key):
+    def get_configuration_path(self, key):
         """
         Retrieve the full configuration path for specified key
         :param key: Key to retrieve full configuration path for
@@ -46,17 +42,16 @@ class ArakoonConfiguration(object):
         """
         import urllib
         parser = RawConfigParser()
-        with open(ArakoonConfiguration.CACC_LOCATION) as config_file:
+        with open(self.cacc_location) as config_file:
             parser.readfp(config_file)
         cluster_id = parser.get('global', 'cluster_id')
         return 'arakoon://{0}/{1}?{2}'.format(
             cluster_id,
             ArakoonConfiguration._clean_key(key),
-            urllib.urlencode({'ini': ArakoonConfiguration.CACC_LOCATION})
+            urllib.urlencode({'ini': self.cacc_location})
         )
 
-    @staticmethod
-    def dir_exists(key):
+    def dir_exists(self, key):
         """
         Verify whether the directory exists
         :param key: Directory to check for existence
@@ -65,7 +60,7 @@ class ArakoonConfiguration(object):
         :rtype: bool
         """
         key = ArakoonConfiguration._clean_key(key)
-        client = ArakoonConfiguration._get_client()
+        client = self._get_client()
         for entry in list(client.prefix(key)):
             parts = entry.split('/')
             for index in range(len(parts)):
@@ -73,8 +68,7 @@ class ArakoonConfiguration(object):
                     return client.exists(key) is False  # Exists returns False for directories (not complete keys)
         return False
 
-    @staticmethod
-    def list(key):
+    def list(self, key):
         """
         List all keys starting with specified key
         :param key: Key to list
@@ -82,10 +76,10 @@ class ArakoonConfiguration(object):
         :return: Generator with all keys
         :rtype: generator
         """
-        from ovs.extensions.generic.toolbox import ExtensionsToolbox
+        from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
         key = ArakoonConfiguration._clean_key(key)
-        client = ArakoonConfiguration._get_client()
+        client = self._get_client()
         entries = []
         for entry in client.prefix(key):
             if key == '' or entry.startswith(key.rstrip('/') + '/'):
@@ -94,8 +88,7 @@ class ArakoonConfiguration(object):
                     entries.append(cleaned)
                     yield cleaned
 
-    @staticmethod
-    def delete(key, recursive):
+    def delete(self, key, recursive):
         """
         Delete the specified key
         :param key: Key to delete
@@ -105,14 +98,13 @@ class ArakoonConfiguration(object):
         :return: None
         """
         key = ArakoonConfiguration._clean_key(key)
-        client = ArakoonConfiguration._get_client()
+        client = self._get_client()
         if recursive is True:
             client.delete_prefix(key)
         else:
             client.delete(key)
 
-    @staticmethod
-    def get(key):
+    def get(self, key):
         """
         Retrieve the value for specified key
         :param key: Key to retrieve
@@ -121,11 +113,10 @@ class ArakoonConfiguration(object):
         :rtype: str
         """
         key = ArakoonConfiguration._clean_key(key)
-        client = ArakoonConfiguration._get_client()
+        client = self._get_client()
         return client.get(key)
 
-    @staticmethod
-    def set(key, value):
+    def set(self, key, value):
         """
         Set a value for specified key
         :param key: Key to set
@@ -137,21 +128,25 @@ class ArakoonConfiguration(object):
         if isinstance(value, basestring):
             value = str(value)
         key = ArakoonConfiguration._clean_key(key)
-        client = ArakoonConfiguration._get_client()
+        client = self._get_client()
         client.set(key, value)
 
-    @staticmethod
-    def _get_client():
-        if ArakoonConfiguration.client is None:
+    def _get_client(self):
+        """
+        Builds a PyrakoonClient
+        :return: A PyrakoonClient instance
+        :rtype: ovs_extensions.db.arakoon.pyrakoon.client.PyrakoonClient
+        """
+        if self._client is None:
             parser = RawConfigParser()
-            with open(ArakoonConfiguration.CACC_LOCATION) as config_file:
+            with open(self.cacc_location) as config_file:
                 parser.readfp(config_file)
             nodes = {}
             for node in parser.get('global', 'cluster').split(','):
                 node = node.strip()
                 nodes[node] = ([parser.get(node, 'ip')], parser.get(node, 'client_port'))
-            ArakoonConfiguration.client = PyrakoonClient(parser.get('global', 'cluster_id'), nodes)
-        return ArakoonConfiguration.client
+            self._client = PyrakoonClient(parser.get('global', 'cluster_id'), nodes)
+        return self._client
 
     @staticmethod
     def _clean_key(key):

@@ -26,8 +26,8 @@ try:
 except ImportError:
     import StringIO
 
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import utils
-import ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import utils
+import ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency
 
 # Result codes
 RESULT_SUCCESS = 0x0000
@@ -302,7 +302,7 @@ class Step(Type):
     '''Step type'''
 
     def check(self, value):
-        from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import sequence
+        from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import sequence
 
         if not isinstance(value, sequence.Step):
             raise TypeError
@@ -650,18 +650,18 @@ class Consistency(Type):
     #pylint: disable=R0912
 
     def check(self, value):
-        if value is not ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT \
-            and value is not ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT \
+        if value is not ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT \
+            and value is not ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT \
             and value is not None \
-            and not isinstance(value, ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast):
+            and not isinstance(value, ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast):
             raise ValueError('Invalid `consistency` value')
 
     def serialize(self, value):
-        if value is ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT or value is None:
+        if value is ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT or value is None:
             yield '\0'
-        elif value is ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT:
+        elif value is ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT:
             yield '\1'
-        elif isinstance(value, ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast):
+        elif isinstance(value, ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast):
             yield '\2'
             for data in INT64.serialize(value.i):
                 yield data
@@ -680,9 +680,9 @@ class Consistency(Type):
             raise TypeError
 
         if request.value == 0:
-            yield Result(ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT)
+            yield Result(ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.CONSISTENT)
         elif request.value == 1:
-            yield Result(ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT)
+            yield Result(ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.INCONSISTENT)
         elif request.value == 2:
             i_receiver = INT64.receive()
             request = i_receiver.next()
@@ -694,7 +694,7 @@ class Consistency(Type):
             if not isinstance(request, Result):
                 raise TypeError
 
-            yield Result(ovs.extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast(request.value))
+            yield Result(ovs_extensions.db.arakoon.pyrakoon.pyrakoon.consistency.AtLeast(request.value))
         else:
             raise ValueError('Unknown consistency tag \'%d\'' % request.value)
 
@@ -766,7 +766,7 @@ class Message(object):
         :see: :func:`pyrakoon.utils.process_blocking`
         '''
 
-        from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import errors
+        from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import errors
 
         code_receiver = UINT32.receive()
         request = code_receiver.next() #pylint: disable=E1101
@@ -1092,7 +1092,7 @@ class Sequence(Message):
     ''')
 
     def __init__(self, steps, sync):
-        from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import sequence
+        from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import sequence
 
         super(Sequence, self).__init__()
 

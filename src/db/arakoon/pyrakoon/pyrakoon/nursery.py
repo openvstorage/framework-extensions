@@ -26,10 +26,10 @@ try:
 except ImportError:
     import StringIO
 
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import protocol, utils
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import protocol, utils
 
-LOGGER = LogHandler.get('arakoon_client', 'pyrakoon')
+
+LOGGER = logging.getLogger(__name__)
 
 class NurseryConfigType(protocol.Type):
     '''NurseryConfig type'''

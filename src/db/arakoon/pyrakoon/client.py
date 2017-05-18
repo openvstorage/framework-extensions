@@ -22,10 +22,12 @@ import os
 import time
 import uuid
 import random
+import logging
 from threading import Lock, current_thread
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
+
+logger = logging.getLogger(__name__)
 
 
 def locked():
@@ -52,7 +54,6 @@ class PyrakoonClient(object):
     * Uses json serialisation
     * Raises generic exception
     """
-    _logger = LogHandler.get('extensions', name='pyrakoon_client')
 
     def __init__(self, cluster, nodes):
         """
@@ -212,18 +213,18 @@ class PyrakoonClient(object):
             try:
                 return_value = method(*args, **kwargs)
             except (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError):
-                PyrakoonClient._logger.debug('Error during arakoon call {0}, retry'.format(method.__name__))
+                logger.debug('Error during arakoon call {0}, retry'.format(method.__name__))
                 time.sleep(1)
                 return_value = method(*args, **kwargs)
             duration = time.time() - start
             if duration > max_duration:
-                PyrakoonClient._logger.warning('Arakoon call {0} took {1}s'.format(method.__name__, round(duration, 2)))
+                logger.warning('Arakoon call {0} took {1}s'.format(method.__name__, round(duration, 2)))
             return return_value
         except (ArakoonNotFound, ArakoonAssertionFailed):
             # No extra logging for some errors
             raise
         except Exception:
-            PyrakoonClient._logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(
+            logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(
                 method.__name__, os.getpid(), current_thread().ident, identifier
             ))
             raise

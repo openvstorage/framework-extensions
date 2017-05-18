@@ -21,14 +21,14 @@ import time
 import random
 import select
 import socket
+import logging
 import functools
 import threading
 import inspect
 import operator
 import ssl
 
-from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import client, consistency, errors, protocol, sequence, utils
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import client, consistency, errors, protocol, sequence, utils
 
 __docformat__ = 'epytext'
 
@@ -52,7 +52,22 @@ __docformat__ = 'epytext'
 # E1121: Too many positional arguments for function call
 # R0904: Too many public methods
 
-LOGGER = LogHandler.get('arakoon_client', 'pyrakoon')
+LOGGER = logging.getLogger(__name__)
+
+def _add_handler():
+    if hasattr(logging, 'NullHandler'):
+        handler = logging.NullHandler() #pylint: disable=E1101
+    else:
+        class NullHandler(logging.Handler):
+            def emit(self, record):
+                pass
+
+        handler = NullHandler()
+
+    LOGGER.addHandler(handler)
+
+_add_handler()
+del _add_handler
 
 class Consistency:
     pass

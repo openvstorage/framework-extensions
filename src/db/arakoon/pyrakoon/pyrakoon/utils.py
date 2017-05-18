@@ -18,11 +18,11 @@
 
 import __builtin__
 import uuid
+import logging
 import functools
 import itertools
-from ovs.log.log_handler import LogHandler
 
-LOGGER = LogHandler.get('arakoon_client', 'pyrakoon')
+LOGGER = logging.getLogger(__name__)
 '''Logger for code in this module''' #pylint: disable=W0105
 
 
@@ -334,7 +334,7 @@ def read_blocking(receiver, read_fun):
     :see: :meth:`pyrakoon.protocol.Message.receive`
     '''
 
-    from ovs.extensions.db.arakoon.pyrakoon.pyrakoon import protocol
+    from ovs_extensions.db.arakoon.pyrakoon.pyrakoon import protocol
 
     request = receiver.next()
 
