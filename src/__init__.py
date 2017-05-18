@@ -15,5 +15,5 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This package contains all OVS python logic
+This package contains various extensions
 """
