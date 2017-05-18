@@ -15,5 +15,5 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This package contains stores, and the required factories to load them
+This package contains various extensions
 """
