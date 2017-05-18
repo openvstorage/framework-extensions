@@ -18,22 +18,24 @@
 Rpm Package module
 """
 import time
+import logging
 from subprocess import check_output, CalledProcessError
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.packages.interfaces.manager import Manager
+
+logger = logging.getLogger(__name__)
 
 
-class RpmPackage(object):
+class RpmPackage(Manager):
     """
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
-    _logger = LogHandler.get('update', name='package-manager-rpm')
 
     @staticmethod
     def get_release_name(client=None):
         """
         Get the release name based on the name of the repository
         :param client: Client on which to check the release name
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: Release name
         :rtype: str
         """
@@ -104,7 +106,7 @@ class RpmPackage(object):
         """
         Retrieve the versions for the binaries related to the package_names
         :param client: Root client on which to retrieve the binary versions
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_names: Names of the packages
         :type package_names: list
         :return: Binary versions
@@ -145,7 +147,7 @@ class RpmPackage(object):
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
                 if counter == max_counter:
-                    RpmPackage._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
+                    logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
                     raise cpe
             except Exception as ex:
                 raise ex
@@ -167,5 +169,5 @@ class RpmPackage(object):
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
-                RpmPackage._logger.error('Update failed. Error: {0}'.format(cpe.output))
+                logger.error('Update failed. Error: {0}'.format(cpe.output))
                 raise cpe

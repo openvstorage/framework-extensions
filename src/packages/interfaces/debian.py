@@ -19,23 +19,25 @@ Debian Package module
 """
 
 import re
+import logging
 from subprocess import check_output, CalledProcessError
-from ovs.log.log_handler import LogHandler
+from ovs_extensions.packages.interfaces.manager import Manager
+
+logger = logging.getLogger(__name__)
 
 
-class DebianPackage(object):
+class DebianPackage(Manager):
     """
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
-    _logger = LogHandler.get('update', name='package-manager-debian')
 
     @staticmethod
     def get_release_name(client=None):
         """
         Get the release name based on the name of the repository
         :param client: Client on which to check the release name
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: Release name
         :rtype: str
         """
@@ -51,7 +53,7 @@ class DebianPackage(object):
         """
         Retrieve currently installed versions of the packages provided (or all if none provided)
         :param client: Client on which to check the installed versions
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_names: Name of the packages to check
         :type package_names: list
         :return: Package installed versions
@@ -75,7 +77,7 @@ class DebianPackage(object):
         """
         Retrieve the versions candidate for installation of the packages provided
         :param client: Root client on which to check the candidate versions
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_names: Name of the packages to check
         :type package_names: list
         :return: Package candidate versions
@@ -99,7 +101,7 @@ class DebianPackage(object):
         """
         Retrieve the versions for the binaries related to the package_names
         :param client: Root client on which to retrieve the binary versions
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_names: Names of the packages
         :type package_names: list
         :return: Binary versions
@@ -125,7 +127,7 @@ class DebianPackage(object):
         :param package_name: Name of the package to install
         :type package_name: str
         :param client: Root client on which to execute the installation of the package
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: None
         """
         if client.username != 'root':
@@ -143,9 +145,9 @@ class DebianPackage(object):
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
         except CalledProcessError as cpe:
-            DebianPackage._logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            DebianPackage._logger.debug('{0}: Trying to install the package again'.format(client.ip))
+            logger.debug('{0}: Trying to install the package again'.format(client.ip))
             output = client.run('yes | {0}'.format(command), allow_insecure=True)
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
@@ -155,7 +157,7 @@ class DebianPackage(object):
         """
         Run the 'aptdcon --refresh' command on the specified node to update the package information
         :param client: Root client on which to update the package information
-        :type client: ovs.extensions.generic.sshclient.SSHClient
+        :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: None
         """
         if client.username != 'root':
@@ -167,7 +169,7 @@ class DebianPackage(object):
         try:
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])
         except CalledProcessError as cpe:
-            DebianPackage._logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            DebianPackage._logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
+            logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])
