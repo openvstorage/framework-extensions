@@ -298,7 +298,7 @@ class ArakoonClusterConfig(object):
         :param internal_name: Name as known by the framework
         :type internal_name: str
         :param configuration: Configuration class
-        :type configuration: ovs_extensions.generic.configuration.Configuration
+        :type configuration: type(ovs_extensions.generic.configuration.Configuration)
         :return: Name known by user
         :rtype: str
         """
@@ -637,10 +637,10 @@ class ArakoonInstaller(object):
         :param cluster_type: Type of the cluster (See ServiceType.ARAKOON_CLUSTER_TYPES)
         :type cluster_type: str
         :param configuration: Configuration class
-        :type configuration: ovs_extensions.generic.configuration.Configuration
+        :type configuration: type(ovs_extensions.generic.configuration.Configuration)
         :param cluster_name: Name of the cluster to claim
         :type cluster_name: str
-        :return: Metadata of the cluster
+        :return: Metadata of the cluster 
         :rtype: dict
         """
         if cluster_type not in ARAKOON_CLUSTER_TYPES:
@@ -676,7 +676,7 @@ class ArakoonInstaller(object):
         :param cluster_type: Type of the cluster (See ServiceType.ARAKOON_CLUSTER_TYPES w/o type CFG, since this is not available in the configuration management)
         :type cluster_type: str
         :param configuration: Configuration class
-        :type configuration: ovs_extensions.generic.configuration.Configuration
+        :type configuration: type(ovs_extensions.generic.configuration.Configuration)
         :return: All unclaimed clusters of specified type
         :rtype: list
         """
@@ -702,7 +702,7 @@ class ArakoonInstaller(object):
         :param cluster_name: Name of the cluster
         :type cluster_name: str
         :param configuration: Configuration class
-        :type configuration: ovs_extensions.generic.configuration.Configuration
+        :type configuration: type(ovs_extensions.generic.configuration.Configuration)
         :param ip: The IP address of one of the nodes containing the configuration file (Only required for filesystem Arakoons)
         :type ip: str
         :return: Cluster metadata information
