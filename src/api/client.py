@@ -27,8 +27,9 @@ from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from requests.packages.urllib3.exceptions import SNIMissingWarning
-from ovs.log.log_handler import LogHandler
+
 logging.getLogger('urllib3').setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 
 class HttpException(RuntimeError):
@@ -60,8 +61,6 @@ class OVSClient(object):
     """
     Represents the OVS client
     """
-    _logger = LogHandler.get('extensions', name='api')
-
     disable_warnings(InsecurePlatformWarning)
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
@@ -83,7 +82,7 @@ class OVSClient(object):
         self._version = version
         self._raw_response = raw_response
         try:
-            from ovs.extensions.storage.volatilefactory import VolatileFactory
+            from ovs_extensions.storage.volatilefactory import VolatileFactory
             self._volatile_client = VolatileFactory.get_client()
         except ImportError:
             self._volatile_client = None
@@ -179,7 +178,7 @@ class OVSClient(object):
             else:
                 raise HttpException(status_code, message)
 
-    def _call(self, api, params, function, **kwargs):
+    def _call(self, api, params, fct, **kwargs):
         if not api.endswith('/'):
             api = '{0}/'.format(api)
         if not api.startswith('/'):
@@ -189,7 +188,7 @@ class OVSClient(object):
         first_connect = self._token is None
         headers, url = self._prepare(params=params)
         try:
-            return self._process(function(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
+            return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
         except ForbiddenException:
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
@@ -197,7 +196,7 @@ class OVSClient(object):
                 raise
             self._token = None
             headers, url = self._prepare(params=params)
-            return self._process(function(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
+            return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
         except Exception:
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
@@ -209,7 +208,7 @@ class OVSClient(object):
         :param api: Specification to fill out in the URL, eg: /vpools/<vpool_guid>/shrink_vpool
         :param params: Additional query parameters, eg: _dynamics
         """
-        return self._call(api=api, params=params, function=requests.get)
+        return self._call(api=api, params=params, fct=requests.get)
 
     def post(self, api, data=None, params=None):
         """
@@ -218,7 +217,7 @@ class OVSClient(object):
         :param data: Data to post
         :param params: Additional query parameters, eg: _dynamics
         """
-        return self._call(api=api, params=params, function=requests.post, data=data)
+        return self._call(api=api, params=params, fct=requests.post, data=data)
 
     def put(self, api, data=None, params=None):
         """
@@ -227,7 +226,7 @@ class OVSClient(object):
         :param data: Data to put
         :param params: Additional query parameters, eg: _dynamics
         """
-        return self._call(api=api, params=params, function=requests.put, data=data)
+        return self._call(api=api, params=params, fct=requests.put, data=data)
 
     def patch(self, api, data=None, params=None):
         """
@@ -236,7 +235,7 @@ class OVSClient(object):
         :param data: Data to patch
         :param params: Additional query parameters, eg: _dynamics
         """
-        return self._call(api=api, params=params, function=requests.patch, data=data)
+        return self._call(api=api, params=params, fct=requests.patch, data=data)
 
     def delete(self, api, params=None):
         """
@@ -244,7 +243,7 @@ class OVSClient(object):
         :param api: Specification to fill out in the URL, eg: /vpools/<vpool_guid>/
         :param params: Additional query parameters, eg: _dynamics
         """
-        return self._call(api=api, params=params, function=requests.delete)
+        return self._call(api=api, params=params, fct=requests.delete)
 
     def wait_for_task(self, task_id, timeout=None):
         """
@@ -262,11 +261,11 @@ class OVSClient(object):
             finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
             if finished is False:
                 if task_metadata != previous_metadata:
-                    OVSClient._logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
+                    logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
                     previous_metadata = task_metadata
                 else:
-                    OVSClient._logger.debug('Still waiting for task {0}...'.format(task_id))
+                    logger.debug('Still waiting for task {0}...'.format(task_id))
                 time.sleep(1)
             else:
-                OVSClient._logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
+                logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
                 return task_metadata['successful'], task_metadata['result']
