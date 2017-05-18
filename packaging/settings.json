@@ -1,10 +1,10 @@
 {
-    "package_name": "openvstorage",
-    "product_name": "Open vStorage",
+    "package_name": "openvstorage-extensions",
+    "product_name": "Open vStorage Extensions",
     "tags": ["community", "enterprise"],
-    "source_contents": "--transform 's,^,{0}-{1}/,' scripts/install scripts/system config ovs webapps *.txt",
+    "source_contents": "--transform 's,^,{0}-{1}/,' src *.txt",
     "version": {
-        "major": 2,
-        "minor": 9
+        "major": 0,
+        "minor": 1
     }
 }
