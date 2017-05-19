@@ -33,32 +33,33 @@ class Systemd(Manager):
     """
     Contains all logic related to Systemd services
     """
-
-    @staticmethod
-    def _service_exists(name, client, path):
+    @classmethod
+    def _service_exists(cls, name, client, path):
         if path is None:
             path = '/lib/systemd/system/'
+        else:
+            path = '{0}/'.format(path.rstrip('/'))
         file_to_check = '{0}{1}.service'.format(path, name)
         return client.file_exists(file_to_check)
 
-    @staticmethod
-    def _get_name(name, client, path=None, log=True):
+    @classmethod
+    def _get_name(cls, name, client, path=None, log=True):
         """
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
-        if Systemd._service_exists(name, client, path):
+        if cls._service_exists(name, client, path):
             return name
-        if Systemd._service_exists(name, client, '/lib/systemd/system/'):
+        if cls._service_exists(name, client, '/lib/systemd/system/'):
             return name
         name = 'ovs-{0}'.format(name)
-        if Systemd._service_exists(name, client, path):
+        if cls._service_exists(name, client, path):
             return name
         if log is True:
             logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
-    @staticmethod
-    def add_service(name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    @classmethod
+    def add_service(cls, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
         """
         Add a service
         :param name: Template name of the service to add
@@ -79,8 +80,8 @@ class Systemd(Manager):
         if params is None:
             params = {}
 
-        service_name = Systemd._get_name(name, client, '/opt/OpenvStorage/config/templates/systemd/')
-        template_file = '/opt/OpenvStorage/config/templates/systemd/{0}.service'.format(service_name)
+        service_name = cls._get_name(name, client, cls.CONFIG_TEMPLATE_DIR.format('systemd'))
+        template_file = '{0}/{1}.service'.format(cls.CONFIG_TEMPLATE_DIR.format('systemd'), service_name)
 
         if not client.file_exists(template_file):
             # Given template doesn't exist so we are probably using system init scripts
@@ -104,11 +105,11 @@ class Systemd(Manager):
             raise Exception('Add {0}.service failed, {1}'.format(service_name, cpe.output))
 
         if delay_registration is False:
-            Systemd.register_service(service_metadata=params, node_name=System.get_my_machine_id(client))
+            cls.register_service(service_metadata=params, node_name=System.get_my_machine_id(client))
         return params
 
-    @staticmethod
-    def regenerate_service(name, client, target_name):
+    @classmethod
+    def regenerate_service(cls, name, client, target_name):
         """
         Regenerates the service files of a service.
         :param name: Template name of the service to regenerate
@@ -120,7 +121,7 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        configuration_key = Systemd.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
+        configuration_key = cls.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
         # If the entry is stored in arakoon, it means the service file was previously made
         if not Configuration.exists(configuration_key):
             raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
@@ -131,17 +132,17 @@ class Systemd(Manager):
             startup_dependency = None
         else:
             startup_dependency = '.'.join(startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
-        output = Systemd.add_service(name=name,
-                                     client=client,
-                                     params=service_params,
-                                     target_name=target_name,
-                                     startup_dependency=startup_dependency,
-                                     delay_registration=True)
+        output = cls.add_service(name=name,
+                                 client=client,
+                                 params=service_params,
+                                 target_name=target_name,
+                                 startup_dependency=startup_dependency,
+                                 delay_registration=True)
         if output is None:
             raise RuntimeError('Regenerating files for service {0} has failed'.format(target_name))
 
-    @staticmethod
-    def get_service_status(name, client):
+    @classmethod
+    def get_service_status(cls, name, client):
         """
         Retrieve the status of a service
         :param name: Name of the service to retrieve the status of
@@ -151,11 +152,11 @@ class Systemd(Manager):
         :return: The status of the service
         :rtype: str
         """
-        name = Systemd._get_name(name, client)
+        name = cls._get_name(name, client)
         return client.run(['systemctl', 'is-active', name], allow_nonzero=True)
 
-    @staticmethod
-    def remove_service(name, client, delay_unregistration=False):
+    @classmethod
+    def remove_service(cls, name, client, delay_unregistration=False):
         """
         Remove a service
         :param name: Name of the service to remove
@@ -167,8 +168,8 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        name = Systemd._get_name(name, client)
-        run_file_name = '/opt/OpenvStorage/run/{0}.version'.format(ExtensionsToolbox.remove_prefix(name, 'ovs-'))
+        name = cls._get_name(name, client)
+        run_file_name = '{0}/{1}.version'.format(cls.RUN_FILE_DIR, ExtensionsToolbox.remove_prefix(name, 'ovs-'))
         if client.file_exists(run_file_name):
             client.file_delete(run_file_name)
         try:
@@ -179,10 +180,10 @@ class Systemd(Manager):
         client.run(['systemctl', 'daemon-reload'])
 
         if delay_unregistration is False:
-            Systemd.unregister_service(service_name=name, node_name=System.get_my_machine_id(client))
+            cls.unregister_service(service_name=name, node_name=System.get_my_machine_id(client))
 
-    @staticmethod
-    def start_service(name, client, timeout=5):
+    @classmethod
+    def start_service(cls, name, client, timeout=5):
         """
         Start a service
         :param name: Name of the service to start
@@ -194,7 +195,7 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        if Systemd.get_service_status(name, client) == 'active':
+        if cls.get_service_status(name, client) == 'active':
             return
 
         try:
@@ -203,13 +204,13 @@ class Systemd(Manager):
         except CalledProcessError:
             pass
 
-        name = Systemd._get_name(name, client)
+        name = cls._get_name(name, client)
         timeout = timeout if timeout > 0 else 5
         try:
             client.run(['systemctl', 'start', '{0}.service'.format(name)])
             counter = 0
             while counter < timeout * 4:
-                if Systemd.get_service_status(name=name, client=client) == 'active':
+                if cls.get_service_status(name=name, client=client) == 'active':
                     return
                 time.sleep(0.25)
                 counter += 1
@@ -218,8 +219,8 @@ class Systemd(Manager):
             raise
         raise RuntimeError('Did not manage to start service {0} on node with IP {1}'.format(name, client.ip))
 
-    @staticmethod
-    def stop_service(name, client, timeout=5):
+    @classmethod
+    def stop_service(cls, name, client, timeout=5):
         """
         Stop a service
         :param name: Name of the service to stop
@@ -231,16 +232,16 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        if Systemd.get_service_status(name, client) == 'inactive':
+        if cls.get_service_status(name, client) == 'inactive':
             return
 
-        name = Systemd._get_name(name, client)
+        name = cls._get_name(name, client)
         timeout = timeout if timeout > 0 else 5
         try:
             client.run(['systemctl', 'stop', '{0}.service'.format(name)])
             counter = 0
             while counter < timeout * 4:
-                if Systemd.get_service_status(name=name, client=client) == 'inactive':
+                if cls.get_service_status(name=name, client=client) == 'inactive':
                     return
                 time.sleep(0.25)
                 counter += 1
@@ -249,8 +250,8 @@ class Systemd(Manager):
             raise
         raise RuntimeError('Did not manage to stop service {0} on node with IP {1}'.format(name, client.ip))
 
-    @staticmethod
-    def restart_service(name, client, timeout=5):
+    @classmethod
+    def restart_service(cls, name, client, timeout=5):
         """
         Restart a service
         :param name: Name of the service to restart
@@ -268,13 +269,13 @@ class Systemd(Manager):
         except CalledProcessError:
             pass
 
-        name = Systemd._get_name(name, client)
+        name = cls._get_name(name, client)
         timeout = timeout if timeout > 0 else 5
         try:
             client.run(['systemctl', 'restart', '{0}.service'.format(name)])
             counter = 0
             while counter < timeout * 4:
-                if Systemd.get_service_status(name=name, client=client) == 'active':
+                if cls.get_service_status(name=name, client=client) == 'active':
                     return
                 time.sleep(0.25)
                 counter += 1
@@ -283,8 +284,8 @@ class Systemd(Manager):
             raise
         raise RuntimeError('Did not manage to restart service {0} on node with IP {1}'.format(name, client.ip))
 
-    @staticmethod
-    def has_service(name, client):
+    @classmethod
+    def has_service(cls, name, client):
         """
         Verify existence of a service
         :param name: Name of the service to verify
@@ -295,13 +296,13 @@ class Systemd(Manager):
         :rtype: bool
         """
         try:
-            Systemd._get_name(name, client, log=False)
+            cls._get_name(name, client, log=False)
         except ValueError:
             return False
         return True
 
-    @staticmethod
-    def get_service_pid(name, client):
+    @classmethod
+    def get_service_pid(cls, name, client):
         """
         Retrieve the PID of a service
         :param name: Name of the service to retrieve the PID for
@@ -312,8 +313,8 @@ class Systemd(Manager):
         :rtype: int
         """
         pid = 0
-        name = Systemd._get_name(name, client)
-        if Systemd.get_service_status(name, client) == 'active':
+        name = cls._get_name(name, client)
+        if cls.get_service_status(name, client) == 'active':
             output = client.run(['systemctl', 'show', name, '--property=MainPID']).split('=')
             if len(output) == 2:
                 pid = output[1]
@@ -321,8 +322,8 @@ class Systemd(Manager):
                     pid = 0
         return int(pid)
 
-    @staticmethod
-    def send_signal(name, signal, client):
+    @classmethod
+    def send_signal(cls, name, signal, client):
         """
         Send a signal to a service
         :param name: Name of the service to send a signal
@@ -334,14 +335,14 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        name = Systemd._get_name(name, client)
-        pid = Systemd.get_service_pid(name, client)
+        name = cls._get_name(name, client)
+        pid = cls.get_service_pid(name, client)
         if pid == 0:
             raise RuntimeError('Could not determine PID to send signal to')
         client.run(['kill', '-s', signal, pid])
 
-    @staticmethod
-    def list_services(client):
+    @classmethod
+    def list_services(cls, client):
         """
         List all created services on a system
         :param client: Client on which to list all the services
@@ -352,8 +353,8 @@ class Systemd(Manager):
         for service_info in client.run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager']).splitlines():
             yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
 
-    @staticmethod
-    def monitor_services():
+    @classmethod
+    def monitor_services(cls):
         """
         Monitor the local OVS services
         :return: None
@@ -403,8 +404,8 @@ class Systemd(Manager):
         except KeyboardInterrupt:
             pass
 
-    @staticmethod
-    def register_service(node_name, service_metadata):
+    @classmethod
+    def register_service(cls, node_name, service_metadata):
         """
         Register the metadata of the service to the configuration management
         :param node_name: Name of the node on which the service is running
@@ -415,11 +416,11 @@ class Systemd(Manager):
         :rtype: NoneType
         """
         service_name = service_metadata['SERVICE_NAME']
-        Configuration.set(key=Systemd.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
+        Configuration.set(key=cls.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
                           value=service_metadata)
 
-    @staticmethod
-    def unregister_service(node_name, service_name):
+    @classmethod
+    def unregister_service(cls, node_name, service_name):
         """
         Un-register the metadata of a service from the configuration management
         :param node_name: Name of the node on which to un-register the service
@@ -429,10 +430,10 @@ class Systemd(Manager):
         :return: None
         :rtype: NoneType
         """
-        Configuration.delete(key=Systemd.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        Configuration.delete(key=cls.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
-    @staticmethod
-    def is_rabbitmq_running(client):
+    @classmethod
+    def is_rabbitmq_running(cls, client):
         """
         Check if rabbitmq is correctly running
         :param client: Client on which to check the rabbitmq process
@@ -452,9 +453,9 @@ class Systemd(Manager):
                     rabbitmq_running = True
                     rabbitmq_pid_ctl = match_groups['pid']
 
-        if Systemd.has_service('rabbitmq-server', client) and Systemd.get_service_status('rabbitmq-server', client) == 'active':
+        if cls.has_service('rabbitmq-server', client) and cls.get_service_status('rabbitmq-server', client) == 'active':
             rabbitmq_running = True
-            rabbitmq_pid_sm = Systemd.get_service_pid('rabbitmq-server', client)
+            rabbitmq_pid_sm = cls.get_service_pid('rabbitmq-server', client)
 
         same_process = rabbitmq_pid_ctl == rabbitmq_pid_sm
         logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
@@ -462,8 +463,8 @@ class Systemd(Manager):
                                                                                           rabbitmq_pid_sm))
         return rabbitmq_running, same_process
 
-    @staticmethod
-    def extract_from_service_file(name, client, entries=None):
+    @classmethod
+    def extract_from_service_file(cls, name, client, entries=None):
         """
         Extract an entry, multiple entries or the entire service file content for a service
         :param name: Name of the service
@@ -475,11 +476,11 @@ class Systemd(Manager):
         :return: The requested entry information or entire service file content if entry=None
         :rtype: list
         """
-        if Systemd.has_service(name=name, client=client) is False:
+        if cls.has_service(name=name, client=client) is False:
             return []
 
         try:
-            name = Systemd._get_name(name=name, client=client)
+            name = cls._get_name(name=name, client=client)
             contents = client.file_read('/lib/systemd/system/{0}.service'.format(name)).splitlines()
         except Exception:
             logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))

@@ -28,7 +28,7 @@ from StringIO import StringIO
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.volatilemutex import volatile_mutex
-from ovs_extensions.services.servicefactory import ServiceFactory
+from ovs.extensions.services.servicefactory import ServiceFactory
 
 logger = logging.getLogger(__name__)
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']

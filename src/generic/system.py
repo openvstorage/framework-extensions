@@ -27,18 +27,14 @@ class System(object):
     """
     Generic helper class
     """
-
-    OVS_ID_FILE = '/etc/openvstorage_id'
-    _machine_id = {}
-
     def __init__(self):
         """
         Dummy init method
         """
         raise RuntimeError('System is a static class')
 
-    @staticmethod
-    def get_my_machine_id(client=None):
+    @classmethod
+    def get_my_machine_id(cls, client=None):
         """
         Returns unique machine id, generated at install time.
         :param client: Remote client on which to retrieve the machine ID
@@ -46,15 +42,10 @@ class System(object):
         :return: Machine ID
         :rtype: str
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            return System._machine_id.get('none' if client is None else client.ip)
-        if client is not None:
-            return client.run(['cat', System.OVS_ID_FILE]).strip()
-        with open(System.OVS_ID_FILE, 'r') as the_file:
-            return the_file.read().strip()
+        raise NotImplementedError('Generic "get_my_machine_id" is not implemented')
 
-    @staticmethod
-    def update_hosts_file(ip_hostname_map, client):
+    @classmethod
+    def update_hosts_file(cls, ip_hostname_map, client):
         """
         Update/add entry for hostname ip in /etc/hosts
         :param ip_hostname_map: Mapping between IPs and their host names
@@ -84,8 +75,8 @@ class System(object):
 
             client.file_write('/etc/hosts', contents)
 
-    @staticmethod
-    def ports_in_use(client=None):
+    @classmethod
+    def ports_in_use(cls, client=None):
         """
         Returns the ports in use
         :param client: Remote client on which to retrieve the ports in use
@@ -103,8 +94,8 @@ class System(object):
             if found_port.isdigit():
                 yield int(found_port.strip())
 
-    @staticmethod
-    def get_free_ports(selected_range, exclude=None, nr=1, client=None):
+    @classmethod
+    def get_free_ports(cls, selected_range, exclude=None, nr=1, client=None):
         """
         Return requested nr of free ports not currently in use and not within excluded range
         :param selected_range: e.g. '2000-2010' or '50000-6000, 8000-8999' ; note single port extends to [port -> 65535]
@@ -141,7 +132,7 @@ class System(object):
         if unittest_mode is True:
             ports_in_use = []
         else:
-            ports_in_use = System.ports_in_use(client)
+            ports_in_use = cls.ports_in_use(client)
         exclude_list += ports_in_use
 
         if unittest_mode is True:

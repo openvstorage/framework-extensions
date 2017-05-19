@@ -68,4 +68,6 @@ class ServiceFactory(object):
         if ServiceFactory.manager is None:
             raise RuntimeError('Unknown ServiceManager')
 
+        ServiceFactory.manager.RUN_FILE_DIR = cls.RUN_FILE_DIR
+        ServiceFactory.manager.CONFIG_TEMPLATE_DIR = cls.CONFIG_TEMPLATE_DIR
         return ServiceFactory.manager
