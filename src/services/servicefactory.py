@@ -69,5 +69,6 @@ class ServiceFactory(object):
             raise RuntimeError('Unknown ServiceManager')
 
         ServiceFactory.manager.RUN_FILE_DIR = cls.RUN_FILE_DIR
+        ServiceFactory.manager.SERVICE_CONFIG_KEY = cls.SERVICE_CONFIG_KEY
         ServiceFactory.manager.CONFIG_TEMPLATE_DIR = cls.CONFIG_TEMPLATE_DIR
         return ServiceFactory.manager
