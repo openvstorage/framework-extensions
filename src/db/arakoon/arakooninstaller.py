@@ -28,7 +28,6 @@ from StringIO import StringIO
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.volatilemutex import volatile_mutex
-from ovs.extensions.services.servicefactory import ServiceFactory
 
 logger = logging.getLogger(__name__)
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
@@ -86,7 +85,7 @@ class ArakoonClusterConfig(object):
     CONFIG_KEY = CONFIG_ROOT + '/{0}/config'
     CONFIG_FILE = '/opt/OpenvStorage/config/arakoon_{0}.ini'
 
-    def __init__(self, cluster_id, configuration, load_config=True, source_ip=None, plugins=None):
+    def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None):
         """
         Initializes an empty Cluster Config
         """
@@ -97,7 +96,7 @@ class ArakoonClusterConfig(object):
         elif isinstance(plugins, basestring):
             self.plugins.append(plugins)
 
-        self._configuration = configuration
+        self._configuration = self._get_configuration()
         self.nodes = []
         self.source_ip = source_ip
         self.cluster_id = cluster_id
@@ -367,7 +366,7 @@ class ArakoonInstaller(object):
     METADATA_KEY = '__ovs_metadata'
     INTERNAL_CONFIG_KEY = '__ovs_config'
 
-    def __init__(self, cluster_name, configuration):
+    def __init__(self, cluster_name):
         """
         ArakoonInstaller constructor
         :param cluster_name: Name of the cluster
@@ -376,7 +375,8 @@ class ArakoonInstaller(object):
         self.cluster_name = cluster_name
         self.metadata = None
         self.service_metadata = {}
-        self._configuration = configuration
+        self._configuration = self._get_configuration()
+        self._service_manager = self._get_service_manager()
         self.config = None
 
     def load(self, ip=None):
@@ -488,11 +488,10 @@ class ArakoonInstaller(object):
         logger.debug('Deleting cluster {0}'.format(self.cluster_name))
         if self.config is None:
             raise RuntimeError('Config not yet loaded')
-        service_manager = ServiceFactory.get_manager()
         service_name = self.get_service_name_for_cluster(cluster_name=self.cluster_name)
         for node in self.config.nodes:
             try:
-                service_manager.unregister_service(service_name=service_name, node_name=node.name)
+                self._service_manager.unregister_service(service_name=service_name, node_name=node.name)
             except:
                 logger.exception('Un-registering service {0} on {1} failed'.format(service_name, node.ip))
 
@@ -577,7 +576,6 @@ class ArakoonInstaller(object):
         logger.debug('Shrinking cluster {0} from {1}'.format(self.cluster_name, removal_ip))
         if self.config is None:
             raise RuntimeError('Config not yet loaded')
-        service_manager = ServiceFactory.get_manager()
         removal_node = None
         for node in self.config.nodes[:]:
             if node.ip == removal_ip:
@@ -596,8 +594,8 @@ class ArakoonInstaller(object):
         if removal_node is not None:
             self._deploy(offline_nodes=offline_nodes,
                          delay_service_registration=self.is_filesystem)
-            service_manager.unregister_service(node_name=removal_node.name,
-                                               service_name=self.get_service_name_for_cluster(cluster_name=self.cluster_name))
+            self._service_manager.unregister_service(node_name=removal_node.name,
+                                                     service_name=self.get_service_name_for_cluster(cluster_name=self.cluster_name))
         logger.debug('Shrinking cluster {0} from {1} completed'.format(self.cluster_name, removal_ip))
 
     @classmethod
@@ -733,7 +731,7 @@ class ArakoonInstaller(object):
         :return: None
         :rtype: NoneType
         """
-        service_manager = ServiceFactory.get_manager()
+        service_manager = cls._get_service_manager()
         service_name = cls.get_service_name_for_cluster(cluster_name=cluster_name)
         if service_manager.has_service(name=service_name, client=client) is True:
             service_manager.start_service(name=service_name, client=client)
@@ -749,7 +747,7 @@ class ArakoonInstaller(object):
         :return: None
         :rtype: NoneType
         """
-        service_manager = ServiceFactory.get_manager()
+        service_manager = cls._get_service_manager()
         service_name = cls.get_service_name_for_cluster(cluster_name=cluster_name)
         if service_manager.has_service(name=service_name, client=client) is True:
             service_manager.stop_service(name=service_name, client=client)
@@ -765,7 +763,7 @@ class ArakoonInstaller(object):
         :return: True if the cluster service is running, False otherwise
         :rtype: bool
         """
-        service_manager = ServiceFactory.get_manager()
+        service_manager = cls._get_service_manager()
         service_name = cls.get_service_name_for_cluster(cluster_name=cluster_name)
         if service_manager.has_service(name=service_name, client=client):
             return service_manager.get_service_status(name=service_name, client=client) == 'active'
@@ -784,7 +782,7 @@ class ArakoonInstaller(object):
         :return: None
         :rtype: NoneType
         """
-        service_manager = ServiceFactory.get_manager()
+        service_manager = cls._get_service_manager()
         service_name = cls.get_service_name_for_cluster(cluster_name=cluster_name)
         if service_manager.has_service(name=service_name, client=client) is True:
             service_manager.remove_service(name=service_name, client=client, delay_unregistration=delay_unregistration)
@@ -939,7 +937,7 @@ class ArakoonInstaller(object):
         :rtype: PyrakoonClient
         """
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            from ovs.extensions.db.arakoon.tests.client import MockPyrakoonClient
+            from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
             return MockPyrakoonClient(config.cluster_id, None)
 
         from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
@@ -1018,7 +1016,6 @@ class ArakoonInstaller(object):
         if offline_nodes is None:
             offline_nodes = []
 
-        service_manager = ServiceFactory.get_manager()
         self.service_metadata = {}
         for node in self.config.nodes:
             if node.ip in offline_nodes:
@@ -1043,8 +1040,8 @@ class ArakoonInstaller(object):
             # Creates services for/on all nodes in the config
             metadata = None
             if self.config.source_ip is None:
-                configuration_key = service_manager.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(root_client),
-                                                                              self.get_service_name_for_cluster(cluster_name=self.cluster_name))
+                configuration_key = self._service_manager.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(root_client),
+                                                                                    self.get_service_name_for_cluster(cluster_name=self.cluster_name))
                 # If the entry is stored in arakoon, it means the service file was previously made
                 if self._configuration.exists(configuration_key):
                     metadata = self._configuration.get(configuration_key)
@@ -1053,18 +1050,22 @@ class ArakoonInstaller(object):
                 if self.config.plugins is not None:
                     extra_version_cmd = ';'.join(self.config.plugins)
                     extra_version_cmd = extra_version_cmd.strip(';')
-                metadata = service_manager.add_service(name='ovs-arakoon',
-                                                       client=root_client,
-                                                       params={'CLUSTER': self.cluster_name,
-                                                               'NODE_ID': node.name,
-                                                               'CONFIG_PATH': self.config.external_config_path,
-                                                               'EXTRA_VERSION_CMD': extra_version_cmd},
-                                                       target_name='ovs-arakoon-{0}'.format(self.cluster_name),
-                                                       startup_dependency=('ovs-watcher-config' if self.config.source_ip is None else None),
-                                                       delay_registration=delay_service_registration)
+                metadata = self._service_manager.add_service(name='ovs-arakoon',
+                                                             client=root_client,
+                                                             params={'CLUSTER': self.cluster_name,
+                                                                     'NODE_ID': node.name,
+                                                                     'CONFIG_PATH': self.config.external_config_path,
+                                                                     'EXTRA_VERSION_CMD': extra_version_cmd},
+                                                             target_name='ovs-arakoon-{0}'.format(self.cluster_name),
+                                                             startup_dependency=('ovs-watcher-config' if self.config.source_ip is None else None),
+                                                             delay_registration=delay_service_registration)
             self.service_metadata[node.ip] = metadata
             logger.debug('  Deploying cluster {0} on {1} completed'.format(self.cluster_name, node.ip))
 
     @classmethod
     def _get_configuration(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_service_manager(cls):
         raise NotImplementedError()
