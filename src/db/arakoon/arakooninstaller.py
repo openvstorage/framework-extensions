@@ -26,7 +26,6 @@ import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
-from ovs_extensions.generic.system import System
 from ovs_extensions.generic.volatilemutex import volatile_mutex
 
 logger = logging.getLogger(__name__)
@@ -377,11 +376,11 @@ class ArakoonInstaller(object):
         self.service_metadata = {}
         self._configuration = self._get_configuration()
         self._service_manager = self._get_service_manager()
+        self._system = self._get_system()
         self.config = None
 
     def load(self, ip=None):
         self.config = ArakoonClusterConfig(cluster_id=self.cluster_name,
-                                           configuration=self._configuration,
                                            source_ip=ip)
 
     @property
@@ -434,7 +433,7 @@ class ArakoonInstaller(object):
 
         logger.debug('Creating cluster {0} of type {1} on {2}'.format(self.cluster_name, cluster_type, ip))
 
-        node_name = System.get_my_machine_id(client)
+        node_name = self._system.get_my_machine_id(client)
         base_dir = base_dir.rstrip('/')
         home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, self.cluster_name)
         tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, self.cluster_name)
@@ -450,7 +449,7 @@ class ArakoonInstaller(object):
             if filesystem is True:
                 if port_range is None:
                     port_range = [26400]
-                ports = System.get_free_ports(selected_range=port_range, nr=2, client=client)
+                ports = self._system.get_free_ports(selected_range=port_range, nr=2, client=client)
             else:
                 ports = self._get_free_ports(client=client, port_range=port_range)
 
@@ -526,7 +525,7 @@ class ArakoonInstaller(object):
         base_dir = base_dir.rstrip('/')
         home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, self.cluster_name)
         tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, self.cluster_name)
-        node_name = System.get_my_machine_id(client=client)
+        node_name = self._system.get_my_machine_id(client=client)
         self.clean_leftover_arakoon_data(ip=new_ip, directories=[home_dir, tlog_dir])
 
         port_mutex = None
@@ -539,7 +538,7 @@ class ArakoonInstaller(object):
             if self.is_filesystem is True:
                 if port_range is None:
                     port_range = [26400]
-                ports = System.get_free_ports(selected_range=port_range, nr=2, client=client)
+                ports = self._system.get_free_ports(selected_range=port_range, nr=2, client=client)
             else:
                 ports = self._get_free_ports(client=client, port_range=port_range)
 
@@ -970,7 +969,7 @@ class ArakoonInstaller(object):
         return arakoon_client
 
     def _get_free_ports(self, client, port_range=None):
-        node_name = System.get_my_machine_id(client)
+        node_name = self._system.get_my_machine_id(client)
         clusters = []
         exclude_ports = []
         if self._configuration.dir_exists(ArakoonClusterConfig.CONFIG_ROOT):
@@ -984,7 +983,7 @@ class ArakoonInstaller(object):
 
         if port_range is None:
             port_range = self._configuration.get('/ovs/framework/hosts/{0}/ports|arakoon'.format(node_name))
-        ports = System.get_free_ports(selected_range=port_range, exclude=exclude_ports, nr=2, client=client)
+        ports = self._system.get_free_ports(selected_range=port_range, exclude=exclude_ports, nr=2, client=client)
         logger.debug('  Loaded free ports {0} based on existing clusters {1}'.format(ports, clusters))
         return ports
 
@@ -1040,7 +1039,7 @@ class ArakoonInstaller(object):
             # Creates services for/on all nodes in the config
             metadata = None
             if self.config.source_ip is None:
-                configuration_key = self._service_manager.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(root_client),
+                configuration_key = self._service_manager.SERVICE_CONFIG_KEY.format(self._system.get_my_machine_id(root_client),
                                                                                     self.get_service_name_for_cluster(cluster_name=self.cluster_name))
                 # If the entry is stored in arakoon, it means the service file was previously made
                 if self._configuration.exists(configuration_key):
@@ -1068,4 +1067,8 @@ class ArakoonInstaller(object):
 
     @classmethod
     def _get_service_manager(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_system(cls):
         raise NotImplementedError()
