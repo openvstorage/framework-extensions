@@ -31,6 +31,10 @@ class ServiceFactory(object):
     """
     Factory class returning specialized classes
     """
+    RUN_FILE_DIR = None
+    MONITOR_PREFIXES = None
+    SERVICE_CONFIG_KEY = None
+    CONFIG_TEMPLATE_DIR = None
 
     @classmethod
     def get_service_type(cls):
@@ -63,12 +67,21 @@ class ServiceFactory(object):
                 if service_type == 'upstart':
                     ServiceFactory.manager = Upstart
                 elif service_type == 'systemd':
-                    ServiceFactory.manager = Systemd
+                    ServiceFactory.manager = Systemd(system=cls._get_system(),
+                                                     configuration=cls._get_configuration(),
+                                                     run_file_dir=cls.RUN_FILE_DIR,
+                                                     monitor_prefixes=cls.MONITOR_PREFIXES,
+                                                     service_config_key=cls.SERVICE_CONFIG_KEY,
+                                                     config_template_dir=cls.CONFIG_TEMPLATE_DIR)
 
         if ServiceFactory.manager is None:
             raise RuntimeError('Unknown ServiceManager')
-
-        ServiceFactory.manager.RUN_FILE_DIR = cls.RUN_FILE_DIR
-        ServiceFactory.manager.SERVICE_CONFIG_KEY = cls.SERVICE_CONFIG_KEY
-        ServiceFactory.manager.CONFIG_TEMPLATE_DIR = cls.CONFIG_TEMPLATE_DIR
         return ServiceFactory.manager
+
+    @classmethod
+    def _get_system(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_configuration(cls):
+        raise NotImplementedError()
