@@ -60,19 +60,22 @@ class ServiceFactory(object):
         Returns a service manager
         """
         if not hasattr(ServiceFactory, 'manager') or ServiceFactory.manager is None:
+            implementation_class = None
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
-                ServiceFactory.manager = SystemdMock
+                implementation_class = SystemdMock
             else:
                 service_type = cls.get_service_type()
                 if service_type == 'upstart':
-                    ServiceFactory.manager = Upstart
+                    implementation_class = Upstart
                 elif service_type == 'systemd':
-                    ServiceFactory.manager = Systemd(system=cls._get_system(),
-                                                     configuration=cls._get_configuration(),
-                                                     run_file_dir=cls.RUN_FILE_DIR,
-                                                     monitor_prefixes=cls.MONITOR_PREFIXES,
-                                                     service_config_key=cls.SERVICE_CONFIG_KEY,
-                                                     config_template_dir=cls.CONFIG_TEMPLATE_DIR)
+                    implementation_class = Systemd
+            if implementation_class is not None:
+                ServiceFactory.manager = implementation_class(system=cls._get_system(),
+                                                              configuration=cls._get_configuration(),
+                                                              run_file_dir=cls.RUN_FILE_DIR,
+                                                              monitor_prefixes=cls.MONITOR_PREFIXES,
+                                                              service_config_key=cls.SERVICE_CONFIG_KEY,
+                                                              config_template_dir=cls.CONFIG_TEMPLATE_DIR)
 
         if ServiceFactory.manager is None:
             raise RuntimeError('Unknown ServiceManager')
