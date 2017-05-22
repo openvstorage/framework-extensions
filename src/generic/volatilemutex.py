@@ -19,7 +19,6 @@ Volatile mutex module
 """
 import time
 import logging
-from ovs_extensions.storage.volatilefactory import VolatileFactory
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class volatile_mutex(object):
         """
         Creates a volatile mutex object
         """
-        self._volatile = VolatileFactory.get_client()
+        self._volatile = self._get_volatile_client()
         self.name = name
         self._has_lock = False
         self._start = 0
@@ -105,3 +104,7 @@ class volatile_mutex(object):
         __del__ hook, releasing the lock
         """
         self.release()
+
+    @classmethod
+    def _get_volatile_client(cls):
+        raise NotImplementedError()

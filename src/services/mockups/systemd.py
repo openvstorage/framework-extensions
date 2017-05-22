@@ -25,7 +25,6 @@ class SystemdMock(object):
     """
     Contains all logic related to Systemd Mock services
     """
-    SERVICE_CONFIG_KEY = '/ovs/framework/hosts/{0}/services/{1}'
     services = {}
 
     def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir):
@@ -36,7 +35,7 @@ class SystemdMock(object):
         self._run_file_dir = run_file_dir
         self._configuration = configuration
         self._monitor_prefixes = monitor_prefixes
-        self._service_config_key = service_config_key
+        self.service_config_key = service_config_key
         self._config_template_dir = config_template_dir
 
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
@@ -130,7 +129,7 @@ class SystemdMock(object):
         :return: None
         """
         service_name = service_metadata['SERVICE_NAME']
-        self._configuration.set(key=self._service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
+        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
                                 value=service_metadata)
 
     def unregister_service(self, node_name, service_name):
@@ -142,7 +141,7 @@ class SystemdMock(object):
         :type service_name: str
         :return: None
         """
-        self._configuration.delete(key=self._service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
     @classmethod
     def extract_from_service_file(cls, name, client, entries=None):

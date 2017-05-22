@@ -38,7 +38,7 @@ class Systemd(object):
         self._run_file_dir = run_file_dir
         self._configuration = configuration
         self._monitor_prefixes = monitor_prefixes
-        self._service_config_key = service_config_key
+        self.service_config_key = service_config_key
         self._config_template_dir = config_template_dir
 
     @classmethod
@@ -138,7 +138,7 @@ class Systemd(object):
         :return: None
         :rtype: NoneType
         """
-        configuration_key = self._service_config_key.format(self._system.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
+        configuration_key = self.service_config_key.format(self._system.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
         # If the entry is stored in arakoon, it means the service file was previously made
         if not self._configuration.exists(configuration_key):
             raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
@@ -412,7 +412,7 @@ class Systemd(object):
         :rtype: NoneType
         """
         service_name = service_metadata['SERVICE_NAME']
-        self._configuration.set(key=self._service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
+        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
                                 value=service_metadata)
 
     def unregister_service(self, node_name, service_name):
@@ -425,7 +425,7 @@ class Systemd(object):
         :return: None
         :rtype: NoneType
         """
-        self._configuration.delete(key=self._service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
     def is_rabbitmq_running(self, client):
         """

@@ -26,7 +26,6 @@ import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
-from ovs_extensions.generic.volatilemutex import volatile_mutex
 
 logger = logging.getLogger(__name__)
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
@@ -84,7 +83,7 @@ class ArakoonClusterConfig(object):
     CONFIG_KEY = CONFIG_ROOT + '/{0}/config'
     CONFIG_FILE = '/opt/OpenvStorage/config/arakoon_{0}.ini'
 
-    def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None):
+    def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None, configuration=None):
         """
         Initializes an empty Cluster Config
         """
@@ -95,7 +94,10 @@ class ArakoonClusterConfig(object):
         elif isinstance(plugins, basestring):
             self.plugins.append(plugins)
 
-        self._configuration = self._get_configuration()
+        if configuration is not None:
+            self._configuration = configuration
+        else:
+            self._configuration = self._get_configuration()
         self.nodes = []
         self.source_ip = source_ip
         self.cluster_id = cluster_id
@@ -442,7 +444,7 @@ class ArakoonInstaller(object):
         port_mutex = None
         try:
             if locked is True:
-                from ovs_extensions.generic.volatilemutex import volatile_mutex
+                volatile_mutex = self._get_volatile_mutex()
                 port_mutex = volatile_mutex('arakoon_install_ports_{0}'.format(ip))
                 port_mutex.acquire(wait=60)
 
@@ -454,9 +456,9 @@ class ArakoonInstaller(object):
                 ports = self._get_free_ports(client=client, port_range=port_range)
 
             self.config = ArakoonClusterConfig(cluster_id=self.cluster_name,
-                                               configuration=self._configuration,
                                                source_ip=ip if filesystem is True else None,
-                                               load_config=False)
+                                               load_config=False,
+                                               configuration=self._configuration)
             self.config.plugins = plugins.keys() if plugins is not None else None
             self.config.nodes.append(ArakoonNodeConfig(name=node_name,
                                                        ip=ip,
@@ -531,7 +533,7 @@ class ArakoonInstaller(object):
         port_mutex = None
         try:
             if locked is True:
-                from ovs_extensions.generic.volatilemutex import volatile_mutex
+                volatile_mutex = self._get_volatile_mutex()
                 port_mutex = volatile_mutex('arakoon_install_ports_{0}'.format(new_ip))
                 port_mutex.acquire(wait=60)
 
@@ -657,6 +659,7 @@ class ArakoonInstaller(object):
         if not configuration.dir_exists(ArakoonClusterConfig.CONFIG_ROOT):
             return None
 
+        volatile_mutex = cls._get_volatile_mutex()
         mutex = volatile_mutex('claim_arakoon_metadata', wait=10)
         locked = cluster_type not in ['CFG', 'FWK']
         try:
@@ -1039,7 +1042,7 @@ class ArakoonInstaller(object):
             # Creates services for/on all nodes in the config
             metadata = None
             if self.config.source_ip is None:
-                configuration_key = self._service_manager.SERVICE_CONFIG_KEY.format(self._system.get_my_machine_id(root_client),
+                configuration_key = self._service_manager.service_config_key.format(self._system.get_my_machine_id(root_client),
                                                                                     self.get_service_name_for_cluster(cluster_name=self.cluster_name))
                 # If the entry is stored in arakoon, it means the service file was previously made
                 if self._configuration.exists(configuration_key):
@@ -1071,4 +1074,8 @@ class ArakoonInstaller(object):
 
     @classmethod
     def _get_system(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_volatile_mutex(cls):
         raise NotImplementedError()

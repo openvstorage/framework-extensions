@@ -18,7 +18,6 @@
 Generic persistent factory.
 """
 import os
-from ovs_extensions.generic.configuration import Configuration
 
 
 class PersistentFactory(object):
@@ -26,8 +25,8 @@ class PersistentFactory(object):
     The PersistentFactory will generate certain default clients.
     """
 
-    @staticmethod
-    def get_client(client_type=None):
+    @classmethod
+    def get_client(cls, client_type=None):
         """
         Returns a persistent storage client
         :param client_type: Type of store client
@@ -37,12 +36,13 @@ class PersistentFactory(object):
                 client_type = 'dummy'
 
             if client_type is None:
-                client_type = Configuration.get('/ovs/framework/stores|persistent')
+                client_type = cls._get_client_type()
 
             PersistentFactory.store = None
             if client_type in ['pyrakoon', 'arakoon']:
                 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
-                PersistentFactory.store = PyrakoonStore(str(Configuration.get('/ovs/framework/arakoon_clusters|ovsdb')))
+                store_info = cls._get_store_info()
+                PersistentFactory.store = PyrakoonStore(**store_info)
             if client_type == 'dummy':
                 from ovs_extensions.storage.persistent.dummystore import DummyPersistentStore
                 PersistentFactory.store = DummyPersistentStore()
@@ -50,3 +50,11 @@ class PersistentFactory(object):
         if PersistentFactory.store is None:
             raise RuntimeError('Invalid client_type specified')
         return PersistentFactory.store
+
+    @classmethod
+    def _get_store_info(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_client_type(cls):
+        raise NotImplementedError()

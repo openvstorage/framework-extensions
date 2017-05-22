@@ -18,7 +18,6 @@
 Generic volatile factory.
 """
 import os
-from ovs_extensions.generic.configuration import Configuration
 
 
 class VolatileFactory(object):
@@ -26,8 +25,8 @@ class VolatileFactory(object):
     The VolatileFactory will generate certain default clients.
     """
 
-    @staticmethod
-    def get_client(client_type=None):
+    @classmethod
+    def get_client(cls, client_type=None):
         """
         Returns a volatile storage client
         """
@@ -35,13 +34,13 @@ class VolatileFactory(object):
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
             if client_type is None:
-                client_type = Configuration.get('/ovs/framework/stores|volatile')
+                client_type = cls._get_client_type()
 
             VolatileFactory.store = None
             if client_type == 'memcache':
                 from ovs_extensions.storage.volatile.memcachestore import MemcacheStore
-                nodes = Configuration.get('/ovs/framework/memcache|endpoints')
-                VolatileFactory.store = MemcacheStore(nodes)
+                configuration = cls._get_store_info()
+                VolatileFactory.store = MemcacheStore(**configuration)
             if client_type == 'dummy':
                 from ovs_extensions.storage.volatile.dummystore import DummyVolatileStore
                 VolatileFactory.store = DummyVolatileStore()
@@ -49,3 +48,11 @@ class VolatileFactory(object):
         if VolatileFactory.store is None:
             raise RuntimeError('Invalid client_type specified')
         return VolatileFactory.store
+
+    @classmethod
+    def _get_store_info(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_client_type(cls):
+        raise NotImplementedError()
