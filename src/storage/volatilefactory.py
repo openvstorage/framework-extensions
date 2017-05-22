@@ -24,7 +24,6 @@ class VolatileFactory(object):
     """
     The VolatileFactory will generate certain default clients.
     """
-
     @classmethod
     def get_client(cls, client_type=None):
         """

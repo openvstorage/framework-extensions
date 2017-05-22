@@ -32,7 +32,7 @@ class DiskTools(object):
     """
 
     @staticmethod
-    def create_partition(cls, disk_alias, disk_size, partition_start, partition_size):
+    def create_partition(disk_alias, disk_size, partition_start, partition_size):
         """
         Creates a partition
         :param disk_alias: Path of the disk device
