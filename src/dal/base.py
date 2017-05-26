@@ -219,13 +219,12 @@ class Base(object):
                 else:
                     current_properties.append(row['name'])
 
+            # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints
             for prop in cls._properties:
                 if prop.name not in current_properties:
-                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2} {3} {4}}'.format(cls._table,
-                                                                                            prop.name,
-                                                                                            Base._get_prop_type(prop.property_type),
-                                                                                            'NOT NULL' if prop.mandatory is True else '',
-                                                                                            'UNIQUE' if prop.unique is True else ''))
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
+                                                                                   prop.name,
+                                                                                   Base._get_prop_type(prop.property_type)))
 
             for rel_name in relation_list:
                 if rel_name not in current_relations:
