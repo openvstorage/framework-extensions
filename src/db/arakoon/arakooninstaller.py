@@ -250,7 +250,7 @@ class ArakoonClusterConfig(object):
         :return: None
         :rtype: NoneType
         """
-        config = ArakoonClusterConfig.convert_config_to(config=config, return_type='DICT')
+        config = self.convert_config_to(config=config, return_type='DICT')
         new_sections = sorted(config.keys())
         old_sections = sorted([node.name for node in self.nodes] + ['global'])
         if old_sections != new_sections:
@@ -383,7 +383,8 @@ class ArakoonInstaller(object):
 
     def load(self, ip=None):
         self.config = ArakoonClusterConfig(cluster_id=self.cluster_name,
-                                           source_ip=ip)
+                                           source_ip=ip,
+                                           configuration=self._configuration)
 
     @property
     def is_filesystem(self):
@@ -695,7 +696,7 @@ class ArakoonInstaller(object):
         if not configuration.dir_exists(ArakoonClusterConfig.CONFIG_ROOT):
             return clusters
 
-        supported_types = ARAKOON_CLUSTER_TYPES
+        supported_types = ARAKOON_CLUSTER_TYPES[:]
         supported_types.remove('CFG')
         if cluster_type not in supported_types:
             raise ValueError('Unsupported Arakoon cluster type provided. Please choose from {0}'.format(', '.join(sorted(supported_types))))
