@@ -159,8 +159,8 @@ class SSHClient(object):
 
         if self._unittest_mode is True:
             self.is_local = True
-            if self.ip in SSHClient._raise_exceptions:
-                raise_info = SSHClient._raise_exceptions[self.ip]
+            if self.ip in self._raise_exceptions:
+                raise_info = self._raise_exceptions[self.ip]
                 if self.username in raise_info['users']:
                     raise raise_info['exception']
 
@@ -232,12 +232,12 @@ class SSHClient(object):
 
         self._client.close()
 
-    @staticmethod
-    def _clean():
+    @classmethod
+    def _clean(cls):
         """
         Clean everything up related to the unittests
         """
-        SSHClient._raise_exceptions = {}
+        cls._raise_exceptions = {}
 
     @staticmethod
     def shell_safe(argument):
