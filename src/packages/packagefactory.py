@@ -44,11 +44,21 @@ class PackageFactory(object):
                 distributor = distributor.replace('Distributor ID:', '').strip()
 
             if distributor in ['Ubuntu']:
-                PackageFactory.manager = DebianPackage
+                PackageFactory.manager = DebianPackage(packages=cls._get_packages(),
+                                                       versions=cls._get_versions())
             elif distributor in ['CentOS']:
-                PackageFactory.manager = RpmPackage
+                PackageFactory.manager = RpmPackage(packages=cls._get_packages(),
+                                                    versions=cls._get_versions())
 
         if PackageFactory.manager is None:
             raise RuntimeError('Unknown PackageManager')
 
         return PackageFactory.manager
+
+    @classmethod
+    def _get_packages(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_versions(cls):
+        raise NotImplementedError()
