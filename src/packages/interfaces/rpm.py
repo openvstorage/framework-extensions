@@ -20,7 +20,6 @@ Rpm Package module
 import time
 import logging
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.packages.interfaces.manager import Manager
 
 logger = logging.getLogger(__name__)
 
