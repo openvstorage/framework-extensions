@@ -121,6 +121,13 @@ class CalledProcessTimeout(CalledProcessError):
     pass
 
 
+class TimeOutException(Exception):
+    """
+    Custom exception thrown when a connection could not be established within the timeout frame
+    """
+    pass
+
+
 class SSHClient(object):
     """
     Remote/local client
@@ -133,16 +140,16 @@ class SSHClient(object):
     def __init__(self, endpoint, username='ovs', password=None, cached=True, timeout=None):
         """
         Initializes an SSHClient
-        :param endpoint: Ip address to connect to
-        :type endpoint: basestring
-        :param username: name of the user to connect as
+        :param endpoint: Ip address to connect to / storagerouter
+        :type endpoint: basestring | ovs.dal.hybrids.storagerouter.StorageRouter
+        :param username: Name of the user to connect as
         :type username: str
-        :param password: password to authenticate the user as. Can be None when ssh keys are in place.
+        :param password: Password to authenticate the user as. Can be None when ssh keys are in place.
         :type password: str
-        :param cached: cache this sshclient instance under sshclient
+        :param cached: Cache this SSHClient instance
         :type cached: bool
-        :param timeout: an optional timeout (in seconds) for the TCP connect
-        :type timeout: int
+        :param timeout: An optional timeout (in seconds) for the TCP connect
+        :type timeout: float
         """
         from subprocess import check_output
         if isinstance(endpoint, basestring):
@@ -208,6 +215,10 @@ class SSHClient(object):
     def _connect(self):
         """
         Connects to the remote end
+        :raises: TimeOutException: When the initially set timeout has been reached
+        :raises: UnableToConnectException: When unable to connect because of 'No route to host' or 'Unable to connect'
+        :raises: socket.error: When unable to connect but for different reasons than UnableToConnectException
+        :raises: NotAuthenticatedException: When authentication has failed
         """
         if self.is_local is True:
             return
@@ -225,6 +236,10 @@ class SSHClient(object):
                 except:
                     pass
                 raise
+        except socket.timeout as ex:
+            message = str(ex)
+            logger.error(message)
+            raise TimeOutException(message)
         except socket.error as ex:
             message = str(ex)
             logger.error(message)
