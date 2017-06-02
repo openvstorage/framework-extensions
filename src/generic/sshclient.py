@@ -130,9 +130,19 @@ class SSHClient(object):
     _raise_exceptions = {}  # Used by unit tests
     client_cache = {}
 
-    def __init__(self, endpoint, username='ovs', password=None, cached=True):
+    def __init__(self, endpoint, username='ovs', password=None, cached=True, timeout=None):
         """
         Initializes an SSHClient
+        :param endpoint: Ip address to connect to
+        :type endpoint: basestring
+        :param username: name of the user to connect as
+        :type username: str
+        :param password: password to authenticate the user as. Can be None when ssh keys are in place.
+        :type password: str
+        :param cached: cache this sshclient instance under sshclient
+        :type cached: bool
+        :param timeout: an optional timeout (in seconds) for the TCP connect
+        :type timeout: int
         """
         from subprocess import check_output
         if isinstance(endpoint, basestring):
@@ -147,6 +157,7 @@ class SSHClient(object):
         self.local_ips = [lip.strip() for lip in check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()]
         self.is_local = self.ip in self.local_ips
         self.password = password
+        self.timeout = timeout
         self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
 
         current_user = check_output('whoami', shell=True).strip()
@@ -207,7 +218,7 @@ class SSHClient(object):
                 warnings.filterwarnings(action='ignore',
                                         message='.*CTR mode needs counter parameter.*',
                                         category=FutureWarning)
-                self._client.connect(self.ip, username=self.username, password=self.password)
+                self._client.connect(self.ip, username=self.username, password=self.password, timeout=self.timeout)
             except:
                 try:
                     self._client.close()
