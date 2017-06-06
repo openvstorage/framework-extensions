@@ -87,7 +87,7 @@ class ArakoonClusterConfig(object):
         """
         Initializes an empty Cluster Config
         """
-        self.plugins = None
+        self.plugins = []
         self._extra_globals = {'tlog_max_entries': 5000}
         if isinstance(plugins, list):
             self.plugins = plugins
@@ -205,7 +205,7 @@ class ArakoonClusterConfig(object):
         """
         data = {'global': {'cluster_id': self.cluster_id,
                            'cluster': ','.join(sorted(node.name for node in self.nodes))}}
-        if self.plugins is not None:
+        if len(self.plugins) > 0:
             data['global']['plugins'] = ','.join(sorted(self.plugins))
         preferred_masters = [node.name for node in self.nodes if node.preferred_master is True]
         if len(preferred_masters) > 0:
