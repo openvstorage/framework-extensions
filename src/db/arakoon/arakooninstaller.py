@@ -460,7 +460,7 @@ class ArakoonInstaller(object):
                                                source_ip=ip if filesystem is True else None,
                                                load_config=False,
                                                configuration=self._configuration)
-            self.config.plugins = plugins.keys() if plugins is not None else None
+            self.config.plugins = plugins.keys() if plugins is not None else []
             self.config.nodes.append(ArakoonNodeConfig(name=node_name,
                                                        ip=ip,
                                                        client_port=ports[0],
@@ -651,7 +651,7 @@ class ArakoonInstaller(object):
         :type cluster_type: str
         :param cluster_name: Name of the cluster to claim
         :type cluster_name: str
-        :return: Metadata of the cluster 
+        :return: Metadata of the cluster
         :rtype: dict
         """
         configuration = cls._get_configuration()
