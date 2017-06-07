@@ -29,24 +29,24 @@ class VolatileFactory(object):
         """
         Returns a volatile storage client
         """
-        if not hasattr(VolatileFactory, 'store') or VolatileFactory.store is None:
+        if not hasattr(cls, 'store') or cls.store is None:
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
             if client_type is None:
                 client_type = cls._get_client_type()
 
-            VolatileFactory.store = None
+            cls.store = None
             if client_type == 'memcache':
                 from ovs_extensions.storage.volatile.memcachestore import MemcacheStore
                 configuration = cls._get_store_info()
-                VolatileFactory.store = MemcacheStore(**configuration)
+                cls.store = MemcacheStore(**configuration)
             if client_type == 'dummy':
                 from ovs_extensions.storage.volatile.dummystore import DummyVolatileStore
-                VolatileFactory.store = DummyVolatileStore()
+                cls.store = DummyVolatileStore()
 
-        if VolatileFactory.store is None:
+        if cls.store is None:
             raise RuntimeError('Invalid client_type specified')
-        return VolatileFactory.store
+        return cls.store
 
     @classmethod
     def _get_store_info(cls):

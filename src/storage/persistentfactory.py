@@ -31,25 +31,25 @@ class PersistentFactory(object):
         Returns a persistent storage client
         :param client_type: Type of store client
         """
-        if not hasattr(PersistentFactory, 'store') or PersistentFactory.store is None:
+        if not hasattr(cls, 'store') or cls.store is None:
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
 
             if client_type is None:
                 client_type = cls._get_client_type()
 
-            PersistentFactory.store = None
+            cls.store = None
             if client_type in ['pyrakoon', 'arakoon']:
                 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
                 store_info = cls._get_store_info()
-                PersistentFactory.store = PyrakoonStore(**store_info)
+                cls.store = PyrakoonStore(**store_info)
             if client_type == 'dummy':
                 from ovs_extensions.storage.persistent.dummystore import DummyPersistentStore
-                PersistentFactory.store = DummyPersistentStore()
+                cls.store = DummyPersistentStore()
 
-        if PersistentFactory.store is None:
+        if cls.store is None:
             raise RuntimeError('Invalid client_type specified')
-        return PersistentFactory.store
+        return cls.store
 
     @classmethod
     def _get_store_info(cls):

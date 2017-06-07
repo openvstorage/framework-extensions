@@ -35,25 +35,25 @@ class OSFactory(object):
         """
         Returns an os manager
         """
-        if not hasattr(OSFactory, 'manager') or OSFactory.manager is None:
+        if not hasattr(cls, 'manager') or cls.manager is None:
             try:
                 dist_info = check_output('cat /etc/os-release', shell=True)
                 configuration = cls._get_configuration()
                 system = cls._get_system()
                 if 'Ubuntu' in dist_info:
-                    OSFactory.manager = Ubuntu(configuration=configuration,
-                                               system=system)
+                    cls.manager = Ubuntu(configuration=configuration,
+                                         system=system)
                 elif 'CentOS Linux' in dist_info:
-                    OSFactory.manager = Centos(configuration=configuration,
-                                               system=system)
+                    cls.manager = Centos(configuration=configuration,
+                                         system=system)
             except Exception as ex:
                 logger.exception('Error loading OSManager: {0}'.format(ex))
                 raise
 
-        if OSFactory.manager is None:
+        if cls.manager is None:
             raise RuntimeError('Unknown OSManager')
 
-        return OSFactory.manager
+        return cls.manager
 
     @classmethod
     def _get_configuration(cls):

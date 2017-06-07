@@ -59,7 +59,7 @@ class ServiceFactory(object):
         """
         Returns a service manager
         """
-        if not hasattr(ServiceFactory, 'manager') or ServiceFactory.manager is None:
+        if not hasattr(cls, 'manager') or cls.manager is None:
             implementation_class = None
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 implementation_class = SystemdMock
@@ -70,16 +70,16 @@ class ServiceFactory(object):
                 elif service_type == 'systemd':
                     implementation_class = Systemd
             if implementation_class is not None:
-                ServiceFactory.manager = implementation_class(system=cls._get_system(),
-                                                              configuration=cls._get_configuration(),
-                                                              run_file_dir=cls.RUN_FILE_DIR,
-                                                              monitor_prefixes=cls.MONITOR_PREFIXES,
-                                                              service_config_key=cls.SERVICE_CONFIG_KEY,
-                                                              config_template_dir=cls.CONFIG_TEMPLATE_DIR)
+                cls.manager = implementation_class(system=cls._get_system(),
+                                                   configuration=cls._get_configuration(),
+                                                   run_file_dir=cls.RUN_FILE_DIR,
+                                                   monitor_prefixes=cls.MONITOR_PREFIXES,
+                                                   service_config_key=cls.SERVICE_CONFIG_KEY,
+                                                   config_template_dir=cls.CONFIG_TEMPLATE_DIR)
 
-        if ServiceFactory.manager is None:
+        if cls.manager is None:
             raise RuntimeError('Unknown ServiceManager')
-        return ServiceFactory.manager
+        return cls.manager
 
     @classmethod
     def _get_system(cls):
