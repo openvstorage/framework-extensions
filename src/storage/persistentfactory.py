@@ -38,7 +38,7 @@ class PersistentFactory(object):
             if client_type is None:
                 client_type = cls._get_client_type()
 
-                cls.store = None
+            cls.store = None
             if client_type in ['pyrakoon', 'arakoon']:
                 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
                 store_info = cls._get_store_info()
