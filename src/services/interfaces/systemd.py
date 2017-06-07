@@ -357,7 +357,7 @@ class Systemd(object):
         :rtype: NoneType
         """
         try:
-            grep = ['grep "{0}"'.format(prefix) for prefix in self._monitor_prefixes]
+            grep = ['egrep "{0}"'.format(prefix) for prefix in self._monitor_prefixes]
             previous_output = None
             while True:
                 # Gather service states
