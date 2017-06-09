@@ -474,7 +474,8 @@ class ArakoonInstaller(object):
                              'cluster_name': self.cluster_name,
                              'cluster_type': cluster_type,
                              'in_use': False}
-            self._deploy(delay_service_registration=filesystem)
+            self._deploy(plugins=plugins.values() if plugins is not None else None,
+                         delay_service_registration=filesystem)
         finally:
             if port_mutex is not None:
                 port_mutex.release()
@@ -503,7 +504,7 @@ class ArakoonInstaller(object):
             self.config.delete_config()
         logger.debug('Deleting cluster {0} completed'.format(self.cluster_name))
 
-    def extend_cluster(self, new_ip, base_dir, log_sinks, crash_log_sinks, locked=True, port_range=None, preferred_master=False):
+    def extend_cluster(self, new_ip, base_dir, log_sinks, crash_log_sinks, plugins=None, locked=True, port_range=None, preferred_master=False):
         """
         Extends a cluster to a given new node
         :param new_ip: IP address of the node to be added
@@ -514,6 +515,8 @@ class ArakoonInstaller(object):
         :type log_sinks: str
         :param crash_log_sinks: Logsink for crash reports
         :type crash_log_sinks: str
+        :param plugins: Plugins that should be added to the configuration file
+        :type plugins: dict
         :param locked: Indicates whether the extend should run in a locked context (e.g. to prevent port conflicts)
         :type locked: bool
         :param port_range: Range of ports which should be used for the Arakoon processes (2 available ports in the range will be selected) eg: [26400, 26499]
@@ -530,6 +533,10 @@ class ArakoonInstaller(object):
         tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, self.cluster_name)
         node_name = self._system.get_my_machine_id(client=client)
         self.clean_leftover_arakoon_data(ip=new_ip, directories=[home_dir, tlog_dir])
+        if self.config.plugins is not None:
+            for plugin in self.config.plugins:
+                if plugins is None or plugin not in plugins:
+                    raise RuntimeError('The plugins should be equal to all nodes')
 
         port_mutex = None
         try:
@@ -555,7 +562,8 @@ class ArakoonInstaller(object):
                                                            home=home_dir,
                                                            tlog_dir=tlog_dir,
                                                            preferred_master=preferred_master))
-            self._deploy(delay_service_registration=self.is_filesystem)
+            self._deploy(plugins=plugins.values() if plugins is not None else None,
+                         delay_service_registration=self.is_filesystem)
         finally:
             if port_mutex is not None:
                 port_mutex.release()
@@ -1011,7 +1019,7 @@ class ArakoonInstaller(object):
         root_client.dir_delete(list(abs_paths))
         logger.debug('Destroy node {0} in cluster {1} completed'.format(node.ip, self.cluster_name))
 
-    def _deploy(self, offline_nodes=None, delay_service_registration=False):
+    def _deploy(self, offline_nodes=None, plugins=None, delay_service_registration=False):
         """
         Deploys a complete cluster: Distributing the configuration files, creating directories and services
         """
@@ -1050,8 +1058,8 @@ class ArakoonInstaller(object):
                     metadata = self._configuration.get(configuration_key)
             if metadata is None:
                 extra_version_cmd = ''
-                if self.config.plugins is not None:
-                    extra_version_cmd = ';'.join(self.config.plugins)
+                if plugins is not None:
+                    extra_version_cmd = ';'.join(plugins)
                     extra_version_cmd = extra_version_cmd.strip(';')
                 metadata = self._service_manager.add_service(name='ovs-arakoon',
                                                              client=root_client,
