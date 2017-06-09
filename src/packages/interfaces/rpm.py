@@ -33,6 +33,10 @@ class RpmPackage(object):
         self._packages = packages
         self._versions = versions
 
+    @property
+    def package_names(self):
+        return self._packages['names']
+
     @staticmethod
     def get_release_name(client=None):
         """
