@@ -63,7 +63,7 @@ class PyrakoonClient(object):
         for node, info in nodes.iteritems():
             cleaned_nodes[str(node)] = ([str(entry) for entry in info[0]], int(info[1]))
         self._config = ArakoonClientConfig(str(cluster), cleaned_nodes)
-        self._client = ArakoonClient(self._config)
+        self._client = ArakoonClient(self._config, timeout=5, noMasterTimeout=5)
         self._identifier = int(round(random.random() * 10000000))
         self._lock = Lock()
         self._batch_size = 500
