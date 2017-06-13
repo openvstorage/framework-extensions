@@ -34,9 +34,9 @@ class HttpException(RuntimeError):
     """
     Custom Http Exception class
     """
-    def __init__(self, status_code, *args, **kwargs):
-        super(HttpException, self).__init__(*args, **kwargs)
+    def __init__(self, status_code, message, *args, **kwargs):
         self.status_code = status_code
+        super(HttpException, self).__init__(message, *args, **kwargs)
 
 
 class ForbiddenException(HttpException):
