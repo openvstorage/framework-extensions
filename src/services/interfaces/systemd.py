@@ -59,7 +59,7 @@ class Systemd(object):
         :return: List of all services which have been created at some point
         :rtype: generator
         """
-        for service_info in client.run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager']).splitlines():
+        for service_info in client.run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager', '--full']).splitlines():
             yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
 
     def _get_name(self, name, client, path=None, log=True):
