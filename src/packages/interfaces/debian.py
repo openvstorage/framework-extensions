@@ -89,7 +89,7 @@ class DebianPackage(object):
         :return: Package candidate versions
         :rtype: dict
         """
-        DebianPackage.update(client=client)
+        cls.update(client=client)
         versions = {}
         for package_name in package_names:
             output = client.run(['apt-cache', 'policy', package_name, DebianPackage.APT_CONFIG_STRING]).strip()
