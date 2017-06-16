@@ -364,7 +364,7 @@ class Systemd(object):
                 running_services = {}
                 non_running_services = {}
                 longest_service_name = 0
-                for service_name in check_output('systemctl list-unit-files --type=service --no-legend --no-pager | {0} | tr -s " " | cut -d " " -f 1'.format(' | '.join(grep)), shell=True).splitlines():
+                for service_name in check_output('systemctl list-unit-files --full --type=service --no-legend --no-pager | {0} | tr -s " " | cut -d " " -f 1'.format(' | '.join(grep)), shell=True).splitlines():
                     try:
                         service_state = check_output('systemctl is-active {0}'.format(service_name), shell=True).strip()
                     except CalledProcessError as cpe:
