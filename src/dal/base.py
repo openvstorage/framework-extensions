@@ -241,7 +241,7 @@ class Base(object):
 
             for rel_name in relation_list:
                 if rel_name not in current_relations:
-                        connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
     def __repr__(self):
         """ Short representation of the object. """
