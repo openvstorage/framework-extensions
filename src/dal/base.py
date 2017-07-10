@@ -54,9 +54,9 @@ class Base(object):
         self.id = identifier
         try:
             if locked is True:
-                self.__class__.lock().acquire()
-            self.__class__._ensure_table()
-            with self.__class__.connector() as connection:
+                self.lock().acquire()
+            self._ensure_table()
+            with self.connector() as connection:
                 if identifier is not None:
                     cursor = connection.cursor()
                     cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
@@ -75,7 +75,7 @@ class Base(object):
                         setattr(self, '_{0}'.format(relation[0]), {'id': None,
                                                                    'object': None})
         finally:
-            self.__class__.lock().release()
+            self.lock().release()
         for relation in self._relations:
             self._add_relation(relation)
         for key, relation_info in RelationMapper.load_foreign_relations(self.__class__).iteritems():
@@ -108,7 +108,7 @@ class Base(object):
         remote_class = relation_info['class']
         remote_class._ensure_table()
         entries = []
-        with self.__class__.connector() as connection:
+        with self.connector() as connection:
             cursor = connection.cursor()
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
@@ -159,7 +159,7 @@ class Base(object):
             field_names = ', '.join([prop.name for prop in self._properties] +
                                     ['_{0}_id'.format(relation[0]) for relation in self._relations])
             prop_statement = ', '.join('?' for _ in self._properties + self._relations)
-            with self.__class__.lock(), self.__class__.connector() as connection:
+            with self.lock(), self.connector() as connection:
                 cursor = connection.cursor()
                 cursor.execute('INSERT INTO {0}({1}) VALUES ({2})'.format(self._table, field_names, prop_statement),
                                prop_values)
@@ -167,7 +167,7 @@ class Base(object):
         else:
             prop_statement = ', '.join(['{0}=?'.format(prop.name) for prop in self._properties] +
                                        ['_{0}_id=?'.format(relation[0]) for relation in self._relations])
-            with self.__class__.lock(), self.__class__.connector() as connection:
+            with self.lock(), self.connector() as connection:
                 connection.execute('UPDATE {0} SET {1} WHERE id=? LIMIT 1'.format(self._table, prop_statement),
                                    prop_values + [self.id])
 
@@ -176,7 +176,7 @@ class Base(object):
         Deletes the current object from the SQLite database.
         :return: None
         """
-        with self.__class__.lock(), self.__class__.connector() as connection:
+        with self.lock(), self.connector() as connection:
             connection.execute('DELETE FROM {0} WHERE id=? LIMIT 1'.format(self._table), [self.id])
 
     @staticmethod
