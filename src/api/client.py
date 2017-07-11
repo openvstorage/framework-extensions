@@ -25,34 +25,12 @@ import logging
 import requests
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
+from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException, HttpNotFoundException
+from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
+from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-
-
-class HttpException(RuntimeError):
-    """
-    Custom Http Exception class
-    """
-    def __init__(self, status_code, message, *args, **kwargs):
-        self.status_code = status_code
-        super(HttpException, self).__init__(message, *args, **kwargs)
-
-
-class ForbiddenException(HttpException):
-    """
-    Custom exception class
-    """
-    def __init__(self, *args, **kwargs):
-        super(ForbiddenException, self).__init__(403, *args, **kwargs)
-
-
-class NotFoundException(HttpException):
-    """
-    Custom NotFound Exception
-    """
-    def __init__(self, *args, **kwargs):
-        super(NotFoundException, self).__init__(404, *args, **kwargs)
 
 
 class OVSClient(object):
@@ -166,9 +144,9 @@ class OVSClient(object):
             if message is None:
                 message = 'Unknown error'
             if status_code in [401, 403]:
-                raise ForbiddenException(message)
+                raise HttpForbiddenException(message, '')
             elif status_code == 404:
-                raise NotFoundException(message)
+                raise HttpNotFoundException(message, '')
             else:
                 raise HttpException(status_code, message)
 
@@ -183,7 +161,7 @@ class OVSClient(object):
         headers, url = self._prepare(params=params)
         try:
             return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
-        except ForbiddenException:
+        except HttpForbiddenException:
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
             if first_connect is True:  # First connect, so no token was present yet, so no need to try twice without token
