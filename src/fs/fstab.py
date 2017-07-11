@@ -18,7 +18,9 @@
 FS tab module
 """
 import re
-from ovs.log.log_handler import LogHandler
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Fstab(object):
@@ -29,7 +31,6 @@ class Fstab(object):
         """
         Init
         """
-        self._logger = LogHandler.get('extensions', name='fstab')
         self.fstab_file = '/etc/fstab'
 
     def _slurp(self):
@@ -55,41 +56,39 @@ class Fstab(object):
         """
         l = self._slurp()
         for i in l:
-            self._logger.debug("%s %s %s %s %s %s" % (i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
+            logger.debug("{0} {1} {2} {3} {4} {5}".format(i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
 
     def add_config(self, fs_spec, fs_file, fs_vfstype, fs_mntops='defaults', fs_freq='0', fs_passno='0'):
         """
         Add an entry to /etc/fstab
 
-        @param fs_spec: device
-        @param fs_file: directory or mount point
-        @param fs_vfstype: Type of filesystem
-        @param fs_mntops: options
-        @param fs_freq: dump value
-        @param fs_passno: fsck value
+        :param fs_spec: device
+        :param fs_file: directory or mount point
+        :param fs_vfstype: Type of filesystem
+        :param fs_mntops: options
+        :param fs_freq: dump value
+        :param fs_passno: fsck value
         """
-        self._logger.debug(
-            "/etc/fstab: appending entry %s %s %s %s %s %s to %s" %
-            (fs_spec, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
+        logger.debug(
+            '/etc/fstab: appending entry {0} {1} {2} {3} {4} {5} to {6}'.format(fs_spec, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
         )
         f = open(self.fstab_file, 'a')
-        f.write('%s %s %s %s %s %s\n' % (fs_spec, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno))
+        f.write('{0} {1} {2} {3} {4} {5}\n'.format(fs_spec, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno))
         f.close()
 
-    def modify_config_by_device(self, device, fs_file = '', fs_vfstype = '', fs_mntops='', fs_freq='', fs_passno = ''):
+    def modify_config_by_device(self, device, fs_file='', fs_vfstype='', fs_mntops='', fs_freq='', fs_passno=''):
         """
         Modify an entry to /etc/fstab
 
-        @param device: device
-        @param fs_file: directory or mount point
-        @param fs_vfstype: Type of filesystem
-        @param fs_mntops: options
-        @param fs_freq: dump value
-        @param fs_passno: fsck value
+        :param device: device
+        :param fs_file: directory or mount point
+        :param fs_vfstype: Type of filesystem
+        :param fs_mntops: options
+        :param fs_freq: dump value
+        :param fs_passno: fsck value
         """
-        self._logger.debug(
-            "%s: modifying entry %s to %s %s %s %s %s to %s" %
-            (self.fstab_file, device, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
+        logger.debug(
+            '{0}: modifying entry {1} to {2} {3} {4} {5} {6} to {7}'.format(self.fstab_file, device, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
         )
 
         def x_if_x_else_key(x, dictionary, key):
@@ -106,11 +105,9 @@ class Fstab(object):
                 new_fs_freq = x_if_x_else_key(fs_freq, i, 'dump')
                 new_fs_passno = x_if_x_else_key(fs_passno, i, 'fsck')
 
-                f.write('%s %s %s %s %s %s\n' %
-                        (device, new_fs_file, new_fs_vfstype, new_fs_mntops, new_fs_freq, new_fs_passno))
+                f.write('{0} {1} {2} {3} {4} {5}\n'.format(device, new_fs_file, new_fs_vfstype, new_fs_mntops, new_fs_freq, new_fs_passno))
             else:
-                f.write("%s %s %s %s %s %s\n" %
-                        (i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
+                f.write('{0} {1} {2} {3} {4} {5}\n'.format(i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
         f.close()
 
     def remove_config_by_device(self, device):
@@ -138,7 +135,6 @@ class Fstab(object):
         if line_removed:
             with open(self.fstab_file, 'w') as fstab_file:
                 for line in lines:
-                    fstab_file.write("%s %s %s %s %s %s\n" %
-                                     (line['device'], line['directory'], line['fstype'], line['options'], line['dump'], line['fsck']))
+                    fstab_file.write('{0} {1} {2} {3} {4} {5}\n'.format(line['device'], line['directory'], line['fstype'], line['options'], line['dump'], line['fsck']))
         else:
-            self._logger.debug("%s: no such entry %s found" % (self.fstab_file, match_value))
+            logger.debug('{0}: no such entry {1} found'.format(self.fstab_file, match_value))

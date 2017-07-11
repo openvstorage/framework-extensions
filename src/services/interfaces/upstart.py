@@ -21,44 +21,49 @@ import re
 import time
 import logging
 from subprocess import CalledProcessError, check_output
-from ovs_extensions.generic.configuration import Configuration
-from ovs_extensions.generic.system import System
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
-from ovs_extensions.services.interfaces.manager import Manager
 
 logger = logging.getLogger(__name__)
 
 
-class Upstart(Manager):
+class Upstart(object):
     """
     Contains all logic related to Upstart services
     """
+    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir):
+        """
+        Init method
+        """
+        self._system = system
+        self._run_file_dir = run_file_dir
+        self._configuration = configuration
+        self._monitor_prefixes = monitor_prefixes
+        self.service_config_key = service_config_key
+        self._config_template_dir = config_template_dir
 
-    @staticmethod
-    def _service_exists(name, client, path):
+    @classmethod
+    def _service_exists(cls, name, client, path):
         if path is None:
             path = '/etc/init/'
         file_to_check = '{0}{1}.conf'.format(path, name)
         return client.file_exists(file_to_check)
 
-    @staticmethod
-    def _get_name(name, client, path=None, log=True):
+    def _get_name(self, name, client, path=None, log=True):
         """
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
-        if Upstart._service_exists(name, client, path):
+        if self._service_exists(name, client, path):
             return name
         if client.file_exists('/etc/init.d/{0}'.format(name)):
             return name
         name = 'ovs-{0}'.format(name)
-        if Upstart._service_exists(name, client, path):
+        if self._service_exists(name, client, path):
             return name
         if log is True:
             logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
-    @staticmethod
-    def add_service(name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
         """
         Add a service
         :param name: Template name of the service to add
@@ -79,8 +84,8 @@ class Upstart(Manager):
         if params is None:
             params = {}
 
-        service_name = Upstart._get_name(name, client, '/opt/OpenvStorage/config/templates/upstart/')
-        template_file = '/opt/OpenvStorage/config/templates/upstart/{0}.conf'.format(service_name)
+        service_name = self._get_name(name, client, self._config_template_dir.format('upstart'))
+        template_file = '{0}/{1}.conf'.format(self._config_template_dir.format('upstart'), service_name)
 
         if not client.file_exists(template_file):
             # Given template doesn't exist so we are probably using system init scripts
@@ -97,11 +102,10 @@ class Upstart(Manager):
         client.file_write('/etc/init/{0}.conf'.format(service_name), template_content)
 
         if delay_registration is False:
-            Upstart.register_service(service_metadata=params, node_name=System.get_my_machine_id(client))
+            self.register_service(service_metadata=params, node_name=self._system.get_my_machine_id(client))
         return params
 
-    @staticmethod
-    def regenerate_service(name, client, target_name):
+    def regenerate_service(self, name, client, target_name):
         """
         Regenerates the service files of a service.
         :param name: Template name of the service to regenerate
@@ -113,28 +117,27 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        configuration_key = Upstart.SERVICE_CONFIG_KEY.format(System.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
+        configuration_key = self.service_config_key.format(self._system.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
         # If the entry is stored in arakoon, it means the service file was previously made
-        if not Configuration.exists(configuration_key):
+        if not self._configuration.exists(configuration_key):
             raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
         # Rewrite the service file
-        service_params = Configuration.get(configuration_key)
+        service_params = self._configuration.get(configuration_key)
         startup_dependency = service_params['STARTUP_DEPENDENCY']
         if startup_dependency == '':
             startup_dependency = None
         else:
             startup_dependency = '.'.join(startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
-        output = Upstart.add_service(name=name,
-                                     client=client,
-                                     params=service_params,
-                                     target_name=target_name,
-                                     startup_dependency=startup_dependency,
-                                     delay_registration=True)
+        output = self.add_service(name=name,
+                                  client=client,
+                                  params=service_params,
+                                  target_name=target_name,
+                                  startup_dependency=startup_dependency,
+                                  delay_registration=True)
         if output is None:
             raise RuntimeError('Regenerating files for service {0} has failed'.format(target_name))
 
-    @staticmethod
-    def get_service_status(name, client):
+    def get_service_status(self, name, client):
         """
         Retrieve the status of a service
         :param name: Name of the service to retrieve the status of
@@ -145,7 +148,7 @@ class Upstart(Manager):
         :rtype: str
         """
         try:
-            name = Upstart._get_name(name, client)
+            name = self._get_name(name, client)
             output = client.run(['service', name, 'status'], allow_nonzero=True)
             # Special cases (especially old SysV ones)
             if 'rabbitmq' in name:
@@ -163,8 +166,7 @@ class Upstart(Manager):
             logger.exception('Get {0}.service status failed: {1}'.format(name, ex))
             raise Exception('Retrieving status for service "{0}" failed'.format(name))
 
-    @staticmethod
-    def remove_service(name, client, delay_unregistration=False):
+    def remove_service(self, name, client, delay_unregistration=False):
         """
         Remove a service
         :param name: Name of the service to remove
@@ -176,17 +178,16 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        name = Upstart._get_name(name, client)
-        run_file_name = '/opt/OpenvStorage/run/{0}.version'.format(ExtensionsToolbox.remove_prefix(name, 'ovs-'))
+        name = self._get_name(name, client)
+        run_file_name = '{0}/{1}.version'.format(self._run_file_dir, ExtensionsToolbox.remove_prefix(name, 'ovs-'))
         if client.file_exists(run_file_name):
             client.file_delete(run_file_name)
         client.file_delete('/etc/init/{0}.conf'.format(name))
 
         if delay_unregistration is False:
-            Upstart.unregister_service(service_name=name, node_name=System.get_my_machine_id(client))
+            self.unregister_service(service_name=name, node_name=self._system.get_my_machine_id(client))
 
-    @staticmethod
-    def start_service(name, client, timeout=5):
+    def start_service(self, name, client, timeout=5):
         """
         Start a service
         :param name: Name of the service to start
@@ -198,16 +199,16 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        if Upstart.get_service_status(name, client) == 'active':
+        if self.get_service_status(name, client) == 'active':
             return
 
-        name = Upstart._get_name(name, client)
+        name = self._get_name(name, client)
         timeout = timeout if timeout > 0 else 5
         try:
             client.run(['service', name, 'start'])
             counter = 0
             while counter < timeout * 4:
-                if Upstart.get_service_status(name=name, client=client) == 'active':
+                if self.get_service_status(name=name, client=client) == 'active':
                     return
                 time.sleep(0.25)
                 counter += 1
@@ -216,8 +217,7 @@ class Upstart(Manager):
             raise
         raise RuntimeError('Did not manage to start service {0} on node with IP {1}'.format(name, client.ip))
 
-    @staticmethod
-    def stop_service(name, client, timeout=5):
+    def stop_service(self, name, client, timeout=5):
         """
         Stop a service
         :param name: Name of the service to stop
@@ -229,16 +229,16 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        if Upstart.get_service_status(name, client) == 'inactive':
+        if self.get_service_status(name, client) == 'inactive':
             return
 
-        name = Upstart._get_name(name, client)
+        name = self._get_name(name, client)
         timeout = timeout if timeout > 0 else 5
         try:
             client.run(['service', name, 'stop'])
             counter = 0
             while counter < timeout * 4:
-                if Upstart.get_service_status(name=name, client=client) == 'inactive':
+                if self.get_service_status(name=name, client=client) == 'inactive':
                     return
                 time.sleep(0.25)
                 counter += 1
@@ -247,8 +247,7 @@ class Upstart(Manager):
             raise
         raise RuntimeError('Did not manage to stop service {0} on node with IP {1}'.format(name, client.ip))
 
-    @staticmethod
-    def restart_service(name, client, timeout=5):
+    def restart_service(self, name, client, timeout=5):
         """
         Restart a service
         :param name: Name of the service to restart
@@ -260,11 +259,10 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        Upstart.stop_service(name, client, timeout)
-        Upstart.start_service(name, client, timeout)
+        self.stop_service(name, client, timeout)
+        self.start_service(name, client, timeout)
 
-    @staticmethod
-    def has_service(name, client):
+    def has_service(self, name, client):
         """
         Verify existence of a service
         :param name: Name of the service to verify
@@ -275,13 +273,12 @@ class Upstart(Manager):
         :rtype: bool
         """
         try:
-            Upstart._get_name(name, client, log=False)
+            self._get_name(name, client, log=False)
         except ValueError:
             return False
         return True
 
-    @staticmethod
-    def get_service_pid(name, client):
+    def get_service_pid(self, name, client):
         """
         Retrieve the PID of a service
         :param name: Name of the service to retrieve the PID for
@@ -291,8 +288,8 @@ class Upstart(Manager):
         :return: The PID of the service or 0 if no PID found
         :rtype: int
         """
-        name = Upstart._get_name(name, client)
-        if Upstart.get_service_status(name, client) == 'active':
+        name = self._get_name(name, client)
+        if self.get_service_status(name, client) == 'active':
             output = client.run(['service', name, 'status'])
             if output:
                 # Special cases (especially old SysV ones)
@@ -307,8 +304,7 @@ class Upstart(Manager):
                         return match_groups['pid']
         return -1
 
-    @staticmethod
-    def send_signal(name, signal, client):
+    def send_signal(self, name, signal, client):
         """
         Send a signal to a service
         :param name: Name of the service to send a signal
@@ -320,14 +316,14 @@ class Upstart(Manager):
         :return: None
         :rtype: NoneType
         """
-        name = Upstart._get_name(name, client)
-        pid = Upstart.get_service_pid(name, client)
+        name = self._get_name(name, client)
+        pid = self.get_service_pid(name, client)
         if pid == -1:
             raise RuntimeError('Could not determine PID to send signal to')
         client.run(['kill', '-s', signal, pid])
 
-    @staticmethod
-    def list_services(client):
+    @classmethod
+    def list_services(cls, client):
         """
         List all created services on a system
         :param client: Client on which to list all the services
@@ -339,8 +335,8 @@ class Upstart(Manager):
             if filename.endswith('.conf'):
                 yield filename.replace('.conf', '')
 
-    @staticmethod
-    def monitor_services():
+    @classmethod
+    def monitor_services(cls):
         """
         Monitor the local OVS services
         :return: None
@@ -388,8 +384,7 @@ class Upstart(Manager):
         except KeyboardInterrupt:
             pass
 
-    @staticmethod
-    def register_service(node_name, service_metadata):
+    def register_service(self, node_name, service_metadata):
         """
         Register the metadata of the service to the configuration management
         :param node_name: Name of the node on which the service is running
@@ -399,11 +394,10 @@ class Upstart(Manager):
         :return: None
         """
         service_name = service_metadata['SERVICE_NAME']
-        Configuration.set(key=Upstart.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
-                          value=service_metadata)
+        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
+                                value=service_metadata)
 
-    @staticmethod
-    def unregister_service(node_name, service_name):
+    def unregister_service(self, node_name, service_name):
         """
         Un-register the metadata of a service from the configuration management
         :param service_name: Name of the service to clean from the configuration management
@@ -412,10 +406,9 @@ class Upstart(Manager):
         :type node_name: str
         :return: None
         """
-        Configuration.delete(key=Upstart.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
-    @staticmethod
-    def is_rabbitmq_running(client):
+    def is_rabbitmq_running(self, client):
         """
         Check if rabbitmq is correctly running
         :param client: Client on which to check the rabbitmq process
@@ -435,9 +428,9 @@ class Upstart(Manager):
                     rabbitmq_running = True
                     rabbitmq_pid_ctl = match_groups['pid']
 
-        if Upstart.has_service('rabbitmq-server', client) and Upstart.get_service_status('rabbitmq-server', client) == 'active':
+        if self.has_service('rabbitmq-server', client) and self.get_service_status('rabbitmq-server', client) == 'active':
             rabbitmq_running = True
-            rabbitmq_pid_sm = Upstart.get_service_pid('rabbitmq-server', client)
+            rabbitmq_pid_sm = self.get_service_pid('rabbitmq-server', client)
 
         same_process = rabbitmq_pid_ctl == rabbitmq_pid_sm
         logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
@@ -445,8 +438,7 @@ class Upstart(Manager):
                                                                                  rabbitmq_pid_sm))
         return rabbitmq_running, same_process
 
-    @staticmethod
-    def extract_from_service_file(name, client, entries=None):
+    def extract_from_service_file(self, name, client, entries=None):
         """
         Extract an entry, multiple entries or the entire service file content for a service
         :param name: Name of the service
@@ -458,11 +450,11 @@ class Upstart(Manager):
         :return: The requested entry information or entire service file content if entry=None
         :rtype: list
         """
-        if Upstart.has_service(name=name, client=client) is False:
+        if self.has_service(name=name, client=client) is False:
             return []
 
         try:
-            name = Upstart._get_name(name=name, client=client)
+            name = self._get_name(name=name, client=client)
             contents = client.file_read('/etc/init/{0}.conf'.format(name)).splitlines()
         except Exception:
             logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))

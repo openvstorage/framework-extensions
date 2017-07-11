@@ -1,7 +1,1 @@
-src/__init__.py  usr/lib/python2.7/dist-packages/ovs_extensions
-src/db           usr/lib/python2.7/dist-packages/ovs_extensions
-src/generic      usr/lib/python2.7/dist-packages/ovs_extensions
-src/os           usr/lib/python2.7/dist-packages/ovs_extensions
-src/packages     usr/lib/python2.7/dist-packages/ovs_extensions
-src/services     usr/lib/python2.7/dist-packages/ovs_extensions
-src/storage      usr/lib/python2.7/dist-packages/ovs_extensions
+src/*       usr/lib/python2.7/dist-packages/ovs_extensions

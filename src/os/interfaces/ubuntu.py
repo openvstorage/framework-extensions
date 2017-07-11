@@ -19,32 +19,35 @@ Ubuntu OS module
 """
 
 from subprocess import CalledProcessError, check_output
-from ovs_extensions.generic.configuration import Configuration
-from ovs_extensions.generic.system import System
 
 
 class Ubuntu(object):
     """
     Contains all logic related to Ubuntu specific
     """
+    def __init__(self, configuration, system):
+        """
+        Constructor 
+        """
+        self._configuration = configuration
+        self._system = system
 
-    @staticmethod
-    def get_path(binary_name):
+    def get_path(self, binary_name):
         """
         Retrieve the absolute path for binary
         :param binary_name: Binary to get path for
         :return: Path
         """
-        machine_id = System.get_my_machine_id()
+        machine_id = self._system.get_my_machine_id()
         config_location = '/ovs/framework/hosts/{0}/paths|{1}'.format(machine_id, binary_name)
-        if not Configuration.exists(config_location):
+        if not self._configuration.exists(config_location):
             try:
                 path = check_output("which '{0}'".format(binary_name.replace(r"'", r"'\''")), shell=True).strip()
-                Configuration.set(config_location, path)
+                self._configuration.set(config_location, path)
             except CalledProcessError:
                 return None
         else:
-            path = Configuration.get(config_location)
+            path = self._configuration.get(config_location)
         return path
 
     @staticmethod

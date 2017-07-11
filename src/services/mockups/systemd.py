@@ -18,20 +18,27 @@
 Systemd Mock module
 """
 
-from ovs_extensions.generic.configuration import Configuration
-from ovs_extensions.generic.system import System
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
-from ovs_extensions.services.interfaces.manager import Manager
 
 
-class SystemdMock(Manager):
+class SystemdMock(object):
     """
     Contains all logic related to Systemd Mock services
     """
     services = {}
 
-    @staticmethod
-    def add_service(name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir):
+        """
+        Init method
+        """
+        self._system = system
+        self._run_file_dir = run_file_dir
+        self._configuration = configuration
+        self._monitor_prefixes = monitor_prefixes
+        self.service_config_key = service_config_key
+        self._config_template_dir = config_template_dir
+
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
         """
         Adds a mocked service
         """
@@ -42,84 +49,77 @@ class SystemdMock(Manager):
         name = name if target_name is None else target_name
         params.update({'SERVICE_NAME': ExtensionsToolbox.remove_prefix(name, 'ovs-'),
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else '{0}.service'.format(startup_dependency)})
-        if SystemdMock.has_service(name=name, client=client) is False:
+        if self.has_service(name=name, client=client) is False:
             SystemdMock.services[key] = {name: 'HALTED'}
         if delay_registration is False:
-            SystemdMock.register_service(node_name=System.get_my_machine_id(client), service_metadata=params)
+            self.register_service(node_name=self._system.get_my_machine_id(client), service_metadata=params)
         return params
 
-    @staticmethod
-    def get_service_status(name, client):
+    def get_service_status(self, name, client):
         """
         Retrieve the mocked service status
         """
-        name = SystemdMock._get_name(name, client)
+        name = self._get_name(name, client)
         key = 'None' if client is None else client.ip
         if SystemdMock.services.get(key, {}).get(name) == 'RUNNING':
             return 'active'
         return 'inactive'
 
-    @staticmethod
-    def remove_service(name, client, delay_unregistration=False):
+    def remove_service(self, name, client, delay_unregistration=False):
         """
         Remove a mocked service
         """
-        name = SystemdMock._get_name(name, client)
+        name = self._get_name(name, client)
         key = 'None' if client is None else client.ip
         if name in SystemdMock.services[key]:
             SystemdMock.services[key].pop(name)
         if delay_unregistration is False:
-            SystemdMock.unregister_service(service_name=name, node_name=System.get_my_machine_id(client))
+            self.unregister_service(service_name=name, node_name=self._system.get_my_machine_id(client))
 
-    @staticmethod
-    def start_service(name, client):
+    def start_service(self, name, client):
         """
         Start a mocked service
         """
-        name = SystemdMock._get_name(name, client)
+        name = self._get_name(name, client)
         key = 'None' if client is None else client.ip
         if name not in SystemdMock.services[key]:
             raise RuntimeError('Service {0} does not exist'.format(name))
         SystemdMock.services[key][name] = 'RUNNING'
-        if SystemdMock.get_service_status(name, client) != 'active':
+        if self.get_service_status(name, client) != 'active':
             raise RuntimeError('Start {0} failed'.format(name))
 
-    @staticmethod
-    def stop_service(name, client):
+    def stop_service(self, name, client):
         """
         Stop a mocked service
         """
-        name = SystemdMock._get_name(name, client)
+        name = self._get_name(name, client)
         key = 'None' if client is None else client.ip
         if name not in SystemdMock.services[key]:
             raise RuntimeError('Service {0} does not exist'.format(name))
         SystemdMock.services[key][name] = 'HALTED'
-        if SystemdMock.get_service_status(name, client) != 'inactive':
+        if self.get_service_status(name, client) != 'inactive':
             raise RuntimeError('Stop {0} failed'.format(name))
 
-    @staticmethod
-    def restart_service(name, client):
+    def restart_service(self, name, client):
         """
         Restart a mocked service
         """
-        name = SystemdMock._get_name(name, client)
-        SystemdMock.stop_service(name, client)
-        SystemdMock.start_service(name, client)
+        name = self._get_name(name, client)
+        self.stop_service(name, client)
+        self.start_service(name, client)
 
-    @staticmethod
-    def has_service(name, client):
+    def has_service(self, name, client):
         """
         Verify whether a mocked service exists
         """
         try:
-            name = SystemdMock._get_name(name, client)
+            name = self._get_name(name, client)
             key = 'None' if client is None else client.ip
             return name in SystemdMock.services[key]
         except ValueError:
             return False
 
-    @staticmethod
-    def register_service(node_name, service_metadata):
+    def register_service(self, node_name, service_metadata):
         """
         Register the metadata of the service to the configuration management
         :param node_name: Name of the node on which the service is running
@@ -129,11 +129,10 @@ class SystemdMock(Manager):
         :return: None
         """
         service_name = service_metadata['SERVICE_NAME']
-        Configuration.set(key=SystemdMock.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
-                          value=service_metadata)
+        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
+                                value=service_metadata)
 
-    @staticmethod
-    def unregister_service(node_name, service_name):
+    def unregister_service(self, node_name, service_name):
         """
         Un-register the metadata of a service from the configuration management
         :param node_name: Name of the node on which to un-register the service
@@ -142,10 +141,10 @@ class SystemdMock(Manager):
         :type service_name: str
         :return: None
         """
-        Configuration.delete(key=SystemdMock.SERVICE_CONFIG_KEY.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
-    @staticmethod
-    def extract_from_service_file(name, client, entries=None):
+    @classmethod
+    def extract_from_service_file(cls, name, client, entries=None):
         """
         Extract an entry, multiple entries or the entire service file content for a service
         :param name: Name of the service
@@ -160,8 +159,8 @@ class SystemdMock(Manager):
         _ = name, client, entries
         return []
 
-    @staticmethod
-    def _service_exists(name, client, path):
+    @classmethod
+    def _service_exists(cls, name, client, path):
         """
         Verify whether a mocked service exists
         """
@@ -169,23 +168,22 @@ class SystemdMock(Manager):
         key = 'None' if client is None else client.ip
         return name in SystemdMock.services.get(key, {})
 
-    @staticmethod
-    def _get_name(name, client, path=None, log=True):
+    def _get_name(self, name, client, path=None, log=True):
         """
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
         _ = log
-        if SystemdMock._service_exists(name, client, path):
+        if self._service_exists(name, client, path):
             return name
-        if SystemdMock._service_exists(name, client, '/lib/systemd/system/'):
+        if self._service_exists(name, client, '/lib/systemd/system/'):
             return name
         name = 'ovs-{0}'.format(name)
-        if SystemdMock._service_exists(name, client, path):
+        if self._service_exists(name, client, path):
             return name
         raise ValueError('Service {0} could not be found.'.format(name))
 
-    @staticmethod
-    def _clean():
+    @classmethod
+    def _clean(cls):
         """
         Clean up mocked Class
         """

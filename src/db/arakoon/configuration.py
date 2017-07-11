@@ -112,7 +112,6 @@ class ArakoonConfiguration(object):
         :return: Value of key
         :rtype: str
         """
-        print 'get function {0}'.format(kwargs)
         key = ArakoonConfiguration._clean_key(key)
         client = self.get_client()
         return client.get(key, **kwargs)

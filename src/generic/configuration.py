@@ -100,7 +100,6 @@ class Configuration(object):
         :param raw: Raw data if True else json format
         :return: Value for key
         """
-        print 'public {0}'.format(kwargs)
         try:
             key_entries = key.split('|')
             data = cls._get(key_entries[0], raw, **kwargs)
@@ -292,7 +291,6 @@ class Configuration(object):
                 data = None
         else:
             # Forward call to used configuration store
-            print 'private {0}'.format(kwargs)
             data = cls._passthrough(method='get',
                                     key=key,
                                     **kwargs)

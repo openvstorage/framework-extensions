@@ -20,15 +20,22 @@ Rpm Package module
 import time
 import logging
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.packages.interfaces.manager import Manager
 
 logger = logging.getLogger(__name__)
 
 
-class RpmPackage(Manager):
+class RpmPackage(object):
     """
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
+
+    def __init__(self, packages, versions):
+        self._packages = packages
+        self._versions = versions
+
+    @property
+    def package_names(self):
+        return self._packages['names']
 
     @staticmethod
     def get_release_name(client=None):
@@ -46,8 +53,7 @@ class RpmPackage(Manager):
             output = client.run(command, allow_insecure=True).strip()
         return output.replace('-', ' ').title()
 
-    @staticmethod
-    def get_installed_versions(client=None, package_names=None):
+    def get_installed_versions(self, client=None, package_names=None):
         """
         Retrieve currently installed versions of all packages
         :param client: Client on which to check the installed versions
@@ -59,7 +65,7 @@ class RpmPackage(Manager):
         """
         versions = {}
         if package_names is None:
-            package_names = RpmPackage.OVS_PACKAGE_NAMES
+            package_names = self._packages['names']
         for package_name in package_names:
             command = "yum info '{0}' | grep Version | cut -d ':' -f 2 || true".format(package_name.replace(r"'", r"'\''"))
             if client is None:
@@ -70,8 +76,8 @@ class RpmPackage(Manager):
                 versions[package_name] = version_info
         return versions
 
-    @staticmethod
-    def get_candidate_versions(client, package_names):
+    @classmethod
+    def get_candidate_versions(cls, client, package_names):
         """
         Retrieve the versions candidate for installation of all packages
         :param client: Root client on which to check the candidate versions
@@ -101,8 +107,7 @@ class RpmPackage(Manager):
                 pass
         return versions
 
-    @staticmethod
-    def get_binary_versions(client, package_names):
+    def get_binary_versions(self, client, package_names):
         """
         Retrieve the versions for the binaries related to the package_names
         :param client: Root client on which to retrieve the binary versions
@@ -115,14 +120,14 @@ class RpmPackage(Manager):
         versions = {}
         for package_name in package_names:
             if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = client.run(RpmPackage.GET_VERSION_ALBA, allow_insecure=True)
+                versions[package_name] = client.run(self._versions['alba'], allow_insecure=True)
             elif package_name == 'arakoon':
-                versions[package_name] = client.run(RpmPackage.GET_VERSION_ARAKOON, allow_insecure=True)
+                versions[package_name] = client.run(self._versions['arakoon'], allow_insecure=True)
             elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
                                   'volumedriver-ee-base', 'volumedriver-ee-no-server']:
-                versions[package_name] = client.run(RpmPackage.GET_VERSION_STORAGEDRIVER, allow_insecure=True)
+                versions[package_name] = client.run(self._versions['storagedriver'], allow_insecure=True)
             else:
-                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(RpmPackage.OVS_PACKAGES_WITH_BINARIES)))
+                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
         return versions
 
     @staticmethod

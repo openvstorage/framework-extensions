@@ -33,7 +33,7 @@ class PackageFactory(object):
         """
         Returns a package manager
         """
-        if not hasattr(PackageFactory, 'manager') or PackageFactory.manager is None:
+        if not hasattr(cls, 'manager') or cls.manager is None:
             distributor = None
             check_lsb = check_output('which lsb_release 2>&1 || true', shell=True).strip()
             if "no lsb_release in" in check_lsb:
@@ -44,11 +44,21 @@ class PackageFactory(object):
                 distributor = distributor.replace('Distributor ID:', '').strip()
 
             if distributor in ['Ubuntu']:
-                PackageFactory.manager = DebianPackage
+                cls.manager = DebianPackage(packages=cls._get_packages(),
+                                            versions=cls._get_versions())
             elif distributor in ['CentOS']:
-                PackageFactory.manager = RpmPackage
+                cls.manager = RpmPackage(packages=cls._get_packages(),
+                                         versions=cls._get_versions())
 
-        if PackageFactory.manager is None:
+        if cls.manager is None:
             raise RuntimeError('Unknown PackageManager')
 
-        return PackageFactory.manager
+        return cls.manager
+
+    @classmethod
+    def _get_packages(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def _get_versions(cls):
+        raise NotImplementedError()

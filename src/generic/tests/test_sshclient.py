@@ -39,5 +39,4 @@ class SSHClientTest(unittest.TestCase):
             try:
                 self.assertEqual(SSHClient._clean_text(original), cleaned)
             except:
-                print 'Failed test {0}'.format(test)
                 raise

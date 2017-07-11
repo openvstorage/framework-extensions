@@ -79,7 +79,10 @@ class MockedSSHClient(object):
         Mocked run method
         """
         if isinstance(command, list):
+            original_command = command[:]
             command = ' '.join(command)
+        else:
+            original_command = command
         logger.debug('Executing: {0}'.format(command))
         if client.ip not in MockedSSHClient._run_recordings:
             MockedSSHClient._run_recordings[client.ip] = []
@@ -87,7 +90,7 @@ class MockedSSHClient(object):
         if command in MockedSSHClient._run_returns.get(client.ip, {}):
             logger.debug('Emulating return value')
             return MockedSSHClient._run_returns[client.ip][command]
-        return client.original_function(client, command, *args, **kwargs)
+        return client.original_function(client, original_command, *args, **kwargs)
 
     @staticmethod
     def dir_create(client, directories):

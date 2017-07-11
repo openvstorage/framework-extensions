@@ -22,7 +22,6 @@ import uuid
 import logging
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.generic.filemutex import file_mutex
-from ovs_extensions.os.osfactory import OSFactory
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +96,8 @@ class DiskTools(object):
             logger.error('Error during filesystem creation')
             raise
 
-    @staticmethod
-    def add_fstab(partition_aliases, mountpoint, filesystem):
+    @classmethod
+    def add_fstab(cls, partition_aliases, mountpoint, filesystem):
         """
         Add entry to /etc/fstab for mountpoint
         :param partition_aliases: Possible aliases of the partition to add
@@ -115,7 +114,7 @@ class DiskTools(object):
         with open('/etc/fstab', 'r') as fstab_file:
             lines = [line.strip() for line in fstab_file.readlines()]
 
-        osmanager = OSFactory.get_manager()
+        osmanager = cls._get_os_manager()
         used_path = None
         used_index = None
         mount_line = None
@@ -187,3 +186,7 @@ class DiskTools(object):
             check_output("umount '{0}'".format(mountpoint.replace(r"'", r"'\''")), shell=True)
         except Exception:
             logger.exception('Unable to umount mountpoint {0}'.format(mountpoint))
+
+    @classmethod
+    def _get_os_manager(cls):
+        raise NotImplementedError()

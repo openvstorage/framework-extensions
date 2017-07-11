@@ -21,6 +21,7 @@ This package contains the DAL object's base class.
 import json
 import sqlite3
 from ovs_extensions.dal.relations import RelationMapper
+from ovs_extensions.generic.filemutex import file_mutex
 
 
 class ObjectNotFoundException(Exception):
@@ -42,32 +43,39 @@ class Base(object):
     _relations = []
     _properties = []
 
-    def __init__(self, identifier=None):
+    def __init__(self, identifier=None, locked=True):
         """
         Initializes a new object. If no identifier is passed in, a new one is created.
         :param identifier: Optional identifier (primary key)
         :type identifier: int
+        :param locked: Indicates whether the constructor should lock the DB
+        :type locked: bool
         """
         self.id = identifier
-        self.__class__._ensure_table()
-        with self.__class__.connector() as connection:
-            if identifier is not None:
-                cursor = connection.cursor()
-                cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
-                row = cursor.fetchone()
-                if row is None:
-                    raise ObjectNotFoundException()
-                for prop in self._properties:
-                    setattr(self, prop[0], Base._deserialize(prop[1], row[prop[0]]))
-                for relation in self._relations:
-                    setattr(self, '_{0}'.format(relation[0]), {'id': row['_{0}_id'.format(relation[0])],
-                                                               'object': None})
-            else:
-                for prop in self._properties:
-                    setattr(self, prop[0], None)
-                for relation in self._relations:
-                    setattr(self, '_{0}'.format(relation[0]), {'id': None,
-                                                               'object': None})
+        try:
+            if locked is True:
+                self.lock().acquire()
+            self._ensure_table()
+            with self.connector() as connection:
+                if identifier is not None:
+                    cursor = connection.cursor()
+                    cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
+                    row = cursor.fetchone()
+                    if row is None:
+                        raise ObjectNotFoundException()
+                    for prop in self._properties:
+                        setattr(self, prop.name, Base._deserialize(prop.property_type, row[prop.name]))
+                    for relation in self._relations:
+                        setattr(self, '_{0}'.format(relation[0]), {'id': row['_{0}_id'.format(relation[0])],
+                                                                   'object': None})
+                else:
+                    for prop in self._properties:
+                        setattr(self, prop.name, None)
+                    for relation in self._relations:
+                        setattr(self, '_{0}'.format(relation[0]), {'id': None,
+                                                                   'object': None})
+        finally:
+            self.lock().release()
         for relation in self._relations:
             self._add_relation(relation)
         for key, relation_info in RelationMapper.load_foreign_relations(self.__class__).iteritems():
@@ -82,6 +90,11 @@ class Base(object):
         connection.row_factory = sqlite3.Row
         return connection
 
+    @classmethod
+    def lock(cls):
+        """ Returns a file lock context manager """
+        return file_mutex('{0}/main.lock'.format(cls.DATABASE_FOLDER))
+
     def _add_dynamic(self, key):
         """ Generates a new dynamic value on an object. """
         setattr(self.__class__, key, property(lambda s: getattr(s, '_{0}'.format(key))()))
@@ -95,7 +108,7 @@ class Base(object):
         remote_class = relation_info['class']
         remote_class._ensure_table()
         entries = []
-        with self.__class__.connector() as connection:
+        with self.connector() as connection:
             cursor = connection.cursor()
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
@@ -135,21 +148,26 @@ class Base(object):
         Saves the current object. If not existing, it is created and the identifier field is filled.
         :return: None
         """
-        prop_values = [Base._serialize(prop[1], getattr(self, prop[0])) for prop in self._properties] + \
-                      [getattr(self, '_{0}'.format(relation[0])).get('id') for relation in self._relations]
+        prop_values = []
+        for prop in self._properties:
+            if prop.property_type is None and prop.mandatory is True and getattr(self, prop.name) is None:  # None value would otherwise be JSON serialized to 'null', bypassing the mandatory CONSTRAINT
+                prop_values.append(None)
+            else:
+                prop_values.append(Base._serialize(prop.property_type, getattr(self, prop.name)))
+        prop_values.extend([getattr(self, '_{0}'.format(relation[0])).get('id') for relation in self._relations])
         if self.id is None:
-            field_names = ', '.join([prop[0] for prop in self._properties] +
+            field_names = ', '.join([prop.name for prop in self._properties] +
                                     ['_{0}_id'.format(relation[0]) for relation in self._relations])
             prop_statement = ', '.join('?' for _ in self._properties + self._relations)
-            with self.__class__.connector() as connection:
+            with self.lock(), self.connector() as connection:
                 cursor = connection.cursor()
                 cursor.execute('INSERT INTO {0}({1}) VALUES ({2})'.format(self._table, field_names, prop_statement),
                                prop_values)
                 self.id = cursor.lastrowid
         else:
-            prop_statement = ', '.join(['{0}=?'.format(prop[0]) for prop in self._properties] +
+            prop_statement = ', '.join(['{0}=?'.format(prop.name) for prop in self._properties] +
                                        ['_{0}_id=?'.format(relation[0]) for relation in self._relations])
-            with self.__class__.connector() as connection:
+            with self.lock(), self.connector() as connection:
                 connection.execute('UPDATE {0} SET {1} WHERE id=? LIMIT 1'.format(self._table, prop_statement),
                                    prop_values + [self.id])
 
@@ -158,7 +176,7 @@ class Base(object):
         Deletes the current object from the SQLite database.
         :return: None
         """
-        with self.__class__.connector() as connection:
+        with self.lock(), self.connector() as connection:
             connection.execute('DELETE FROM {0} WHERE id=? LIMIT 1'.format(self._table), [self.id])
 
     @staticmethod
@@ -195,14 +213,15 @@ class Base(object):
     @classmethod
     def _ensure_table(cls):
         relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
-        property_dict = dict((prop[0], Base._get_prop_type(prop[1])) for prop in cls._properties)
-        type_statement = ', '.join(
-            ['{0} {1}'.format(key, value) for key, value in property_dict.iteritems()] +
-            ['{0} INTEGER'.format(relation) for relation in relation_list]
-        )
-        type_statement = 'id INTEGER PRIMARY KEY AUTOINCREMENT, {0}'.format(type_statement)
+        relations = ['{0} INTEGER'.format(relation) for relation in relation_list]
+        properties = ['{0} {1} {2} {3}'.format(prop.name,
+                                               Base._get_prop_type(prop.property_type),
+                                               'NOT NULL' if prop.mandatory is True else '',
+                                               'UNIQUE' if prop.unique is True else '') for prop in cls._properties]
+        primary_key = ['id INTEGER PRIMARY KEY AUTOINCREMENT']
+
         with cls.connector() as connection:
-            connection.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(cls._table, type_statement))
+            connection.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(cls._table, ', '.join(primary_key + properties + relations)))
             cursor = connection.cursor()
             cursor.execute('PRAGMA table_info({0})'.format(cls._table))
             current_relations = []
@@ -213,9 +232,12 @@ class Base(object):
                 else:
                     current_properties.append(row['name'])
 
-            for prop_name, prop_type in property_dict.iteritems():
-                if prop_name not in current_properties:
-                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table, prop_name, prop_type))
+            # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints
+            for prop in cls._properties:
+                if prop.name not in current_properties:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
+                                                                                   prop.name,
+                                                                                   Base._get_prop_type(prop.property_type)))
 
             for rel_name in relation_list:
                 if rel_name not in current_relations:
@@ -229,7 +251,7 @@ class Base(object):
         """ Exports the object """
         data = {'id': self.id}
         for prop in self._properties:
-            data[prop[0]] = getattr(self, prop[0])
+            data[prop.name] = getattr(self, prop.name)
         for relation in self._relations:
             name = '{0}_id'.format(relation[0])
             data[name] = getattr(self, name)

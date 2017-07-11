@@ -15,5 +15,20 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-This package contains various extensions
+Module containing various helping structures
 """
+
+
+class Property(object):
+    """
+    Property
+    """
+
+    def __init__(self, name, property_type, unique=False, mandatory=True):
+        """
+        Initializes a property
+        """
+        self.name = name
+        self.unique = unique
+        self.mandatory = mandatory
+        self.property_type = property_type

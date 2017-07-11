@@ -116,7 +116,9 @@ class file_mutex(object):
         """
         Lock key
         """
-        return '/var/lock/ovs_flock_%s' % self.name
+        if '/' in self.name:
+            return self.name  # Assuming a path
+        return '/var/lock/ovs_flock_{0}'.format(self.name)
 
     def __del__(self):
         """

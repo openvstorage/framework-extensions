@@ -34,9 +34,9 @@ class HttpException(RuntimeError):
     """
     Custom Http Exception class
     """
-    def __init__(self, status_code, *args, **kwargs):
-        super(HttpException, self).__init__(*args, **kwargs)
+    def __init__(self, status_code, message, *args, **kwargs):
         self.status_code = status_code
+        super(HttpException, self).__init__(message, *args, **kwargs)
 
 
 class ForbiddenException(HttpException):
@@ -63,7 +63,7 @@ class OVSClient(object):
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
 
-    def __init__(self, ip, port, credentials=None, verify=False, version='*', raw_response=False):
+    def __init__(self, ip, port, credentials=None, verify=False, version='*', raw_response=False, cache_store=None):
         """
         Initializes the object with credentials and connection information
         """
@@ -79,12 +79,7 @@ class OVSClient(object):
         self._verify = verify
         self._version = version
         self._raw_response = raw_response
-        try:
-            # noinspection PyUnresolvedReferences
-            from ovs_extensions.storage.volatilefactory import VolatileFactory
-            self._volatile_client = VolatileFactory.get_client()
-        except ImportError:
-            self._volatile_client = None
+        self._volatile_client = cache_store
 
     def _connect(self):
         """
