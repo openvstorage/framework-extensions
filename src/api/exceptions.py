@@ -21,7 +21,7 @@ Custom exceptions module
 import json
 
 
-class HttpException(Exception):
+class HttpException(RuntimeError):
     """
     Custom HTTP Exception
     """
