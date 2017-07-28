@@ -100,6 +100,8 @@ class Configuration(object):
         :param raw: Raw data if True else json format
         :return: Value for key
         """
+        default_specified = 'default' in kwargs  # Using this bool here, because the default value itself could be None or False-ish and we want to be able to return the default value specified
+        default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
             data = cls._get(key_entries[0], raw, **kwargs)
@@ -113,8 +115,8 @@ class Configuration(object):
             except KeyError as ex:
                 raise NotFoundException(ex.message)
         except NotFoundException:
-            if 'default' in kwargs:
-                return kwargs['default']
+            if default_specified is True:
+                return default_value
             raise
 
     @classmethod
