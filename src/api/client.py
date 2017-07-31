@@ -137,6 +137,7 @@ class OVSClient(object):
                             404: 'The requested API could not be found',
                             405: 'Requested method not allowed',
                             406: 'The request was unacceptable',
+                            426: 'Upgrade is needed',
                             429: 'Rate limit was hit',
                             500: 'Internal server error'}
                 if status_code in messages:
