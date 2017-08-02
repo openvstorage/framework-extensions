@@ -26,7 +26,9 @@ import requests
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
 from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException, HttpNotFoundException
+# noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
+# noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
