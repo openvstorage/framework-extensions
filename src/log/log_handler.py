@@ -107,10 +107,18 @@ class LogHandler(object):
         WARNING: This is not how python logging should be handled. Each process making use of a logger should create its own instance (logging.getLogger(__name__))
                  and this class should only provide the handler (file, stream, redis, ...)
         """
-        target_definition = cls._load_target_definition(source, allow_override=True, forced_target_type=forced_target_type)
-        level = cls.get_logging_info().get('level', cls.DEFAULT_LOG_LEVEL).upper()
-        target_type = target_definition['type']
+        try:
+            logging_info = cls.get_logging_info()
+        except:
+            logging_info = {}
 
+        try:
+            target_definition = cls._load_target_definition(source, allow_override=True, forced_target_type=forced_target_type)
+        except:
+            target_definition = {}
+
+        level = logging_info.get('level', cls.DEFAULT_LOG_LEVEL).upper()
+        target_type = target_definition.get('type', cls.DEFAULT_TARGET_TYPE)
         if level not in cls.LOG_LEVELS.values():
             raise ValueError('Invalid log level specified: {0}'.format(level))
         if target_type not in cls.TARGET_TYPES:
