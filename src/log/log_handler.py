@@ -93,9 +93,7 @@ class LogHandler(object):
         name = 'logger' if name is None else name
         self._key = '{0}_{1}'.format(source, name)
         self._target_type = target_type
-        self._unittest_mode = False
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            self._unittest_mode = True
+        self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
 
         self.logger = logging.getLogger(self._key)
         self.logger.propagate = propagate
