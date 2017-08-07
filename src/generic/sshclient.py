@@ -36,7 +36,6 @@ from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen
 from ovs_extensions.generic.remote import remote
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
-from ovs.extensions.os.osfactory import OSFactory
 
 logger = logging.getLogger(__name__)
 
@@ -158,11 +157,11 @@ class SSHClient(object):
             if not re.findall(SSHClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
-            raise ValueError('The endpoint parameter should be an ip address')
+            raise ValueError('The endpoint parameter should be an IP address')
 
         self.ip = ip
         self._client = None
-        self.local_ips = OSFactory.get_manager().get_ip_addresses(remove_local_host_ips=False)
+        self.local_ips = [lip.strip() for lip in check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()]
         self.is_local = self.ip in self.local_ips
         self.password = password
         self.timeout = timeout
