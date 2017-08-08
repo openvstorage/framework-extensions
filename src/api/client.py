@@ -26,7 +26,9 @@ import requests
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
 from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException, HttpNotFoundException
+# noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
+# noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
@@ -137,6 +139,7 @@ class OVSClient(object):
                             404: 'The requested API could not be found',
                             405: 'Requested method not allowed',
                             406: 'The request was unacceptable',
+                            426: 'Upgrade is needed',
                             429: 'Rate limit was hit',
                             500: 'Internal server error'}
                 if status_code in messages:

@@ -27,7 +27,7 @@ class Ubuntu(object):
     """
     def __init__(self, configuration, system):
         """
-        Constructor 
+        Constructor
         """
         self._configuration = configuration
         self._system = system
@@ -49,6 +49,28 @@ class Ubuntu(object):
         else:
             path = self._configuration.get(config_location)
         return path
+
+    @staticmethod
+    def get_ip_addresses(client=None, remove_local_host_ips=True):
+        """
+        Retrieve the currently configured IP addresses on the SSHClient provided
+        :param client: The SSHClient to retrieve the IP addresses for
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :param remove_local_host_ips: Remove the local host IPs, eg: 127.0.0.1
+        :type remove_local_host_ips: bool
+        :return: A list of IP addresses available on the SSHClient
+        :rtype: list
+        """
+        command = "ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1"
+        if client is None:
+            ips = check_output(command, shell=True)
+        else:
+            ips = client.run(command=command, allow_insecure=True)
+        ips = ips.strip().splitlines()
+
+        if remove_local_host_ips:
+            ips = [ip.strip() for ip in ips if not ip.strip().startswith('127.')]
+        return ips
 
     @staticmethod
     def get_fstab_entry(device, mp, filesystem='ext4'):

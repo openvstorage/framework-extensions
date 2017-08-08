@@ -157,7 +157,7 @@ class SSHClient(object):
             if not re.findall(SSHClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
-            raise ValueError('The endpoint parameter should be an ip address')
+            raise ValueError('The endpoint parameter should be an IP address')
 
         self.ip = ip
         self._client = None

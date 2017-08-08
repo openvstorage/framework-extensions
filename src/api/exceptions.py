@@ -32,6 +32,9 @@ class HttpException(RuntimeError):
         self.data = json.dumps({'error': error,
                                 'error_description': error_description})
 
+    def __str__(self):  # Actually explain the exception when this would be raised
+        return "Status code: {0} - Error: {1}'.".format(self.status_code, self.error)
+
 
 class HttpBadRequestException(HttpException):
     """
@@ -99,6 +102,11 @@ class HttpGoneException(HttpException):
     """
     def __init__(self, error, error_description):
         super(HttpGoneException, self).__init__(410, error, error_description)
+
+
+class HttpUpgradeNeededException(HttpException):
+    def __init__(self, error, error_description):
+        super(HttpUpgradeNeededException, self).__init__(426, error, error_description)
 
 
 class HttpTooManyRequestsException(HttpException):
