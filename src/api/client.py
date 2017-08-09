@@ -181,7 +181,8 @@ class OVSClient(object):
         """
         Executes a GET call
         :param api: Specification to fill out in the URL, eg: /vpools/<vpool_guid>/shrink_vpool
-        :param params: Additional query parameters, eg: _dynamics
+        :param params: Additional query parameters as comma separated list, eg: {'contents':'dynamic1,dynamic2,-dynamic3'}
+        :type params: dict
         """
         return self._call(api=api, params=params, fct=requests.get)
 
