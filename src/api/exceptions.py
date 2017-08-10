@@ -31,6 +31,7 @@ class HttpException(RuntimeError):
         self.error_description = error_description
         self.data = json.dumps({'error': error,
                                 'error_description': error_description})
+        super(HttpException, self).__init__(error)
 
     def __str__(self):  # Actually explain the exception when this would be raised
         return "Status code: {0} - Error: {1}'.".format(self.status_code, self.error)
