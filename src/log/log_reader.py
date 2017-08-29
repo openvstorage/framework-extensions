@@ -20,11 +20,11 @@ import platform
 import subprocess
 import unicodedata
 from datetime import date, datetime, timedelta
+from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
 from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.log.log_handler import LogHandler
 
 
 class LogFileTimeParser(object):
@@ -61,7 +61,7 @@ class LogFileTimeParser(object):
     # Timeout for ssh: 0.0 means no timeout
     TIMEOUT = 0.0
 
-    logger = LogHandler.get('log', name='log_reader')
+    logger = Logger('extensions')
 
     @staticmethod
     def _get_execution_mode():

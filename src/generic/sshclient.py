@@ -36,8 +36,7 @@ from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen
 from ovs_extensions.generic.remote import remote
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 def connected():
@@ -134,6 +133,7 @@ class SSHClient(object):
     """
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
 
+    _logger = Logger('extensions')
     _raise_exceptions = {}  # Used by unit tests
     client_cache = {}
 
@@ -238,11 +238,11 @@ class SSHClient(object):
                 raise
         except socket.timeout as ex:
             message = str(ex)
-            logger.error(message)
+            SSHClient._logger.error(message)
             raise TimeOutException(message)
         except socket.error as ex:
             message = str(ex)
-            logger.error(message)
+            SSHClient._logger.error(message)
             if 'No route to host' in message or 'Unable to connect' in message:
                 raise UnableToConnectException(message)
             raise
@@ -294,7 +294,7 @@ class SSHClient(object):
             cleaned = cleaned.encode('ascii', 'ignore')
             return cleaned
         except UnicodeDecodeError:
-            logger.error('UnicodeDecodeError with output: {0}'.format(text))
+            SSHClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
     @connected()
@@ -345,15 +345,15 @@ class SSHClient(object):
                 if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                     raise CalledProcessError(exit_code, original_command, stdout)
                 if debug is True:
-                    logger.debug('stdout: {0}'.format(stdout))
-                    logger.debug('stderr: {0}'.format(stderr))
+                    SSHClient._logger.debug('stdout: {0}'.format(stdout))
+                    SSHClient._logger.debug('stderr: {0}'.format(stderr))
                 if return_stderr is True:
                     return stdout, stderr
                 else:
                     return stdout
             except CalledProcessError as cpe:
                 if suppress_logging is False:
-                    logger.error('Command "{0}" failed with output "{1}"{2}'.format(
+                    SSHClient._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
                         original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                     ))
                 raise
@@ -367,8 +367,7 @@ class SSHClient(object):
                 raise CalledProcessTimeout(124, original_command, 'Timeout during command')
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                 if suppress_logging is False:
-                    logger.error('Command "{0}" failed with output "{1}" and error "{2}"'
-                                            .format(command, output, error))
+                    SSHClient._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
             if return_stderr is True:
                 return output, error

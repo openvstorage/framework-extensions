@@ -27,10 +27,11 @@ class SystemdMock(object):
     """
     services = {}
 
-    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir):
+    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir, logger):
         """
         Init method
         """
+        self._logger = logger
         self._system = system
         self._run_file_dir = run_file_dir
         self._configuration = configuration
