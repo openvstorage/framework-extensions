@@ -86,21 +86,27 @@ class Logger(logging.Logger):
     counter = itertools.count()
 
     _logs = {}  # Used by unittests
+    _cache = {}
 
     def __init__(self, name, forced_target_type=None):
         super(Logger, self).__init__(name.split('-')[0])
         self._full_name = name
         self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
-        self.configure_logging(forced_target_type=forced_target_type)
 
-    def configure_logging(self, forced_target_type=None):
+        if name in Logger._cache:
+            handler = Logger._cache[name]
+        else:
+            handler = self.get_handler(forced_target_type=forced_target_type)
+
+        self.setLevel(handler.level)
+        self.handlers = [handler]
+
+    def get_handler(self, forced_target_type=None):
         """
-        Configure the logger instance.
+        Retrieve a handler for the Logger instance
             * Create a handler
             * Set log level for the handler
-            * Set log level for the logger instance
             * Add a formatter to the handler
-            * Add the handler to the logger
 
         The log level is configured on the logger instance AND on the handler
         The logger instance determines whether the LogRecord is 'important' enough.
@@ -108,8 +114,8 @@ class Logger(logging.Logger):
             * If so, all handlers get the LogRecord, the handlers will then filter themselves based on the log level they have configured
         :param forced_target_type: Forcefully override the target type configured in configuration management or set in environment variables
         :type forced_target_type: str
-        :return: The configured logger instance
-        :rtype: logging.getLogger
+        :return: The configured handler instance
+        :rtype: logging.FileHandler|logging.StreamHandler|RedisListHandler
         """
         target_params = self._load_target_parameters(source=self.name, forced_target_type=forced_target_type)
         log_level = target_params['level']
@@ -128,9 +134,9 @@ class Logger(logging.Logger):
                                                     port=target_params['port']))
 
         handler.setLevel(getattr(logging, log_level))
-        self.setLevel(getattr(logging, log_level))
         handler.setFormatter(LogFormatter('%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(sequence)s - %(levelname)s - %(message)s'.format(self._full_name)))
-        self.handlers = [handler]
+        Logger._cache[self._full_name] = handler
+        return handler
 
     @classmethod
     def load_path(cls, source):
