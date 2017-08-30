@@ -19,7 +19,6 @@ Volatile mutex module
 """
 
 import time
-import inspect
 
 
 class NoLockAvailableException(Exception):
@@ -40,10 +39,6 @@ class volatile_mutex(object):
         """
         Creates a volatile mutex object
         """
-        parent_invoker = inspect.stack()[1]
-        if parent_invoker[1] in __file__ or parent_invoker[3] != '__init__' or not parent_invoker[4][0].strip().startswith('super'):
-            raise RuntimeError('Cannot invoke instance from inside this class. Please use eg: ovs.extensions.generic.volatile_mutex instead')
-
         self.name = name
         self._wait = wait
         self._start = 0
@@ -77,11 +72,13 @@ class volatile_mutex(object):
             time.sleep(0.005)
             passed = time.time() - self._start
             if wait is not None and passed > wait:
-                self._logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self.key(), passed, wait))
+                if self._logger is not None:
+                    self._logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self.key(), passed, wait))
                 raise NoLockAvailableException('Could not acquire lock {0}'.format(self.key()))
         passed = time.time() - self._start
         if passed > 0.2:  # More than 200 ms is a long time to wait
-            self._logger.warning('Waited {0} sec for lock {1}'.format(passed, self.key()))
+            if self._logger is not None:
+                self._logger.warning('Waited {0} sec for lock {1}'.format(passed, self.key()))
         self._start = time.time()
         self._has_lock = True
         return True
@@ -94,7 +91,8 @@ class volatile_mutex(object):
             self._volatile.delete(self.key())
             passed = time.time() - self._start
             if passed > 0.5:  # More than 500 ms is a long time to hold a lock
-                self._logger.warning('A lock on {0} was kept for {1} sec'.format(self.key(), passed))
+                if self._logger is not None:
+                    self._logger.warning('A lock on {0} was kept for {1} sec'.format(self.key(), passed))
             self._has_lock = False
 
     def key(self):
