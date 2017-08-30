@@ -17,6 +17,7 @@
 """
 Generic module for managing configuration in Arakoon
 """
+
 from ConfigParser import RawConfigParser
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
 
@@ -25,7 +26,6 @@ class ArakoonConfiguration(object):
     """
     Helper for configuration management in Arakoon
     """
-
     client = None
 
     def __init__(self, cacc_location):
@@ -68,11 +68,13 @@ class ArakoonConfiguration(object):
                     return client.exists(key) is False  # Exists returns False for directories (not complete keys)
         return False
 
-    def list(self, key):
+    def list(self, key, recursive=False):
         """
         List all keys starting with specified key
         :param key: Key to list
         :type key: str
+        :param recursive: List keys recursively
+        :type recursive: bool
         :return: Generator with all keys
         :rtype: generator
         """
@@ -82,11 +84,24 @@ class ArakoonConfiguration(object):
         client = self.get_client()
         entries = []
         for entry in client.prefix(key):
-            if key == '' or entry.startswith(key.rstrip('/') + '/'):
-                cleaned = ExtensionsToolbox.remove_prefix(entry, key).strip('/').split('/')[0]
-                if cleaned not in entries:
-                    entries.append(cleaned)
-                    yield cleaned
+            if entry.startswith('_'):
+                continue
+            if recursive is True:
+                parts = entry.split('/')
+                for index, part in enumerate(parts):
+                    if index == len(parts) - 1:  # Last part
+                        yield entry  # Every entry is unique, so when having reached last part, we yield it
+                    else:
+                        dir_name = '{0}/'.format('/'.join(parts[:index + 1]))
+                        if dir_name not in entries:
+                            entries.append(dir_name)
+                            yield dir_name
+            else:
+                if key == '' or entry.startswith(key.rstrip('/') + '/'):
+                    cleaned = ExtensionsToolbox.remove_prefix(entry, key).strip('/').split('/')[0]
+                    if cleaned not in entries:
+                        entries.append(cleaned)
+                        yield cleaned
 
     def delete(self, key, recursive):
         """

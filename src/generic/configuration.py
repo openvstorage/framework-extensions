@@ -199,13 +199,16 @@ class Configuration(object):
         return cls._dir_exists(key)
 
     @classmethod
-    def list(cls, key):
+    def list(cls, key, recursive=False):
         """
         List all keys in tree in the configuration store
         :param key: Key to list
+        :type key: str
+        :param recursive: Recursively list all keys
+        :type recursive: bool
         :return: Generator object
         """
-        return cls._list(key)
+        return cls._list(key, recursive=recursive)
 
     @classmethod
     def get_client(cls):
@@ -230,7 +233,7 @@ class Configuration(object):
                                 key=key)
 
     @classmethod
-    def _list(cls, key):
+    def _list(cls, key, recursive):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             entries = []
@@ -253,7 +256,8 @@ class Configuration(object):
             return entries
         # Forward call to used configuration store
         return cls._passthrough(method='list',
-                                key=key)
+                                key=key,
+                                recursive=recursive)
 
     @classmethod
     def _delete(cls, key, recursive):
@@ -271,7 +275,8 @@ class Configuration(object):
             return
         # Forward call to used configuration store
         return cls._passthrough(method='delete',
-                                key=key, recursive=recursive)
+                                key=key,
+                                recursive=recursive)
 
     @classmethod
     def _get(cls, key, raw, **kwargs):
