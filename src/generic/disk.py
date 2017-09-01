@@ -27,7 +27,10 @@ class DiskTools(object):
     """
     This class contains various helper methods wrt Disk maintenance
     """
-    logger = None
+    logger = None  # Instantiated by classes inheriting from this 1
+
+    def __init__(self):
+        raise Exception('Cannot instantiate, completely static class')
 
     @classmethod
     def create_partition(cls, disk_alias, disk_size, partition_start, partition_size):

@@ -238,11 +238,11 @@ class SSHClient(object):
                 raise
         except socket.timeout as ex:
             message = str(ex)
-            SSHClient._logger.error(message)
+            self._logger.error(message)
             raise TimeOutException(message)
         except socket.error as ex:
             message = str(ex)
-            SSHClient._logger.error(message)
+            self._logger.error(message)
             if 'No route to host' in message or 'Unable to connect' in message:
                 raise UnableToConnectException(message)
             raise
@@ -345,15 +345,15 @@ class SSHClient(object):
                 if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                     raise CalledProcessError(exit_code, original_command, stdout)
                 if debug is True:
-                    SSHClient._logger.debug('stdout: {0}'.format(stdout))
-                    SSHClient._logger.debug('stderr: {0}'.format(stderr))
+                    self._logger.debug('stdout: {0}'.format(stdout))
+                    self._logger.debug('stderr: {0}'.format(stderr))
                 if return_stderr is True:
                     return stdout, stderr
                 else:
                     return stdout
             except CalledProcessError as cpe:
                 if suppress_logging is False:
-                    SSHClient._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
+                    self._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
                         original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                     ))
                 raise
@@ -367,7 +367,7 @@ class SSHClient(object):
                 raise CalledProcessTimeout(124, original_command, 'Timeout during command')
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                 if suppress_logging is False:
-                    SSHClient._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
+                    self._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
             if return_stderr is True:
                 return output, error

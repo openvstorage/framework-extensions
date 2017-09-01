@@ -148,9 +148,9 @@ class DebianPackage(object):
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
         except CalledProcessError as cpe:
-            DebianPackage._logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            self._logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            DebianPackage._logger.debug('{0}: Trying to install the package again'.format(client.ip))
+            self._logger.debug('{0}: Trying to install the package again'.format(client.ip))
             output = client.run('yes | {0}'.format(command), allow_insecure=True)
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
