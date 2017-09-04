@@ -30,9 +30,9 @@ from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException,
 from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
 # noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
+from ovs_extensions.log.logger import Logger
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
 
 
 class OVSClient(object):
@@ -56,6 +56,7 @@ class OVSClient(object):
         self._url = 'https://{0}:{1}/api'.format(ip, port)
         self._key = hashlib.sha256('{0}{1}{2}{3}'.format(self.ip, self.port, self.client_id, self.client_secret)).hexdigest()
         self._token = None
+        self._logger = Logger('api')
         self._verify = verify
         self._version = version
         self._raw_response = raw_response
@@ -237,11 +238,11 @@ class OVSClient(object):
             finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
             if finished is False:
                 if task_metadata != previous_metadata:
-                    logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
+                    self._logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
                     previous_metadata = task_metadata
                 else:
-                    logger.debug('Still waiting for task {0}...'.format(task_id))
+                    self._logger.debug('Still waiting for task {0}...'.format(task_id))
                 time.sleep(1)
             else:
-                logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
+                self._logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
                 return task_metadata['successful'], task_metadata['result']

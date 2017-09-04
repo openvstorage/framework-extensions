@@ -56,7 +56,7 @@ class HTTPRequestDecorators(object):
             """
             return cls.app.route(route, methods=['POST'])(cls._build_function(f, authenticate, route, 'POST'))
         return wrap
-    
+
     @classmethod
     def delete(cls, route, authenticate=True):
         """
@@ -68,7 +68,7 @@ class HTTPRequestDecorators(object):
             """
             return cls.app.route(route, methods=['DELETE'])(cls._build_function(f, authenticate, route, 'DELETE'))
         return wrap
-    
+
     @classmethod
     def patch(cls, route, authenticate=True):
         """
@@ -134,7 +134,7 @@ class HTTPRequestDecorators(object):
             data['_version'] = cls.version
             data['_duration'] = time.time() - start
             return Response(json.dumps(data), content_type='application/json', status=status)
-    
+
         new_function.original = f
         new_function.__name__ = f.__name__
         new_function.__module__ = f.__module__

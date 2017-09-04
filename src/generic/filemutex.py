@@ -21,9 +21,7 @@ import os
 import stat
 import time
 import fcntl
-import logging
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class NoLockAvailableException(Exception):
@@ -46,6 +44,7 @@ class file_mutex(object):
         self.name = name
         self._has_lock = False
         self._start = 0
+        self._logger = Logger('extensions')
         self._handle = open(self.key(), 'w')
         self._wait = wait
         try:
@@ -88,7 +87,7 @@ class file_mutex(object):
             while True:
                 passed = time.time() - self._start
                 if passed > wait:
-                    logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self.key(), passed, wait))
+                    self._logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self.key(), passed, wait))
                     raise NoLockAvailableException('Could not acquire lock %s' % self.key())
                 try:
                     fcntl.flock(self._handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -96,7 +95,7 @@ class file_mutex(object):
                 except IOError:
                     time.sleep(0.005)
         if passed > 1:  # More than 1 s is a long time to wait!
-            logger.warning('Waited {0} sec for lock {1}'.format(passed, self.key()))
+            self._logger.warning('Waited {0} sec for lock {1}'.format(passed, self.key()))
         self._start = time.time()
         self._has_lock = True
         return True
@@ -109,7 +108,7 @@ class file_mutex(object):
             fcntl.flock(self._handle, fcntl.LOCK_UN)
             passed = time.time() - self._start
             if passed > 2.5:  # More than 2.5 s is a long time to hold a lock
-                logger.warning('A lock on {0} was kept for {1} sec'.format(self.key(), passed))
+                self._logger.warning('A lock on {0} was kept for {1} sec'.format(self.key(), passed))
             self._has_lock = False
 
     def key(self):

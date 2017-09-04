@@ -17,12 +17,10 @@
 """
 OS Factory module
 """
-import logging
+
 from subprocess import check_output
 from ovs_extensions.os.interfaces.centos import Centos
 from ovs_extensions.os.interfaces.ubuntu import Ubuntu
-
-logger = logging.getLogger(__name__)
 
 
 class OSFactory(object):
@@ -46,8 +44,7 @@ class OSFactory(object):
                 elif 'CentOS Linux' in dist_info:
                     cls.manager = Centos(configuration=configuration,
                                          system=system)
-            except Exception as ex:
-                logger.exception('Error loading OSManager: {0}'.format(ex))
+            except Exception:
                 raise
 
         if cls.manager is None:
