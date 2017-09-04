@@ -23,13 +23,11 @@ import uuid
 import time
 import ujson
 import random
-import logging
 from threading import Lock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 def locked():
@@ -63,6 +61,7 @@ class PyrakoonClient(object):
     * Uses json serialisation
     * Raises generic exception
     """
+    _logger = Logger('extensions')
 
     def __init__(self, cluster, nodes):
         """
@@ -222,18 +221,18 @@ class PyrakoonClient(object):
             try:
                 return_value = method(*args, **kwargs)
             except (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError):
-                logger.debug('Error during arakoon call {0}, retry'.format(method.__name__))
+                PyrakoonClient._logger.debug('Error during arakoon call {0}, retry'.format(method.__name__))
                 time.sleep(1)
                 return_value = method(*args, **kwargs)
             duration = time.time() - start
             if duration > max_duration:
-                logger.warning('Arakoon call {0} took {1}s'.format(method.__name__, round(duration, 2)))
+                PyrakoonClient._logger.warning('Arakoon call {0} took {1}s'.format(method.__name__, round(duration, 2)))
             return return_value
         except (ArakoonNotFound, ArakoonAssertionFailed):
             # No extra logging for some errors
             raise
         except Exception:
-            logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(
+            PyrakoonClient._logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(
                 method.__name__, os.getpid(), current_thread().ident, identifier
             ))
             raise
@@ -278,7 +277,7 @@ class PyrakoonLock(object):
     LOCK_LOCATION = '/ovs/locks/{0}'
     EXPIRATION_KEY = 'expires'
 
-    _logger = logging.getLogger('arakoon_lock')
+    _logger = Logger('extensions')
 
     def __init__(self, client, name, wait=None, expiration=60):
         # type: (PyrakoonClient, str, float, float) -> None

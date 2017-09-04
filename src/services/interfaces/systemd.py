@@ -17,23 +17,23 @@
 """
 Systemd module
 """
+
 import re
 import time
-import logging
 from subprocess import CalledProcessError, check_output
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
-logger = logging.getLogger(__name__)
 
 
 class Systemd(object):
     """
     Contains all logic related to Systemd services
     """
-    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir):
+    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir, logger):
         """
         Init method
         """
+        self._logger = logger
         self._system = system
         self._run_file_dir = run_file_dir
         self._configuration = configuration
@@ -74,7 +74,7 @@ class Systemd(object):
         if self._service_exists(name, client, path):
             return name
         if log is True:
-            logger.info('Service {0} could not be found.'.format(name))
+            self._logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
@@ -119,7 +119,7 @@ class Systemd(object):
             client.run(['systemctl', 'daemon-reload'])
             client.run(['systemctl', 'enable', '{0}.service'.format(service_name)])
         except CalledProcessError as cpe:
-            logger.exception('Add {0}.service failed, {1}'.format(service_name, cpe.output))
+            self._logger.exception('Add {0}.service failed, {1}'.format(service_name, cpe.output))
             raise Exception('Add {0}.service failed, {1}'.format(service_name, cpe.output))
 
         if delay_registration is False:
@@ -229,7 +229,7 @@ class Systemd(object):
                 time.sleep(0.25)
                 counter += 1
         except CalledProcessError as cpe:
-            logger.exception('Start {0} failed, {1}'.format(name, cpe.output))
+            self._logger.exception('Start {0} failed, {1}'.format(name, cpe.output))
             raise
         raise RuntimeError('Did not manage to start service {0} on node with IP {1}'.format(name, client.ip))
 
@@ -259,7 +259,7 @@ class Systemd(object):
                 time.sleep(0.25)
                 counter += 1
         except CalledProcessError as cpe:
-            logger.exception('Stop {0} failed, {1}'.format(name, cpe.output))
+            self._logger.exception('Stop {0} failed, {1}'.format(name, cpe.output))
             raise
         raise RuntimeError('Did not manage to stop service {0} on node with IP {1}'.format(name, client.ip))
 
@@ -292,7 +292,7 @@ class Systemd(object):
                 time.sleep(0.25)
                 counter += 1
         except CalledProcessError as cpe:
-            logger.exception('Restart {0} failed, {1}'.format(name, cpe.output))
+            self._logger.exception('Restart {0} failed, {1}'.format(name, cpe.output))
             raise
         raise RuntimeError('Did not manage to restart service {0} on node with IP {1}'.format(name, client.ip))
 
@@ -452,9 +452,9 @@ class Systemd(object):
             rabbitmq_pid_sm = self.get_service_pid('rabbitmq-server', client)
 
         same_process = rabbitmq_pid_ctl == rabbitmq_pid_sm
-        logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
-                                                                                          rabbitmq_pid_ctl,
-                                                                                          rabbitmq_pid_sm))
+        self._logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
+                                                                                       rabbitmq_pid_ctl,
+                                                                                       rabbitmq_pid_sm))
         return rabbitmq_running, same_process
 
     def extract_from_service_file(self, name, client, entries=None):
@@ -476,7 +476,7 @@ class Systemd(object):
             name = self._get_name(name=name, client=client)
             contents = client.file_read('/lib/systemd/system/{0}.service'.format(name)).splitlines()
         except Exception:
-            logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))
+            self._logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))
             return []
 
         if entries is None:

@@ -18,16 +18,15 @@
 Rpm Package module
 """
 import time
-import logging
 from subprocess import check_output, CalledProcessError
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class RpmPackage(object):
     """
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
+    _logger = Logger('extensions')
 
     def __init__(self, packages, versions):
         self._packages = packages
@@ -152,7 +151,7 @@ class RpmPackage(object):
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
                 if counter == max_counter:
-                    logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
+                    RpmPackage._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
                     raise cpe
             except Exception as ex:
                 raise ex
@@ -174,5 +173,5 @@ class RpmPackage(object):
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
-                logger.error('Update failed. Error: {0}'.format(cpe.output))
+                RpmPackage._logger.error('Update failed. Error: {0}'.format(cpe.output))
                 raise cpe
