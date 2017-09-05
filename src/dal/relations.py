@@ -50,16 +50,19 @@ class RelationMapper(object):
                         current_class = member[1]
                         if 'Base' not in current_class.__name__:
                             object_class = None
+                            base_class_found = False
                             # __mro__ for dal.base.Base extended classes should look something like this:
                             #     [ <class 'setting.Setting'>,
                             #       <class 'source.dal.asdbase.ASDBase'>,
                             #       <class 'ovs_extensions.dal.base.Base'>,
                             #       < type 'object'> ]
                             for this_class in current_class.__mro__:
-                                if 'Base' in this_class.__name__:
-                                    object_class = this_class
+                                if object_class is None:
+                                    object_class = this_class  # The class we need is always the top class in __mro__
+                                if 'Base' == this_class.__name__:  # Make sure we're inspecting classes which inherit from 'Base' class
+                                    base_class_found = True
                                     break
-                            if object_class is not None:
+                            if base_class_found is True:
                                 # noinspection PyProtectedMember
                                 for relation in object_class._relations:
                                     if relation[1] is None:

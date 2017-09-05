@@ -328,7 +328,7 @@ class Configuration(object):
 
     @classmethod
     def _passthrough(cls, method, *args, **kwargs):
-        store = cls.get_store_info()
+        store, _ = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
             from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
