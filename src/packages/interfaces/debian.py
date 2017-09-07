@@ -19,6 +19,7 @@ Debian Package module
 """
 
 import re
+from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.log.logger import Logger
 
@@ -74,7 +75,7 @@ class DebianPackage(object):
             else:
                 output = client.run(command, allow_insecure=True).strip()
             if output:
-                versions[package_name] = output
+                versions[package_name] = LooseVersion(output)
         return versions
 
     @classmethod
@@ -98,7 +99,7 @@ class DebianPackage(object):
                 groups = match.groupdict()
                 if groups['candidate'] == '(none)' and groups['installed'] == '(none)':
                     continue
-                versions[package_name] = groups['candidate'] if groups['candidate'] != '(none)' else ''
+                versions[package_name] = LooseVersion(groups['candidate']) if groups['candidate'] != '(none)' else ''
         return versions
 
     def get_binary_versions(self, client, package_names):
@@ -114,12 +115,12 @@ class DebianPackage(object):
         versions = {}
         for package_name in package_names:
             if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = client.run(self._versions['alba'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
             elif package_name == 'arakoon':
-                versions[package_name] = client.run(self._versions['arakoon'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['arakoon'], allow_insecure=True))
             elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
                                   'volumedriver-ee-base', 'volumedriver-ee-server']:
-                versions[package_name] = client.run(self._versions['storagedriver'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['storagedriver'], allow_insecure=True))
             else:
                 raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
         return versions
@@ -135,12 +136,6 @@ class DebianPackage(object):
         """
         if client.username != 'root':
             raise RuntimeError('Only the "root" user can install packages')
-
-        installed = self.get_installed_versions(client=client, package_names=[package_name]).get(package_name)
-        candidate = self.get_candidate_versions(client=client, package_names=[package_name]).get(package_name)
-
-        if installed == candidate:
-            return
 
         command = "aptdcon --hide-terminal --allow-unauthenticated --install '{0}'".format(package_name.replace(r"'", r"'\''"))
         try:
