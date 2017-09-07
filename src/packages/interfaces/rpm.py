@@ -18,6 +18,7 @@
 Rpm Package module
 """
 import time
+from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.log.logger import Logger
 
@@ -72,7 +73,7 @@ class RpmPackage(object):
             else:
                 version_info = client.run(command, allow_insecure=True).strip()
             if version_info and 'No matching Packages to list' not in version_info:
-                versions[package_name] = version_info
+                versions[package_name] = LooseVersion(version_info)
         return versions
 
     @classmethod
@@ -101,7 +102,7 @@ class RpmPackage(object):
                                 candidate = version[1]
                             else:
                                 candidate = version[1]
-                versions[package_name] = candidate
+                versions[package_name] = LooseVersion(candidate) if candidate else ''
             except CalledProcessError:
                 pass
         return versions
@@ -119,12 +120,12 @@ class RpmPackage(object):
         versions = {}
         for package_name in package_names:
             if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = client.run(self._versions['alba'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
             elif package_name == 'arakoon':
-                versions[package_name] = client.run(self._versions['arakoon'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['arakoon'], allow_insecure=True))
             elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
                                   'volumedriver-ee-base', 'volumedriver-ee-no-server']:
-                versions[package_name] = client.run(self._versions['storagedriver'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['storagedriver'], allow_insecure=True))
             else:
                 raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
         return versions
