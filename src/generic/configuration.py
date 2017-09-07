@@ -54,9 +54,9 @@ class Configuration(object):
         > print Configuration.get('/bar')
         < {u'a': {u'b': u'test'}}
     """
+    CACC_LOCATION = None
 
     _unittest_data = {}
-    _store = None
 
     def __init__(self):
         """
@@ -328,12 +328,12 @@ class Configuration(object):
 
     @classmethod
     def _passthrough(cls, method, *args, **kwargs):
-        store, params = cls.get_store_info()
+        store = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
             from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
             try:
-                instance = ArakoonConfiguration(**params)
+                instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
                 return getattr(instance, method)(*args, **kwargs)
             except ArakoonNotFound as ex:
                 raise NotFoundException(ex.message)

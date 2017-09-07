@@ -755,13 +755,53 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
                         break
         return all_files
 
+    @mocked(MockedSSHClient.file_move)
+    def file_move(self, source_file_name, destination_file_name):
+        """
+        Move a file
+        :param source_file_name: Absolute path of the file to move
+        :type source_file_name: str
+        :param destination_file_name: Location to move to (Can be (new) filename or directory)
+        :type destination_file_name: str
+        :raises: ValueError - When source file does not exists
+        :return: None
+        :rtype: NoneType
+        """
+        if not source_file_name.startswith('/'):
+            raise ValueError('Source should start with a "/"')
+        if not destination_file_name.startswith('/'):
+            raise ValueError('Destination should start with a "/"')
+        if not self.file_exists(filename=source_file_name):
+            raise ValueError('Source file {0} does not exist'.format(source_file_name))
+
+        while '//' in source_file_name:
+            source_file_name.replace('//', '/')
+        while '//' in destination_file_name:
+            destination_file_name.replace('//', '/')
+
+        if self.dir_exists(directory=destination_file_name):
+            target_dir = destination_file_name
+            # If destination is a directory, we use file name of source
+            destination_file_name = os.path.join(destination_file_name, os.path.basename(source_file_name))
+        else:
+            target_dir = os.path.dirname(destination_file_name)
+
+        if not self.dir_exists(directory=target_dir):
+            self.dir_create(directories=target_dir)
+
+        if self.is_local is True:
+            return os.rename(source_file_name, destination_file_name)
+        else:
+            command = """import os, json
+print json.dumps(os.rename('{0}', '{1}'))""".format(source_file_name, destination_file_name)
+            return json.loads(self.run(['python', '-c', """{0}""".format(command)]))
+
     def is_mounted(self, path):
         """
-        Verify whether a mountpoint is mounted
+        Verify whether a mount point is mounted
         :param path: Path to check
         :type path: str
-
-        :return: True if mountpoint is mounted
+        :return: True if mount point is mounted
         :rtype: bool
         """
         path = path.rstrip('/')

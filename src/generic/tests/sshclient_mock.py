@@ -419,3 +419,10 @@ class MockedSSHClient(object):
             for sub_dir in pointer['dirs']:
                 all_files.extend(MockedSSHClient.file_list(client=client, directory='{0}/{1}'.format(directory, sub_dir), abs_path=abs_path, recursive=True))
         return all_files
+
+    @staticmethod
+    def file_move(client, source_file_name, destination_file_name):
+        """
+        Mocked file_move method
+        """
+        raise NotImplementedError()
