@@ -134,7 +134,7 @@ class Logger(logging.Logger):
                                                     port=target_params['port']))
 
         handler.setLevel(getattr(logging, log_level))
-        handler.setFormatter(LogFormatter('%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(sequence)s - %(levelname)s - %(message)s'.format(self._full_name)))
+        handler.setFormatter(LogFormatter('%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'.format(self._full_name)))
         Logger._cache[self._full_name] = handler
         return handler
 
