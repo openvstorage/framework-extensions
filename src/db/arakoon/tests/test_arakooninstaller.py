@@ -26,10 +26,10 @@ from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.tests.helpers import DalHelper
 from ovs.extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig, ArakoonInstaller
 from ovs.extensions.generic.configuration import Configuration, NotFoundException
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
 from ovs.extensions.services.service import ServiceManager
-from ovs.log.log_handler import LogHandler
 
 
 class ArakoonInstallerTester(unittest.TestCase):
@@ -1398,10 +1398,10 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                 self.assertEqual(first=sorted(expected_masters),
                                  second=sorted(config.export_dict()['global']['preferred_masters'].split(',')))
 
-            LogHandler._logs = {}
+            Logger._logs = {}
             ArakoonInstaller.shrink_cluster(cluster_name=pref_cluster_name,
                                             removal_ip=storagerouter_2.ip)
-            ovs_warning_logs = [log for log in LogHandler._logs['extensions_arakoon_installer'] if 'OVS_WARNING' in log]
+            ovs_warning_logs = [log for log in Logger._logs['extensions_arakoon_installer'] if 'OVS_WARNING' in log]
             expected_log_amount = 1 if extend_pref is True else 0
             self.assertEqual(first=expected_log_amount,
                              second=len(ovs_warning_logs))

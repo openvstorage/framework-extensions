@@ -36,8 +36,7 @@ from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen
 from ovs_extensions.generic.remote import remote
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 def connected():
@@ -134,6 +133,7 @@ class SSHClient(object):
     """
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
 
+    _logger = Logger('extensions')
     _raise_exceptions = {}  # Used by unit tests
     client_cache = {}
 
@@ -157,7 +157,7 @@ class SSHClient(object):
             if not re.findall(SSHClient.IP_REGEX, ip):
                 raise ValueError('Incorrect IP {0} specified'.format(ip))
         else:
-            raise ValueError('The endpoint parameter should be an ip address')
+            raise ValueError('The endpoint parameter should be an IP address')
 
         self.ip = ip
         self._client = None
@@ -238,11 +238,11 @@ class SSHClient(object):
                 raise
         except socket.timeout as ex:
             message = str(ex)
-            logger.error(message)
+            self._logger.error(message)
             raise TimeOutException(message)
         except socket.error as ex:
             message = str(ex)
-            logger.error(message)
+            self._logger.error(message)
             if 'No route to host' in message or 'Unable to connect' in message:
                 raise UnableToConnectException(message)
             raise
@@ -294,7 +294,7 @@ class SSHClient(object):
             cleaned = cleaned.encode('ascii', 'ignore')
             return cleaned
         except UnicodeDecodeError:
-            logger.error('UnicodeDecodeError with output: {0}'.format(text))
+            SSHClient._logger.error('UnicodeDecodeError with output: {0}'.format(text))
             raise
 
     @connected()
@@ -345,15 +345,15 @@ class SSHClient(object):
                 if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                     raise CalledProcessError(exit_code, original_command, stdout)
                 if debug is True:
-                    logger.debug('stdout: {0}'.format(stdout))
-                    logger.debug('stderr: {0}'.format(stderr))
+                    self._logger.debug('stdout: {0}'.format(stdout))
+                    self._logger.debug('stderr: {0}'.format(stderr))
                 if return_stderr is True:
                     return stdout, stderr
                 else:
                     return stdout
             except CalledProcessError as cpe:
                 if suppress_logging is False:
-                    logger.error('Command "{0}" failed with output "{1}"{2}'.format(
+                    self._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
                         original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                     ))
                 raise
@@ -367,8 +367,7 @@ class SSHClient(object):
                 raise CalledProcessTimeout(124, original_command, 'Timeout during command')
             if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
                 if suppress_logging is False:
-                    logger.error('Command "{0}" failed with output "{1}" and error "{2}"'
-                                            .format(command, output, error))
+                    self._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
             if return_stderr is True:
                 return output, error
@@ -756,13 +755,53 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
                         break
         return all_files
 
+    @mocked(MockedSSHClient.file_move)
+    def file_move(self, source_file_name, destination_file_name):
+        """
+        Move a file
+        :param source_file_name: Absolute path of the file to move
+        :type source_file_name: str
+        :param destination_file_name: Location to move to (Can be (new) filename or directory)
+        :type destination_file_name: str
+        :raises: ValueError - When source file does not exists
+        :return: None
+        :rtype: NoneType
+        """
+        if not source_file_name.startswith('/'):
+            raise ValueError('Source should start with a "/"')
+        if not destination_file_name.startswith('/'):
+            raise ValueError('Destination should start with a "/"')
+        if not self.file_exists(filename=source_file_name):
+            raise ValueError('Source file {0} does not exist'.format(source_file_name))
+
+        while '//' in source_file_name:
+            source_file_name.replace('//', '/')
+        while '//' in destination_file_name:
+            destination_file_name.replace('//', '/')
+
+        if self.dir_exists(directory=destination_file_name):
+            target_dir = destination_file_name
+            # If destination is a directory, we use file name of source
+            destination_file_name = os.path.join(destination_file_name, os.path.basename(source_file_name))
+        else:
+            target_dir = os.path.dirname(destination_file_name)
+
+        if not self.dir_exists(directory=target_dir):
+            self.dir_create(directories=target_dir)
+
+        if self.is_local is True:
+            return os.rename(source_file_name, destination_file_name)
+        else:
+            command = """import os, json
+print json.dumps(os.rename('{0}', '{1}'))""".format(source_file_name, destination_file_name)
+            return json.loads(self.run(['python', '-c', """{0}""".format(command)]))
+
     def is_mounted(self, path):
         """
-        Verify whether a mountpoint is mounted
+        Verify whether a mount point is mounted
         :param path: Path to check
         :type path: str
-
-        :return: True if mountpoint is mounted
+        :return: True if mount point is mounted
         :rtype: bool
         """
         path = path.rstrip('/')

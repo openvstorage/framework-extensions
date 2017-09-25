@@ -54,9 +54,9 @@ class Configuration(object):
         > print Configuration.get('/bar')
         < {u'a': {u'b': u'test'}}
     """
+    CACC_LOCATION = None
 
     _unittest_data = {}
-    _store = None
 
     def __init__(self):
         """
@@ -100,6 +100,8 @@ class Configuration(object):
         :param raw: Raw data if True else json format
         :return: Value for key
         """
+        default_specified = 'default' in kwargs  # Using this bool here, because the default value itself could be None or False-ish and we want to be able to return the default value specified
+        default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
             data = cls._get(key_entries[0], raw, **kwargs)
@@ -113,8 +115,8 @@ class Configuration(object):
             except KeyError as ex:
                 raise NotFoundException(ex.message)
         except NotFoundException:
-            if 'default' in kwargs:
-                return kwargs['default']
+            if default_specified is True:
+                return default_value
             raise
 
     @classmethod
@@ -197,13 +199,16 @@ class Configuration(object):
         return cls._dir_exists(key)
 
     @classmethod
-    def list(cls, key):
+    def list(cls, key, recursive=False):
         """
         List all keys in tree in the configuration store
         :param key: Key to list
+        :type key: str
+        :param recursive: Recursively list all keys
+        :type recursive: bool
         :return: Generator object
         """
-        return cls._list(key)
+        return cls._list(key, recursive=recursive)
 
     @classmethod
     def get_client(cls):
@@ -228,7 +233,7 @@ class Configuration(object):
                                 key=key)
 
     @classmethod
-    def _list(cls, key):
+    def _list(cls, key, recursive):
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             entries = []
@@ -251,7 +256,8 @@ class Configuration(object):
             return entries
         # Forward call to used configuration store
         return cls._passthrough(method='list',
-                                key=key)
+                                key=key,
+                                recursive=recursive)
 
     @classmethod
     def _delete(cls, key, recursive):
@@ -269,7 +275,8 @@ class Configuration(object):
             return
         # Forward call to used configuration store
         return cls._passthrough(method='delete',
-                                key=key, recursive=recursive)
+                                key=key,
+                                recursive=recursive)
 
     @classmethod
     def _get(cls, key, raw, **kwargs):
@@ -321,12 +328,12 @@ class Configuration(object):
 
     @classmethod
     def _passthrough(cls, method, *args, **kwargs):
-        store, params = cls.get_store_info()
+        store = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
             from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
             try:
-                instance = ArakoonConfiguration(**params)
+                instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
                 return getattr(instance, method)(*args, **kwargs)
             except ArakoonNotFound as ex:
                 raise NotFoundException(ex.message)

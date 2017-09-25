@@ -19,16 +19,16 @@ Debian Package module
 """
 
 import re
-import logging
+from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class DebianPackage(object):
     """
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
+    _logger = Logger('extensions')
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
     def __init__(self, packages, versions):
@@ -75,7 +75,7 @@ class DebianPackage(object):
             else:
                 output = client.run(command, allow_insecure=True).strip()
             if output:
-                versions[package_name] = output
+                versions[package_name] = LooseVersion(output)
         return versions
 
     @classmethod
@@ -99,7 +99,7 @@ class DebianPackage(object):
                 groups = match.groupdict()
                 if groups['candidate'] == '(none)' and groups['installed'] == '(none)':
                     continue
-                versions[package_name] = groups['candidate'] if groups['candidate'] != '(none)' else ''
+                versions[package_name] = LooseVersion(groups['candidate']) if groups['candidate'] != '(none)' else ''
         return versions
 
     def get_binary_versions(self, client, package_names):
@@ -115,12 +115,12 @@ class DebianPackage(object):
         versions = {}
         for package_name in package_names:
             if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = client.run(self._versions['alba'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
             elif package_name == 'arakoon':
-                versions[package_name] = client.run(self._versions['arakoon'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['arakoon'], allow_insecure=True))
             elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
                                   'volumedriver-ee-base', 'volumedriver-ee-server']:
-                versions[package_name] = client.run(self._versions['storagedriver'], allow_insecure=True)
+                versions[package_name] = LooseVersion(client.run(self._versions['storagedriver'], allow_insecure=True))
             else:
                 raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
         return versions
@@ -137,28 +137,22 @@ class DebianPackage(object):
         if client.username != 'root':
             raise RuntimeError('Only the "root" user can install packages')
 
-        installed = self.get_installed_versions(client=client, package_names=[package_name]).get(package_name)
-        candidate = self.get_candidate_versions(client=client, package_names=[package_name]).get(package_name)
-
-        if installed == candidate:
-            return
-
         command = "aptdcon --hide-terminal --allow-unauthenticated --install '{0}'".format(package_name.replace(r"'", r"'\''"))
         try:
             output = client.run('yes | {0}'.format(command), allow_insecure=True)
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
         except CalledProcessError as cpe:
-            logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            self._logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            logger.debug('{0}: Trying to install the package again'.format(client.ip))
+            self._logger.debug('{0}: Trying to install the package again'.format(client.ip))
             output = client.run('yes | {0}'.format(command), allow_insecure=True)
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
 
     @staticmethod
     def update(client):
-        """ 
+        """
         Run the 'aptdcon --refresh' command on the specified node to update the package information
         :param client: Root client on which to update the package information
         :type client: ovs_extensions.generic.sshclient.SSHClient
@@ -173,7 +167,7 @@ class DebianPackage(object):
         try:
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])
         except CalledProcessError as cpe:
-            logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            DebianPackage._logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
+            DebianPackage._logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])

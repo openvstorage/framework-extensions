@@ -18,9 +18,7 @@ Module with debugging timer
 """
 
 import time
-import logging
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class timer(object):
@@ -33,6 +31,7 @@ class timer(object):
         Initializes the context
         """
         self.start = None
+        self._logger = Logger('extensions')
         self.identification = identification
         self.force_ms = force_ms
 
@@ -43,6 +42,6 @@ class timer(object):
         _ = args
         duration = time.time() - self.start
         if duration > 2 and self.force_ms is not True:
-            logger.debug('{0} took {1:.5f}s'.format(self.identification, duration))
+            self._logger.debug('{0} took {1:.5f}s'.format(self.identification, duration))
         else:
-            logger.debug('{0} took {1:.5f}ms'.format(self.identification, duration * 1000))
+            self._logger.debug('{0} took {1:.5f}ms'.format(self.identification, duration * 1000))

@@ -27,7 +27,7 @@ class Centos(object):
     """
     def __init__(self, configuration, system):
         """
-        Constructor 
+        Constructor
         """
         self._configuration = configuration
         self._system = system
@@ -60,6 +60,19 @@ class Centos(object):
         :return: Fstab entry
         """
         return '{0}    {1}         {2}    defaults,nofail,noatime,discard    0    2'.format(device, mp, filesystem)
+
+    @staticmethod
+    def get_ip_addresses(client, remove_local_host_ips=True):
+        """
+        Retrieve the currently configured IP addresses on the SSHClient provided
+        :param client: The SSHClient to retrieve the IP addresses for
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :param remove_local_host_ips: Remove the local host IPs, eg: 127.0.0.1
+        :type remove_local_host_ips: bool
+        :return: A list of IP addresses available on the SSHClient
+        :rtype: list
+        """
+        raise NotImplementedError()
 
     @staticmethod
     def get_ssh_service_name():

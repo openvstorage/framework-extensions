@@ -25,34 +25,14 @@ import logging
 import requests
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning, InsecureRequestWarning, SNIMissingWarning
+from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException, HttpNotFoundException
+# noinspection PyUnresolvedReferences
+from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
+# noinspection PyUnresolvedReferences
+from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
+from ovs_extensions.log.logger import Logger
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
-
-
-class HttpException(RuntimeError):
-    """
-    Custom Http Exception class
-    """
-    def __init__(self, status_code, message, *args, **kwargs):
-        self.status_code = status_code
-        super(HttpException, self).__init__(message, *args, **kwargs)
-
-
-class ForbiddenException(HttpException):
-    """
-    Custom exception class
-    """
-    def __init__(self, *args, **kwargs):
-        super(ForbiddenException, self).__init__(403, *args, **kwargs)
-
-
-class NotFoundException(HttpException):
-    """
-    Custom NotFound Exception
-    """
-    def __init__(self, *args, **kwargs):
-        super(NotFoundException, self).__init__(404, *args, **kwargs)
 
 
 class OVSClient(object):
@@ -76,6 +56,7 @@ class OVSClient(object):
         self._url = 'https://{0}:{1}/api'.format(ip, port)
         self._key = hashlib.sha256('{0}{1}{2}{3}'.format(self.ip, self.port, self.client_id, self.client_secret)).hexdigest()
         self._token = None
+        self._logger = Logger('api')
         self._verify = verify
         self._version = version
         self._raw_response = raw_response
@@ -159,6 +140,7 @@ class OVSClient(object):
                             404: 'The requested API could not be found',
                             405: 'Requested method not allowed',
                             406: 'The request was unacceptable',
+                            426: 'Upgrade is needed',
                             429: 'Rate limit was hit',
                             500: 'Internal server error'}
                 if status_code in messages:
@@ -166,9 +148,9 @@ class OVSClient(object):
             if message is None:
                 message = 'Unknown error'
             if status_code in [401, 403]:
-                raise ForbiddenException(message)
+                raise HttpForbiddenException(message, '')
             elif status_code == 404:
-                raise NotFoundException(message)
+                raise HttpNotFoundException(message, '')
             else:
                 raise HttpException(status_code, message)
 
@@ -183,7 +165,7 @@ class OVSClient(object):
         headers, url = self._prepare(params=params)
         try:
             return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
-        except ForbiddenException:
+        except HttpForbiddenException:
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
             if first_connect is True:  # First connect, so no token was present yet, so no need to try twice without token
@@ -200,7 +182,8 @@ class OVSClient(object):
         """
         Executes a GET call
         :param api: Specification to fill out in the URL, eg: /vpools/<vpool_guid>/shrink_vpool
-        :param params: Additional query parameters, eg: _dynamics
+        :param params: Additional query parameters as comma separated list, eg: {'contents':'dynamic1,dynamic2,-dynamic3,_relations,-relation1'}
+        :type params: dict
         """
         return self._call(api=api, params=params, fct=requests.get)
 
@@ -255,11 +238,11 @@ class OVSClient(object):
             finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
             if finished is False:
                 if task_metadata != previous_metadata:
-                    logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
+                    self._logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
                     previous_metadata = task_metadata
                 else:
-                    logger.debug('Still waiting for task {0}...'.format(task_id))
+                    self._logger.debug('Still waiting for task {0}...'.format(task_id))
                 time.sleep(1)
             else:
-                logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
+                self._logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
                 return task_metadata['successful'], task_metadata['result']

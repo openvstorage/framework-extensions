@@ -19,16 +19,15 @@ Mocked SSHClient Module
 
 import re
 import copy
-import logging
 from subprocess import CalledProcessError
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class MockedSSHClient(object):
     """
     Class
     """
+    _logger = Logger('extensions')
     _file_system = {}
     _run_returns = {}
     _run_recordings = {}
@@ -83,12 +82,12 @@ class MockedSSHClient(object):
             command = ' '.join(command)
         else:
             original_command = command
-        logger.debug('Executing: {0}'.format(command))
+        MockedSSHClient._logger.debug('Executing: {0}'.format(command))
         if client.ip not in MockedSSHClient._run_recordings:
             MockedSSHClient._run_recordings[client.ip] = []
         MockedSSHClient._run_recordings[client.ip].append(command)
         if command in MockedSSHClient._run_returns.get(client.ip, {}):
-            logger.debug('Emulating return value')
+            MockedSSHClient._logger.debug('Emulating return value')
             return MockedSSHClient._run_returns[client.ip][command]
         return client.original_function(client, original_command, *args, **kwargs)
 
@@ -420,3 +419,10 @@ class MockedSSHClient(object):
             for sub_dir in pointer['dirs']:
                 all_files.extend(MockedSSHClient.file_list(client=client, directory='{0}/{1}'.format(directory, sub_dir), abs_path=abs_path, recursive=True))
         return all_files
+
+    @staticmethod
+    def file_move(client, source_file_name, destination_file_name):
+        """
+        Mocked file_move method
+        """
+        raise NotImplementedError()
