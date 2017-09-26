@@ -796,6 +796,21 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
 print json.dumps(os.rename('{0}', '{1}'))""".format(source_file_name, destination_file_name)
             return json.loads(self.run(['python', '-c', """{0}""".format(command)]))
 
+    @connected()
+    @mocked(MockedSSHClient.path_exists)
+    def path_exists(self, file_path):
+        """
+        Checks if a file exists on a remote host
+        :param file_path: File path to check for existence
+        :type file_path: str
+        """
+        if self.is_local is True:
+            return os.path.exists(file_path)
+        else:
+            command = """import os, json
+print json.dumps(os.path.exists('{0}'))""".format(file_path)
+            return json.loads(self.run(['python', '-c', """{0}""".format(command)]))
+
     def is_mounted(self, path):
         """
         Verify whether a mount point is mounted
