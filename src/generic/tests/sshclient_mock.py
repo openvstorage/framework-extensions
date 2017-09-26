@@ -426,3 +426,10 @@ class MockedSSHClient(object):
         Mocked file_move method
         """
         raise NotImplementedError()
+
+    @staticmethod
+    def path_exists(client, file_path):
+        """
+        Mocked path_exists method
+        """
+        raise NotImplementedError()
