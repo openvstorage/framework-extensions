@@ -117,7 +117,7 @@ class Logger(logging.Logger):
         :return: The configured handler instance
         :rtype: logging.FileHandler|logging.StreamHandler|RedisListHandler
         """
-        target_params = self._load_target_parameters(source=self.name, forced_target_type=forced_target_type)
+        target_params = self._load_target_parameters(source=self.name, forced_target_type=forced_target_type, allow_override=True)
         log_level = target_params['level']
         target_type = target_params['type']
 
@@ -168,7 +168,7 @@ class Logger(logging.Logger):
         :return: The path to sink to
         :rtype: str
         """
-        target_params = cls._load_target_parameters(source=source, forced_target_type=forced_target_type)
+        target_params = cls._load_target_parameters(source=source, forced_target_type=forced_target_type, allow_override=False)
         if target_params['type'] == cls.TARGET_TYPE_CONSOLE:
             return 'console:'
         elif target_params['type'] == cls.TARGET_TYPE_FILE:
@@ -189,7 +189,7 @@ class Logger(logging.Logger):
         return {'type': 'console', 'level': 'info'}  # Should be overruled by classes inheriting from this 1
 
     @classmethod
-    def _load_target_parameters(cls, source, forced_target_type):
+    def _load_target_parameters(cls, source, forced_target_type, allow_override):
         """
         Based on the calculated 'target_type', a dictionary structure is created with additional information related to the 'target_type'
         The target type is calculated in this order:
@@ -206,6 +206,8 @@ class Logger(logging.Logger):
 
         :param source: Name of the logger, only applicable for target_type 'file' and 'redis'
         :type source: str
+        :param allow_override: Allow to override the target type
+        :type allow_override: bool
         :param forced_target_type: Forcefully override the target type configured in configuration management or set in environment variables
         :type forced_target_type: str
         :return: Information about target type, log level and other relevant information related to the target type
@@ -213,7 +215,10 @@ class Logger(logging.Logger):
         """
         log_info = cls.get_logging_info()
         log_level = log_info.get('level', 'debug').upper()
-        target_type = forced_target_type or os.environ.get('OVS_LOGTYPE_OVERRIDE') or log_info.get('type') or cls.TARGET_TYPE_CONSOLE
+        if allow_override is True:
+            target_type = forced_target_type or os.environ.get('OVS_LOGTYPE_OVERRIDE') or log_info.get('type') or cls.TARGET_TYPE_CONSOLE
+        else:
+            target_type = forced_target_type or log_info.get('type') or cls.TARGET_TYPE_CONSOLE
 
         if target_type not in cls.TARGET_TYPES:
             raise ValueError('Invalid target type specified: {0}'.format(target_type))
