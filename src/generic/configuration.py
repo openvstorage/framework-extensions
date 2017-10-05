@@ -309,7 +309,11 @@ class Configuration(object):
     def _set(cls, key, value, raw):
         data = value
         if raw is False:
-            data = json.dumps(value)
+            try:
+                data = json.loads(value)
+                data = json.dumps(data, indent=4)
+            except:
+                data = json.dumps(value, indent=4)
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
