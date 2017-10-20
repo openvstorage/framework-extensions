@@ -19,6 +19,7 @@ Debian Package module
 """
 
 import re
+import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.log.logger import Logger
@@ -65,11 +66,11 @@ class DebianPackage(object):
         :return: Package installed versions
         :rtype: dict
         """
-        versions = {}
+        versions = collections.OrderedDict()
         if package_names is None:
             package_names = self._packages['names']
-        for package_name in package_names:
-            command = "dpkg -s '{0}' | grep Version | awk '{{print $2}}'".format(package_name.replace(r"'", r"'\''"))
+        for package_name in sorted(package_names):
+            command = "dpkg -l {0} | awk '/^ii/ {{print $3}}'".format(package_name.replace(r"'", r"'\''"))  # ^ii means, line must start with ii, which means package is installed successfully
             if client is None:
                 output = check_output(command, shell=True).strip()
             else:
@@ -90,8 +91,8 @@ class DebianPackage(object):
         :rtype: dict
         """
         cls.update(client=client)
-        versions = {}
-        for package_name in package_names:
+        versions = collections.OrderedDict()
+        for package_name in sorted(package_names):
             output = client.run(['apt-cache', 'policy', package_name, DebianPackage.APT_CONFIG_STRING]).strip()
             match = re.match(".*Installed: (?P<installed>\S+).*Candidate: (?P<candidate>\S+).*",
                              output, re.DOTALL)
@@ -112,8 +113,8 @@ class DebianPackage(object):
         :return: Binary versions
         :rtype: dict
         """
-        versions = {}
-        for package_name in package_names:
+        versions = collections.OrderedDict()
+        for package_name in sorted(package_names):
             if package_name in ['alba', 'alba-ee']:
                 versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
             elif package_name == 'arakoon':

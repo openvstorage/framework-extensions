@@ -36,7 +36,7 @@ class StatsMonkey(object):
     _stats_client = None  # Client gets initialized once during 'run_all_get_stat_methods'
     _dynamic_dependencies = {}  # Filled out by the inheriting class
 
-    _MAX_INTERVAL = 60
+    _default_interval = 60
 
     @classmethod
     def run_all_get_stat_methods(cls):
@@ -80,7 +80,7 @@ class StatsMonkey(object):
             """
             Make sure each method is executed every 60 / interval seconds
             """
-            run_times = int(math.floor(60 / interval))  # Scheduled task runs every minute, so we verify how many times each function has to be executed this minute
+            run_times = int(math.floor(cls._default_interval / interval))  # Scheduled task runs every minute, so we verify how many times each function has to be executed this minute
             for counter in range(run_times):
                 if name in [thr.name for thr in function_threads if thr.is_alive() is True]:
                     cls._logger.debug("Function '{0}' is still processing, skipping this iteration".format(name))
@@ -119,15 +119,15 @@ class StatsMonkey(object):
         cls._create_client()
 
         method_names = [method for method in dir(cls) if method.startswith('get_stats_') and callable(getattr(cls, method))]
-        default_interval = config.get('interval', StatsMonkey._MAX_INTERVAL)
+        cls._default_interval = config.get('interval', cls._default_interval)
         function_threads = list()
         errored_functions = list()
         scheduler_threads = list()
-        method_interval_map = dict((method_name, config.get(method_name, default_interval)) for method_name in method_names)
+        method_interval_map = dict((method_name, config.get(method_name, cls._default_interval)) for method_name in method_names)
         for method_name, method_interval in method_interval_map.iteritems():
-            if method_interval > StatsMonkey._MAX_INTERVAL:
-                cls._logger.warning('Method {0} is scheduled to run every {1}s which is not frequent enough. Switching to max interval of 60s'.format(method_name, method_interval))
-                method_interval = StatsMonkey._MAX_INTERVAL
+            if method_interval > cls._default_interval:
+                cls._logger.warning('Method {0} is scheduled to run every {1}s which is larger than the global interval. Switching to interval of {2}s'.format(method_name, method_interval, cls._default_interval))
+                method_interval = cls._default_interval
             else:
                 cls._logger.info('Method {0} is scheduled to run every {1}s'.format(method_name, method_interval))
             validate_interval(name=method_name, interval=method_interval)
@@ -150,10 +150,10 @@ class StatsMonkey(object):
     def validate_and_retrieve_config(cls):
         """
         Retrieve and validate the configuration for StatsMonkey
-        :return: The configuration set at /ovs/framework/monitoring/statsmonkey
+        :return: The configuration set at /ovs/framework/monitoring/stats_monkey
         :rtype: dict
         """
-        config_key = '/ovs/framework/monitoring/statsmonkey'
+        config_key = '/ovs/framework/monitoring/stats_monkey'
         if not Configuration.exists(config_key):
             raise ValueError('StatsMonkey requires a configuration key at {0}'.format(config_key))
 
@@ -164,7 +164,7 @@ class StatsMonkey(object):
         required_params = {'host': (str, Toolbox.regex_ip),
                            'port': (int, {'min': 1025, 'max': 65535}),
                            'password': (str, None),
-                           'interval': (int, {'min': 1, 'max': StatsMonkey._MAX_INTERVAL}, False),
+                           'interval': (int, {'min': 1}, False),
                            'database': (str, None),
                            'transport': (str, ['influxdb', 'redis']),
                            'environment': (str, None)}

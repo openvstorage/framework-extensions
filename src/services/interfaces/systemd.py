@@ -51,16 +51,22 @@ class Systemd(object):
         return client.file_exists(file_to_check)
 
     @classmethod
-    def list_services(cls, client):
+    def list_services(cls, client, add_status_info=False):
         """
         List all created services on a system
         :param client: Client on which to list all the services
         :type client: ovs_extensions.generic.sshclient.SSHClient
+        :param add_status_info: Add status information of service in the output
+        :type add_status_info: bool
         :return: List of all services which have been created at some point
         :rtype: generator
         """
-        for service_info in client.run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager', '--full']).splitlines():
-            yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
+        if add_status_info is False:
+            for service_info in client.run(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager', '--full']).splitlines():
+                yield '.'.join(service_info.split(' ')[0].split('.')[:-1])
+        else:
+            for service_info in client.run(['systemctl', '--type=service', '--no-legend', '--no-pager', '--full']).splitlines():
+                yield service_info
 
     def _get_name(self, name, client, path=None, log=True):
         """
