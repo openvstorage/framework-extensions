@@ -17,7 +17,9 @@
 """
 Rpm Package module
 """
+
 import time
+import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.log.logger import Logger
@@ -63,10 +65,10 @@ class RpmPackage(object):
         :return: Package installed versions
         :rtype: dict
         """
-        versions = {}
+        versions = collections.OrderedDict()
         if package_names is None:
             package_names = self._packages['names']
-        for package_name in package_names:
+        for package_name in sorted(package_names):
             command = "yum info '{0}' | grep Version | cut -d ':' -f 2 || true".format(package_name.replace(r"'", r"'\''"))
             if client is None:
                 version_info = check_output(command, shell=True).strip()
@@ -88,8 +90,8 @@ class RpmPackage(object):
         :rtype: dict
         """
         RpmPackage.update(client=client)
-        versions = {}
-        for package_name in package_names:
+        versions = collections.OrderedDict()
+        for package_name in sorted(package_names):
             installed = None
             candidate = None
             versions[package_name] = ''
@@ -117,8 +119,8 @@ class RpmPackage(object):
         :return: Binary versions
         :rtype: dict
         """
-        versions = {}
-        for package_name in package_names:
+        versions = collections.OrderedDict()
+        for package_name in sorted(package_names):
             if package_name in ['alba', 'alba-ee']:
                 versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
             elif package_name == 'arakoon':

@@ -202,3 +202,21 @@ class ExtensionsToolbox(object):
             except ValueError:
                 pass
         return tuple(entries)
+
+    @staticmethod
+    def convert_to_days_hours_minutes_seconds(seconds):
+        """
+        Convert the specified amount of seconds to w days, x hours, y minutes and z seconds
+        :param seconds: Seconds to convert
+        :type seconds: int
+        """
+        if not isinstance(seconds, int):
+            raise ValueError('Seconds must be of type "int"')
+
+        days = seconds / 86400  # 24 * 60 * 60
+        rest1 = seconds % 86400
+        hours = rest1 / 3600  # 60 * 60
+        rest2 = rest1 % 3600
+        minutes = rest2 / 60
+        seconds = rest2 % 60
+        return days, hours, minutes, seconds
