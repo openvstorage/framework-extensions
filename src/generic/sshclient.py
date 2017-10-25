@@ -349,10 +349,16 @@ class SSHClient(object):
                 if debug is True:
                     self._logger.debug('stdout: {0}'.format(stdout))
                     self._logger.debug('stderr: {0}'.format(stderr))
+                return_value = [stdout]
+                # Order matters for backwards compatibility
                 if return_stderr is True:
-                    return stdout, stderr
-                else:
-                    return stdout
+                    return_value.append(stderr)
+                if return_exit_code is True:
+                    return_value.append(exit_code)
+                # Backwards compatibility
+                if len(return_value) == 1:
+                    return return_value[0]
+                return tuple(return_value)
             except CalledProcessError as cpe:
                 if suppress_logging is False:
                     self._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
