@@ -95,21 +95,19 @@ class System(object):
                 yield int(found_port.strip())
 
     @classmethod
-    def get_free_ports(cls, selected_range, exclude=None, nr=1, client=None):
+    def get_free_ports(cls, selected_range, exclude=None, nr=1, client=None, return_available_ports=False):
         """
         Return requested nr of free ports not currently in use and not within excluded range
         :param selected_range: e.g. '2000-2010' or '50000-6000, 8000-8999' ; note single port extends to [port -> 65535]
         :type selected_range: list
-
         :param exclude: excluded list
         :type exclude: list
-
         :param nr: nr of free ports requested
         :type nr: int
-
         :param client: SSHClient to node
         :type client: SSHClient
-
+        :param return_available_ports: True: don't raise when the number of requested ports could be found, instead return the ports available
+        :type return_available_ports: bool
         :return: sorted incrementing list of nr of free ports
         :rtype: list
         """
@@ -145,10 +143,11 @@ class System(object):
                 output = client.run(cmd.split())
             start_end = map(int, output.split())
         ephemeral_port_range = xrange(min(start_end), max(start_end))
-
         for possible_free_port in requested_range:
             if possible_free_port not in ephemeral_port_range and possible_free_port not in exclude_list:
                 free_ports.append(possible_free_port)
             if len(free_ports) == nr:
                 return free_ports
+        if return_available_ports is True:
+            return free_ports
         raise ValueError('Unable to find requested nr of free ports')
