@@ -22,8 +22,8 @@ import json
 import time
 import subprocess
 from flask import Response
-from ovs_extensions.dal.base import ObjectNotFoundException
 from ovs_extensions.api.exceptions import HttpBadRequestException
+from ovs_extensions.dal.base import ObjectNotFoundException
 
 
 class HTTPRequestDecorators(object):
