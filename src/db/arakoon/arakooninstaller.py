@@ -24,7 +24,9 @@ import os
 import json
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
+from ovs_extensions.packages.packagefactory import PackageFactory
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
 
@@ -248,7 +250,7 @@ class ArakoonClusterConfig(object):
         :return: None
         :rtype: NoneType
         """
-        config = self.convert_config_to(config=config, return_type='DICT')
+        config = ArakoonClusterConfig.convert_config_to(config=config, return_type='DICT')
         new_sections = sorted(config.keys())
         old_sections = sorted([node.name for node in self.nodes] + ['global'])
         if old_sections != new_sections:
@@ -289,26 +291,8 @@ class ArakoonClusterConfig(object):
                                                 tlog_compression=node_info['tlog_compression'],
                                                 preferred_master=node_name in preferred_masters))
 
-    @classmethod
-    def get_cluster_name(cls, internal_name):
-        """
-        Retrieve the name of the cluster
-        :param internal_name: Name as known by the framework
-        :type internal_name: str
-        :return: Name known by user
-        :rtype: str
-        """
-        config_key = '/ovs/framework/arakoon_clusters'
-        configuration = cls._get_configuration()
-        if configuration.exists(config_key):
-            cluster_info = configuration.get(config_key)
-            if internal_name in cluster_info:
-                return cluster_info[internal_name]
-        if internal_name not in ['ovsdb', 'voldrv']:
-            return internal_name
-
-    @classmethod
-    def convert_config_to(cls, config, return_type):
+    @staticmethod
+    def convert_config_to(config, return_type):
         """
         Convert an Arakoon Cluster Config to another format (DICT or INI)
         :param config: Arakoon Cluster Config representation
@@ -733,6 +717,64 @@ class ArakoonInstaller(object):
         return json.loads(arakoon_client.get(ArakoonInstaller.METADATA_KEY))
 
     @classmethod
+    def get_cluster_name(cls, internal_name):
+        """
+        Retrieve the name of the cluster
+        :param internal_name: Name as known by the framework
+        :type internal_name: str
+        :return: Name known by user
+        :rtype: str
+        """
+        config_key = '/ovs/framework/arakoon_clusters'
+        configuration = cls._get_configuration()
+        if configuration.exists(config_key):
+            cluster_info = configuration.get(config_key)
+            if internal_name in cluster_info:
+                return cluster_info[internal_name]
+        if internal_name not in ['ovsdb', 'voldrv']:
+            return internal_name
+
+    @classmethod
+    def get_arakoon_update_info(cls, internal_cluster_name=None, actual_cluster_name=None, ip=None):
+        """
+        Retrieve information about the actual cluster name and whether downtime can be expected for the specified cluster_name
+        :param internal_cluster_name: Name of the cluster internally known by the framework
+        :type internal_cluster_name: str
+        :param actual_cluster_name: Name of the cluster as deployed
+        :type actual_cluster_name: str
+        :param ip: The IP address of one of the nodes containing the configuration file (Only required for filesystem Arakoons)
+        :type ip: str
+        :return:
+        """
+        if (internal_cluster_name is None and actual_cluster_name is None) or (internal_cluster_name is not None and actual_cluster_name is not None):
+            raise ValueError('Internal and actual cluster names are mutually exclusive')
+
+        return_value = {'downtime': None,
+                        'internal': False,
+                        'service_name': None}
+        if actual_cluster_name is None:
+            # noinspection PyTypeChecker
+            actual_cluster_name = cls.get_cluster_name(internal_name=internal_cluster_name)
+            if actual_cluster_name is None:
+                return return_value
+
+        try:
+            arakoon_metadata = cls.get_arakoon_metadata_by_cluster_name(cluster_name=actual_cluster_name, ip=ip)
+        except ArakoonNoMaster:
+            raise RuntimeError('Arakoon cluster {0} does not have a master'.format(actual_cluster_name))
+        except ArakoonNotFound:
+            raise RuntimeError('Arakoon cluster {0} does not have the required metadata key'.format(actual_cluster_name))
+
+        if arakoon_metadata['internal'] is False:
+            return return_value
+
+        config = ArakoonClusterConfig(cluster_id=actual_cluster_name, source_ip=ip, configuration=cls._get_configuration())
+        return_value['internal'] = True
+        return_value['downtime'] = len(config.nodes) < 3 if internal_cluster_name != 'cacc' else False
+        return_value['service_name'] = cls.get_service_name_for_cluster(cluster_name=arakoon_metadata['cluster_name'])
+        return return_value
+
+    @classmethod
     def start(cls, cluster_name, client):
         """
         Starts a cluster service on the client provided
@@ -1083,7 +1125,9 @@ class ArakoonInstaller(object):
                                                              params={'CLUSTER': self.cluster_name,
                                                                      'NODE_ID': node.name,
                                                                      'CONFIG_PATH': self.config.external_config_path,
-                                                                     'EXTRA_VERSION_CMD': extra_version_cmd},
+                                                                     'EXTRA_VERSION_CMD': extra_version_cmd,
+                                                                     'ARAKOON_PKG_NAME': 'arakoon',
+                                                                     'ARAKOON_VERSION_CMD': PackageFactory.VERSION_CMD_ARAKOON},
                                                              target_name='ovs-arakoon-{0}'.format(self.cluster_name),
                                                              startup_dependency=('ovs-watcher-config' if self.config.source_ip is None else None),
                                                              delay_registration=delay_service_registration)

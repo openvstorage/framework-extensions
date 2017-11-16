@@ -94,6 +94,7 @@ class Upstart(object):
             service_name = target_name
 
         params.update({'SERVICE_NAME': ExtensionsToolbox.remove_prefix(service_name, 'ovs-'),
+                       'RUN_FILE_DIR': self._run_file_dir,
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else 'started {0}'.format(startup_dependency)})
         template_content = client.file_read(template_file)
         for key, value in params.iteritems():
