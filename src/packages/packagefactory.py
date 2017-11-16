@@ -40,7 +40,6 @@ class PackageFactory(object):
     COMP_ALBA = 'alba'
     COMP_ISCSI = 'iscsi'
     COMP_ARAKOON = 'arakoon'  # This is the only component which cannot be selected via the GUI for update, but is used elsewhere
-    SUPPORTED_COMPONENTS = set()
 
     # Packages
     PKG_ALBA = 'alba'
@@ -112,7 +111,7 @@ class PackageFactory(object):
         errors = set()
         all_installed = {}
         all_candidate = {}
-        for component in cls.SUPPORTED_COMPONENTS:
+        for component in cls.get_components():
             expected = pkg_info['names'].get(component, set())
             installed = pkg_mgr.get_installed_versions(client=client, package_names=expected)
             candidate = pkg_mgr.get_candidate_versions(client=client, package_names=expected)
@@ -141,7 +140,7 @@ class PackageFactory(object):
         """
         installed, candidate = cls.get_version_information(client=client)
         update_info = {}
-        for component in cls.SUPPORTED_COMPONENTS:
+        for component in cls.get_components():
             for package_name in installed[component]:
                 installed_version = installed[component][package_name]
                 candidate_version = candidate[component][package_name]
@@ -187,7 +186,7 @@ class PackageFactory(object):
         Update the requested packages
         :param client: The SSHClient on which to update the packages
         :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param packages: The packages to update, these contain all the packages for all components, so should be filtered based on SUPPORTED_COMPONENTS
+        :param packages: The packages to update, these contain all the packages for all components, so should be filtered based on the output of 'get_components'
                          Structure {<pkg_name>: {'installed': <version1>, 'candidate': <version2>}}
         :type packages: dict
         :param components: The components which were selected for update (See #Components on top of this file)
@@ -197,7 +196,7 @@ class PackageFactory(object):
         """
         abort = False
         components = [] if components is None else components
-        components = set(components).intersection(cls.SUPPORTED_COMPONENTS)
+        components = set(components).intersection(cls.get_components())
         package_mgr = cls.get_manager()
         package_info = cls.get_package_info()
         package_names_to_install = set()
@@ -206,7 +205,13 @@ class PackageFactory(object):
                 if package_name in package_info['names'].get(component, []):
                     package_names_to_install.add(package_name)
 
-        for package_name in sorted(package_names_to_install):
+        # Always install the extensions package first
+        packages = sorted(package_names_to_install)
+        if PackageFactory.PKG_OVS_EXTENSIONS in package_names_to_install:
+            packages.remove(PackageFactory.PKG_OVS_EXTENSIONS)
+            packages.insert(0, PackageFactory.PKG_OVS_EXTENSIONS)
+
+        for package_name in packages:
             try:
                 installed = packages[package_name]['installed']
                 candidate = packages[package_name]['candidate']
