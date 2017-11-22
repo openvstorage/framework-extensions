@@ -19,6 +19,7 @@ ExtensionsToolbox module
 """
 import re
 import sys
+import copy
 
 
 class ExtensionsToolbox(object):
@@ -240,6 +241,7 @@ class ExtensionsToolbox(object):
         if not isinstance(dict2, dict):
             raise ValueError('Dict2 should be of type dict')
 
+        copy_dict1 = copy.deepcopy(dict1)
         for key, value in dict1.iteritems():
             if key not in dict2:
                 # No need to copy anything from dict2 into dict1, since key not present
@@ -249,15 +251,15 @@ class ExtensionsToolbox(object):
                 ExtensionsToolbox.merge_dicts(dict1=value, dict2=dict2[key])
             else:
                 if isinstance(value, list) and isinstance(dict2[key], list):
-                    dict1[key] = value + dict2[key]
+                    copy_dict1[key] = value + dict2[key]
                 elif isinstance(value, tuple) and isinstance(dict2[key], tuple):
-                    dict1[key] = value + dict2[key]
+                    copy_dict1[key] = value + dict2[key]
                 elif isinstance(value, set) and isinstance(dict2[key], set):
                     value.update(dict2[key])
-                    dict1[key] = value
+                    copy_dict1[key] = value
 
         # Add items present in dict2 to dict1
         for key, value in dict2.iteritems():
-            if key not in dict1:
-                dict1[key] = value
-        return dict1
+            if key not in copy_dict1:
+                copy_dict1[key] = value
+        return copy_dict1
