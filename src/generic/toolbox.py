@@ -19,6 +19,7 @@ ExtensionsToolbox module
 """
 import re
 import sys
+import copy
 
 
 class ExtensionsToolbox(object):
@@ -40,42 +41,41 @@ class ExtensionsToolbox(object):
         :param string: The string to clean
         :param prefix: The prefix to remove
         :return: The cleaned string
+        :rtype: str
         """
         if string.startswith(prefix):
             return string[len(prefix):]
         return string
 
     @staticmethod
-    def edit_version_file(client, package_name, old_service_name, new_service_name=None):
+    def edit_version_file(client, package_name, old_run_file, new_run_file=None):
         """
         Edit a run version file in order to mark it for 'reboot' or 'removal'
         :param client: Client on which to edit the version file
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_name: Name of the package to check on in the version file
         :type package_name: str
-        :param old_service_name: Name of the service which needs to be edited
-        :type old_service_name: str
-        :param new_service_name: Name of the service which needs to be written. When specified the old service file will be marked for removal
-        :type new_service_name: str
+        :param old_run_file: Filesystem location of the service version file which needs to be edited
+        :type old_run_file: str
+        :param new_run_file: Filesystem location of the service version file which needs to be written. When specified the old service file will be marked for removal
+        :type new_run_file: str
         :return: None
+        :rtype: NoneType
         """
-        old_run_file = '/opt/OpenvStorage/run/{0}.version'.format(old_service_name)
-
         if client.file_exists(filename=old_run_file):
             contents = client.file_read(old_run_file).strip()
-            if new_service_name is not None:  # Scenario in which we will mark the old version file for 'removal' and the new version file for 'reboot'
+            if new_run_file is not None:  # Scenario in which we will mark the old version file for 'removal' and the new version file for 'reboot'
                 client.run(['mv', old_run_file, '{0}.remove'.format(old_run_file)])
-                run_file = '/opt/OpenvStorage/run/{0}.version'.format(new_service_name)
             else:  # Scenario in which we will mark the old version file for 'reboot'
-                run_file = old_run_file
+                new_run_file = old_run_file
 
             if '-reboot' not in contents:
                 if '=' in contents:
                     contents = ';'.join(['{0}-reboot'.format(part) for part in contents.split(';') if package_name in part])
                 else:
                     contents = '{0}-reboot'.format(contents)
-                client.file_write(filename=run_file, contents=contents)
-                client.file_chown(filenames=[run_file], user='ovs', group='ovs')
+                client.file_write(filename=new_run_file, contents=contents)
+                client.file_chown(filenames=[new_run_file], user='ovs', group='ovs')
 
     @staticmethod
     def check_type(value, required_type):
@@ -86,7 +86,11 @@ class ExtensionsToolbox(object):
           - A 'float' type accepts 'float', 'int'
           - A list instance acts like an enum
         :param value: Value to check
+        :type value: object
         :param required_type: Expected type for value
+        :type required_type: any
+        :return: None
+        :rtype: NoneType
         """
         given_type = type(value)
         if required_type is str:
@@ -220,3 +224,42 @@ class ExtensionsToolbox(object):
         minutes = rest2 / 60
         seconds = rest2 % 60
         return days, hours, minutes, seconds
+
+    @staticmethod
+    def merge_dicts(dict1, dict2):
+        """
+        Merge dict2 in dict1
+        :param dict1: Dictionary to start from
+        :type dict1: dict
+        :param dict2: Dictionary to merge into dict1
+        :type dict2: dict
+        :return: Merged dictionary
+        :rtype: dict
+        """
+        if not isinstance(dict1, dict):
+            raise ValueError('Dict1 should be of type dict')
+        if not isinstance(dict2, dict):
+            raise ValueError('Dict2 should be of type dict')
+
+        copy_dict1 = copy.deepcopy(dict1)
+        for key, value in dict1.iteritems():
+            if key not in dict2:
+                # No need to copy anything from dict2 into dict1, since key not present
+                continue
+
+            if isinstance(value, dict) and isinstance(dict2[key], dict):
+                ExtensionsToolbox.merge_dicts(dict1=value, dict2=dict2[key])
+            else:
+                if isinstance(value, list) and isinstance(dict2[key], list):
+                    copy_dict1[key] = value + dict2[key]
+                elif isinstance(value, tuple) and isinstance(dict2[key], tuple):
+                    copy_dict1[key] = value + dict2[key]
+                elif isinstance(value, set) and isinstance(dict2[key], set):
+                    value.update(dict2[key])
+                    copy_dict1[key] = value
+
+        # Add items present in dict2 to dict1
+        for key, value in dict2.iteritems():
+            if key not in copy_dict1:
+                copy_dict1[key] = value
+        return copy_dict1

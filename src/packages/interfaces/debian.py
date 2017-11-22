@@ -18,6 +18,7 @@
 Debian Package module
 """
 
+import os
 import re
 import collections
 from distutils.version import LooseVersion
@@ -32,13 +33,8 @@ class DebianPackage(object):
     _logger = Logger('extensions')
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
-    def __init__(self, packages, versions):
-        self._packages = packages
-        self._versions = versions
-
-    @property
-    def package_names(self):
-        return self._packages['names']
+    def __init__(self, package_info):
+        self.package_info = package_info
 
     @staticmethod
     def get_release_name(client=None):
@@ -68,15 +64,18 @@ class DebianPackage(object):
         """
         versions = collections.OrderedDict()
         if package_names is None:
-            package_names = self._packages['names']
+            package_names = set()
+            for names in self.package_info['names'].itervalues():
+                package_names = package_names.union(names)
         for package_name in sorted(package_names):
-            command = "dpkg -l {0} | awk '/^ii/ {{print $3}}'".format(package_name.replace(r"'", r"'\''"))  # ^ii means, line must start with ii, which means package is installed successfully
+            command = "dpkg -s '{0}' | grep Version | awk '{{print $2}}'".format(package_name.replace(r"'", r"'\''"))
             if client is None:
-                output = check_output(command, shell=True).strip()
+                output = check_output(command, shell=True, stderr=open(os.devnull, 'w')).strip()  # Suppress error logging in case package is not installed
             else:
                 output = client.run(command, allow_insecure=True).strip()
             if output:
-                versions[package_name] = LooseVersion(output)
+                version = output.strip()
+                versions[package_name] = LooseVersion(version)
         return versions
 
     @classmethod
@@ -103,7 +102,7 @@ class DebianPackage(object):
                 versions[package_name] = LooseVersion(groups['candidate']) if groups['candidate'] != '(none)' else ''
         return versions
 
-    def get_binary_versions(self, client, package_names):
+    def get_binary_versions(self, client, package_names=None):
         """
         Retrieve the versions for the binaries related to the package_names
         :param client: Root client on which to retrieve the binary versions
@@ -113,17 +112,17 @@ class DebianPackage(object):
         :return: Binary versions
         :rtype: dict
         """
+        if package_names is None:
+            package_names = set()
+            for names in self.package_info['binaries'].itervalues():
+                package_names = package_names.union(names)
+
         versions = collections.OrderedDict()
+        version_commands = self.package_info['version_commands']
         for package_name in sorted(package_names):
-            if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = LooseVersion(client.run(self._versions['alba'], allow_insecure=True))
-            elif package_name == 'arakoon':
-                versions[package_name] = LooseVersion(client.run(self._versions['arakoon'], allow_insecure=True))
-            elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
-                                  'volumedriver-ee-base', 'volumedriver-ee-server']:
-                versions[package_name] = LooseVersion(client.run(self._versions['storagedriver'], allow_insecure=True))
-            else:
-                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
+            if package_name not in version_commands:
+                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(sorted(version_commands.keys()))))
+            versions[package_name] = LooseVersion(client.run(version_commands[package_name], allow_insecure=True))
         return versions
 
     def install(self, package_name, client):
