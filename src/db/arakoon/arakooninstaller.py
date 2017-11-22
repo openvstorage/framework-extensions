@@ -744,7 +744,8 @@ class ArakoonInstaller(object):
         :type actual_cluster_name: str
         :param ip: The IP address of one of the nodes containing the configuration file (Only required for filesystem Arakoons)
         :type ip: str
-        :return:
+        :return: Update related information for the specified cluster
+        :rtype: dict
         """
         if (internal_cluster_name is None and actual_cluster_name is None) or (internal_cluster_name is not None and actual_cluster_name is not None):
             raise ValueError('Internal and actual cluster names are mutually exclusive')
@@ -977,6 +978,8 @@ class ArakoonInstaller(object):
     def store_config(self):
         """
         Stores the configuration inside the cluster
+        :return: None
+        :rtype: NoneType
         """
         arakoon_client = self._wait_for_cluster()
         arakoon_client.set(ArakoonInstaller.INTERNAL_CONFIG_KEY, self.config.export_ini())

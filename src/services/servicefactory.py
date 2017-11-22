@@ -140,7 +140,7 @@ class ServiceFactory(object):
             print '  [{0}] {1} {2}'.format(client.ip, name, action.lower())
 
     @classmethod
-    def wait_for_service(cls, client, name, status, logger):
+    def wait_for_service(cls, client, name, status, logger, wait=10):
         """
         Wait for service to enter status
         :param client: SSHClient to run commands
@@ -151,18 +151,20 @@ class ServiceFactory(object):
         :type status: str
         :param logger: Logger object
         :type logger: ovs_extensions.log.logger.Logger
+        :param wait: Time to wait for the service to enter the specified state
+        :type wait: int
         :return: None
         :rtype: NoneType
         """
-        tries = 10
+        max_wait = 10 if wait <= 10 else wait
         service_manager = cls.get_manager()
         service_status = service_manager.get_service_status(name, client)
-        while tries > 0:
+        while wait > 0:
             if service_status == status:
                 return
             logger.debug('... waiting for service {0}'.format(name))
-            tries -= 1
-            time.sleep(10 - tries)
+            wait -= 1
+            time.sleep(max_wait - wait)
             service_status = service_manager.get_service_status(name, client)
         raise RuntimeError('Service {0} does not have expected status: Expected: {1} - Actual: {2}'.format(name, status, service_status))
 
