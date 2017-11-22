@@ -41,6 +41,10 @@ class PackageFactory(object):
     COMP_ISCSI = 'iscsi'
     COMP_ARAKOON = 'arakoon'  # This is the only component which cannot be selected via the GUI for update, but is used elsewhere
 
+    # Editions
+    EDITION_COMMUNITY = 'community'
+    EDITION_ENTERPRISE = 'enterprise'
+
     # Packages
     PKG_ALBA = 'alba'
     PKG_ALBA_EE = 'alba-ee'
@@ -88,6 +92,10 @@ class PackageFactory(object):
 
     @classmethod
     def get_package_info(cls):
+        raise NotImplementedError()
+
+    @classmethod
+    def get_components(cls):
         raise NotImplementedError()
 
     @classmethod
