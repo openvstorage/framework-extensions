@@ -735,43 +735,33 @@ class ArakoonInstaller(object):
             return internal_name
 
     @classmethod
-    def get_arakoon_update_info(cls, internal_cluster_name=None, actual_cluster_name=None, ip=None):
+    def get_arakoon_update_info(cls, cluster_name, ip=None):
         """
         Retrieve information about the actual cluster name and whether downtime can be expected for the specified cluster_name
-        :param internal_cluster_name: Name of the cluster internally known by the framework
-        :type internal_cluster_name: str
-        :param actual_cluster_name: Name of the cluster as deployed
-        :type actual_cluster_name: str
+        :param cluster_name: Name of the cluster
+        :type cluster_name: str
         :param ip: The IP address of one of the nodes containing the configuration file (Only required for filesystem Arakoons)
         :type ip: str
         :return: Update related information for the specified cluster
         :rtype: dict
         """
-        if (internal_cluster_name is None and actual_cluster_name is None) or (internal_cluster_name is not None and actual_cluster_name is not None):
-            raise ValueError('Internal and actual cluster names are mutually exclusive')
-
         return_value = {'downtime': None,
                         'internal': False,
                         'service_name': None}
-        if actual_cluster_name is None:
-            # noinspection PyTypeChecker
-            actual_cluster_name = cls.get_cluster_name(internal_name=internal_cluster_name)
-            if actual_cluster_name is None:
-                return return_value
 
         try:
-            arakoon_metadata = cls.get_arakoon_metadata_by_cluster_name(cluster_name=actual_cluster_name, ip=ip)
+            arakoon_metadata = cls.get_arakoon_metadata_by_cluster_name(cluster_name=cluster_name, ip=ip)
         except ArakoonNoMaster:
-            raise RuntimeError('Arakoon cluster {0} does not have a master'.format(actual_cluster_name))
+            raise RuntimeError('Arakoon cluster {0} does not have a master'.format(cluster_name))
         except ArakoonNotFound:
-            raise RuntimeError('Arakoon cluster {0} does not have the required metadata key'.format(actual_cluster_name))
+            raise RuntimeError('Arakoon cluster {0} does not have the required metadata key'.format(cluster_name))
 
         if arakoon_metadata['internal'] is False:
             return return_value
 
-        config = ArakoonClusterConfig(cluster_id=actual_cluster_name, source_ip=ip, configuration=cls._get_configuration())
+        config = ArakoonClusterConfig(cluster_id=cluster_name, source_ip=ip, configuration=cls._get_configuration())
         return_value['internal'] = True
-        return_value['downtime'] = len(config.nodes) < 3 if internal_cluster_name != 'cacc' else False
+        return_value['downtime'] = len(config.nodes) < 3 if cluster_name not in ['cacc', 'config'] else False
         return_value['service_name'] = cls.get_service_name_for_cluster(cluster_name=arakoon_metadata['cluster_name'])
         return return_value
 
