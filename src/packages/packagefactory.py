@@ -189,37 +189,25 @@ class PackageFactory(object):
         return package_name, version_cmd
 
     @classmethod
-    def update_packages(cls, client, packages, components):
+    def update_packages(cls, client, packages):
         """
         Update the requested packages
         :param client: The SSHClient on which to update the packages
         :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param packages: The packages to update, these contain all the packages for all components, so should be filtered based on the output of 'get_components'
-                         Structure {<pkg_name>: {'installed': <version1>, 'candidate': <version2>}}
+        :param packages: The packages to update. Structure {<pkg_name>: {'installed': <version1>, 'candidate': <version2>}}
         :type packages: dict
-        :param components: The components which were selected for update (See #Components on top of this file)
-        :type components: list
         :return: A boolean whether to abort the entire update process or not
         :rtype: bool
         """
-        abort = False
-        components = [] if components is None else components
-        components = set(components).intersection(cls.get_components())
-        package_mgr = cls.get_manager()
-        package_info = cls.get_package_info()
-        package_names_to_install = set()
-        for component in components:
-            for package_name in packages:
-                if package_name in package_info['names'].get(component, []):
-                    package_names_to_install.add(package_name)
-
         # Always install the extensions package first
-        packages = sorted(package_names_to_install)
-        if PackageFactory.PKG_OVS_EXTENSIONS in package_names_to_install:
-            packages.remove(PackageFactory.PKG_OVS_EXTENSIONS)
-            packages.insert(0, PackageFactory.PKG_OVS_EXTENSIONS)
+        package_names = sorted(packages)
+        if PackageFactory.PKG_OVS_EXTENSIONS in package_names:
+            package_names.remove(PackageFactory.PKG_OVS_EXTENSIONS)
+            package_names.insert(0, PackageFactory.PKG_OVS_EXTENSIONS)
 
-        for package_name in packages:
+        abort = False
+        package_mgr = cls.get_manager()
+        for package_name in package_names:
             try:
                 installed = packages[package_name]['installed']
                 candidate = packages[package_name]['candidate']
@@ -227,11 +215,10 @@ class PackageFactory(object):
                     # Package has already been installed by another process
                     continue
 
-                cls._logger.info('{0}: Updating package {1} ({2} --> {3})'.format(client.ip, package_name, installed, candidate))
+                cls._logger.debug('{0}: Updating package {1} ({2} --> {3})'.format(client.ip, package_name, installed, candidate))
                 package_mgr.install(package_name=package_name, client=client)
-                cls._logger.info('{0}: Updated package {1}'.format(client.ip, package_name))
+                cls._logger.debug('{0}: Updated package {1}'.format(client.ip, package_name))
             except Exception:
                 cls._logger.exception('{0}: Updating package {1} failed'.format(client.ip, package_name))
-                if package_name in package_info['blocking']:
-                    abort = True
+                abort = True
         return abort
