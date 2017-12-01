@@ -127,9 +127,9 @@ class PackageFactory(object):
 
             for package_name in mutually_exclusive:
                 errors.add('Package {0}: This package should not have been installed'.format(package_name))
-            for package_name in expected - set(installed):
+            for package_name in expected - set(installed) - pkg_info['non_blocking']:
                 errors.add('Package {0}: Not installed while it should be'.format(package_name))
-            for package_name in expected - set(candidate):
+            for package_name in set(installed) - set(candidate) - pkg_info['non_blocking']:
                 errors.add('Package {0}: Missing candidate for installation'.format(package_name))
 
             all_installed[component] = installed
