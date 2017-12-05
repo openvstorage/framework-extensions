@@ -20,7 +20,6 @@ Global Package Factory module inherited by all plugins
 
 import os
 from subprocess import check_output
-from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.interfaces.debian import DebianPackage
 from ovs_extensions.packages.interfaces.rpm import RpmPackage
 
@@ -62,8 +61,6 @@ class PackageFactory(object):
     PKG_VOLDRV_BASE_EE = 'volumedriver-ee-base'
     PKG_VOLDRV_SERVER = 'volumedriver-no-dedup-server'
     PKG_VOLDRV_SERVER_EE = 'volumedriver-ee-server'
-
-    _logger = Logger('extensions-packages')
 
     @classmethod
     def get_manager(cls):
@@ -189,13 +186,15 @@ class PackageFactory(object):
         return package_name, version_cmd
 
     @classmethod
-    def update_packages(cls, client, packages):
+    def update_packages(cls, client, packages, logger):
         """
         Update the requested packages
         :param client: The SSHClient on which to update the packages
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :param packages: The packages to update. Structure {<pkg_name>: {'installed': <version1>, 'candidate': <version2>}}
         :type packages: dict
+        :param logger: Logger instance
+        :type logger: ovs_extensions.log.logger.Logger
         :return: A boolean whether to abort the entire update process or not
         :rtype: bool
         """
@@ -215,10 +214,10 @@ class PackageFactory(object):
                     # Package has already been installed by another process
                     continue
 
-                cls._logger.debug('{0}: Updating package {1} ({2} --> {3})'.format(client.ip, package_name, installed, candidate))
+                logger.debug('{0}: Updating package {1} ({2} --> {3})'.format(client.ip, package_name, installed, candidate))
                 package_mgr.install(package_name=package_name, client=client)
-                cls._logger.debug('{0}: Updated package {1}'.format(client.ip, package_name))
+                logger.debug('{0}: Updated package {1}'.format(client.ip, package_name))
             except Exception:
-                cls._logger.exception('{0}: Updating package {1} failed'.format(client.ip, package_name))
+                logger.exception('{0}: Updating package {1} failed'.format(client.ip, package_name))
                 abort = True
         return abort
