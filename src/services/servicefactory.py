@@ -169,9 +169,9 @@ class ServiceFactory(object):
         raise RuntimeError('Service {0} does not have expected status: Expected: {1} - Actual: {2}'.format(name, status, service_status))
 
     @classmethod
-    def verify_restart_required(cls, client, service_name, binary_versions):
+    def get_service_update_versions(cls, client, service_name, binary_versions):
         """
-        Validate whether the service name passed requires a restart. This is based on the currently installed binary version
+        Validate whether the service requires a restart, based upon the currently installed binary version
         :param client: Client on which to execute the validation
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :param service_name: Name of the service to check
