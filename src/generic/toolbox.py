@@ -248,7 +248,7 @@ class ExtensionsToolbox(object):
                 continue
 
             if isinstance(value, dict) and isinstance(dict2[key], dict):
-                ExtensionsToolbox.merge_dicts(dict1=value, dict2=dict2[key])
+                copy_dict1[key] = copy.deepcopy(ExtensionsToolbox.merge_dicts(dict1=value, dict2=dict2[key]))
             else:
                 if isinstance(value, list) and isinstance(dict2[key], list):
                     copy_dict1[key] = value + dict2[key]

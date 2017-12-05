@@ -19,7 +19,6 @@ Service Factory module
 """
 
 import os
-import copy
 import time
 from distutils.version import LooseVersion
 from subprocess import check_output
@@ -37,6 +36,11 @@ class ServiceFactory(object):
     MONITOR_PREFIXES = None
     SERVICE_CONFIG_KEY = None
     CONFIG_TEMPLATE_DIR = None
+    DEFAULT_UPDATE_ENTRY = {'packages': {},
+                            'downtime': [],
+                            'prerequisites': [],
+                            'services_stop_start': {10: [], 20: []},   # Lowest get stopped first and started last
+                            'services_post_update': {10: [], 20: []}}  # Lowest get restarted first
 
     _logger = Logger('extensions-service_factory')
 
@@ -92,10 +96,6 @@ class ServiceFactory(object):
 
     @classmethod
     def _get_logger_instance(cls):
-        raise NotImplementedError()
-
-    @classmethod
-    def get_services_with_version_files(cls, storagerouter):
         raise NotImplementedError()
 
     @classmethod
@@ -169,63 +169,32 @@ class ServiceFactory(object):
         raise RuntimeError('Service {0} does not have expected status: Expected: {1} - Actual: {2}'.format(name, status, service_status))
 
     @classmethod
-    def get_services_to_update(cls, client, service_info, binaries):
+    def get_service_update_versions(cls, client, service_name, binary_versions):
         """
-        Validate whether the services passed require a restart
-        The services being checked here are services which rely on binaries such as alba, arakoon, volumedriver_fs ...
-        Therefore we pass in the available binary versions to be able to compare with the currently running version
+        Validate whether the service requires a restart, based upon the currently installed binary version
         :param client: Client on which to execute the validation
         :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param service_info: Information about the services {<component>: {<package_name>: {10: [<service_name>, ...] } } }
-        :type service_info: dict
-        :param binaries: Mapping between the package_names and their available binary version. E.g.: {'arakoon': 1.9.22}
-        :type binaries: dict
+        :param service_name: Name of the service to check
+        :type service_name: str
+        :param binary_versions: Mapping between the package_names and their available binary version. E.g.: {'arakoon': 1.9.22}
+        :type binary_versions: dict
         :return: The services which require a restart
         :rtype: dict
         """
-        default_entry = {'candidate': None,
-                         'installed': None,
-                         'services_to_restart': {}}
-        update_info = {}
-        for component, all_info in service_info.iteritems():
-            for package_name, info in all_info.iteritems():
-                for importance, services in info.iteritems():
-                    for service in services:
-                        version_file = '{0}/{1}.version'.format(cls.RUN_FILE_DIR, service)
-                        if not client.file_exists(version_file):
-                            # The .version file was not found, so we don't know whether to restart it or not. Let's choose the safest option
-                            if component not in update_info:
-                                update_info[component] = {}
-                            if package_name not in update_info[component]:
-                                update_info[component][package_name] = copy.deepcopy(default_entry)
-                            if importance not in update_info[component][package_name]['services_to_restart']:
-                                update_info[component][package_name]['services_to_restart'][importance] = []
-                            update_info[component][package_name]['installed'] = '{0}-reboot'.format(binaries[package_name])
-                            update_info[component][package_name]['candidate'] = str(binaries[package_name])
-                            update_info[component][package_name]['services_to_restart'][importance].append(service)
-                            continue
+        version_file = '{0}/{1}.version'.format(cls.RUN_FILE_DIR, service_name)
+        if not client.file_exists(version_file):
+            ServiceFactory._logger.error('No service file found for service {0} in {1} on node with IP {2}'.format(service_name, cls.RUN_FILE_DIR, client.ip))
+            return
 
-                        # The .version file exists. Base restart requirement on its content
-                        for version in client.file_read(version_file).strip().split(';'):
-                            version = version.strip()
-                            running_version = None
-                            if '=' in version:
-                                package_name = version.split('=')[0]
-                                running_version = version.split('=')[1]
-                            elif version:
-                                running_version = version
-
-                            if running_version is not None and (LooseVersion(running_version) < binaries[package_name] or '-reboot' in running_version):
-                                if component not in update_info:
-                                    update_info[component] = {}
-                                if package_name not in update_info[component]:
-                                    update_info[component][package_name] = copy.deepcopy(default_entry)
-                                if importance not in update_info[component][package_name]['services_to_restart']:
-                                    update_info[component][package_name]['services_to_restart'][importance] = []
-                                update_info[component][package_name]['installed'] = running_version
-                                update_info[component][package_name]['candidate'] = str(binaries[package_name])
-                                update_info[component][package_name]['services_to_restart'][importance].append(service)
-        return update_info
+        # Verify whether a restart is required based on the content of the file and binary_versions passed
+        for version in client.file_read(version_file).strip().split(';'):
+            if not version:
+                continue
+            package_name = version.strip().split('=')[0]
+            running_version = version.strip().split('=')[1]
+            if running_version is not None and (LooseVersion(running_version) < binary_versions[package_name] or '-reboot' in running_version):
+                return {'installed': running_version,
+                        'candidate': str(binary_versions[package_name])}
 
     @classmethod
     def remove_services_marked_for_removal(cls, client, package_names):
