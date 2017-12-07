@@ -33,12 +33,17 @@ class PackageFactory(object):
     VERSION_CMD_ALBA = 'alba version --terse'
     VERSION_CMD_ARAKOON = "arakoon --version | grep version: | awk '{print $2}'"
 
-    # Components
+    # Update Components
     COMP_SD = 'storagedriver'
     COMP_FWK = 'framework'
     COMP_ALBA = 'alba'
     COMP_ISCSI = 'iscsi'
     COMP_ARAKOON = 'arakoon'  # This is the only component which cannot be selected via the GUI for update, but is used elsewhere
+
+    # Migration Components
+    COMP_MIGRATION_FWK = 'ovs'
+    COMP_MIGRATION_ALBA = 'alba'
+    COMP_MIGRATION_ISCSI = 'iscsi'
 
     # Editions
     EDITION_COMMUNITY = 'community'

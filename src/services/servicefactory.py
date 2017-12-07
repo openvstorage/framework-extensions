@@ -192,9 +192,13 @@ class ServiceFactory(object):
                 continue
             package_name = version.strip().split('=')[0]
             running_version = version.strip().split('=')[1]
-            if running_version is not None and (LooseVersion(running_version) < binary_versions[package_name] or '-reboot' in running_version):
-                return {'installed': running_version,
-                        'candidate': str(binary_versions[package_name])}
+            if running_version is not None:
+                if LooseVersion(running_version) < binary_versions[package_name]:
+                    return {'installed': running_version,
+                            'candidate': str(binary_versions[package_name])}
+                if '-reboot' in running_version:
+                    return {'installed': 'service_restart',
+                            'candidate': str(binary_versions[package_name])}
 
     @classmethod
     def remove_services_marked_for_removal(cls, client, package_names):
