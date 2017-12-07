@@ -216,7 +216,7 @@ class PackageFactory(object):
                 installed = packages[package_name]['installed']
                 candidate = packages[package_name]['candidate']
                 installed_versions = package_mgr.get_installed_versions(client=client, package_names=[package_name])
-                if candidate == installed_versions.get(package_name):
+                if candidate == str(installed_versions.get(package_name)):
                     # Package has already been installed by another process
                     continue
 
