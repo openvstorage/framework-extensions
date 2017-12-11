@@ -169,7 +169,7 @@ class ServiceFactory(object):
         raise RuntimeError('Service {0} does not have expected status: Expected: {1} - Actual: {2}'.format(name, status, service_status))
 
     @classmethod
-    def get_service_update_versions(cls, client, service_name, binary_versions):
+    def get_service_update_versions(cls, client, service_name, binary_versions, package_name=None):
         """
         Validate whether the service requires a restart, based upon the currently installed binary version
         :param client: Client on which to execute the validation
@@ -178,6 +178,8 @@ class ServiceFactory(object):
         :type service_name: str
         :param binary_versions: Mapping between the package_names and their available binary version. E.g.: {'arakoon': 1.9.22}
         :type binary_versions: dict
+        :param package_name: Name of the package to match for in the service run file (Only applicable if the service depends on multiple packages)
+        :type package_name: str
         :return: The services which require a restart
         :rtype: dict
         """
@@ -190,15 +192,15 @@ class ServiceFactory(object):
         for version in client.file_read(version_file).strip().split(';'):
             if not version:
                 continue
-            package_name = version.strip().split('=')[0]
+            pkg_name = version.strip().split('=')[0]
             running_version = version.strip().split('=')[1]
-            if running_version is not None:
-                if LooseVersion(running_version) < binary_versions[package_name]:
+            if (package_name is None or pkg_name == package_name) and running_version is not None:
+                if LooseVersion(running_version) < binary_versions[pkg_name]:
                     return {'installed': running_version,
-                            'candidate': str(binary_versions[package_name])}
+                            'candidate': str(binary_versions[pkg_name])}
                 if '-reboot' in running_version:
                     return {'installed': 'service_restart',
-                            'candidate': str(binary_versions[package_name])}
+                            'candidate': str(binary_versions[pkg_name])}
 
     @classmethod
     def remove_services_marked_for_removal(cls, client, package_names):
