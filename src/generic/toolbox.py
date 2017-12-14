@@ -30,6 +30,7 @@ class ExtensionsToolbox(object):
     regex_guid = re.compile('^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$')
     regex_vpool = re.compile('^[0-9a-z][\-a-z0-9]{1,20}[a-z0-9]$')
     regex_preset = re.compile('^[0-9a-zA-Z][a-zA-Z0-9-_]{1,18}[a-zA-Z0-9]$')
+    regex_backend = re.compile('^[0-9a-z][\-a-z0-9]{1,48}[a-z0-9]$')
     regex_ip_port = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)):[0-9]{4,5}$')
     regex_ip_subnet = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(/(8|9|(1|2)[0-9]|30))?$')
     compiled_regex_type = type(re.compile('some_regex'))
@@ -183,7 +184,7 @@ class ExtensionsToolbox(object):
                 elif ExtensionsToolbox.check_type(expected_value, ExtensionsToolbox.compiled_regex_type)[0] is True and not re.match(expected_value, actual_value):
                     error_messages.append('{0} param "{1}" with value "{2}" does not match regex "{3}"'.format(mandatory_or_optional, required_key, actual_value, expected_value.pattern))
         if error_messages:
-            raise RuntimeError('\n' + '\n'.join(error_messages))
+            raise RuntimeError('Invalid parameters detected\n' + '\n'.join(error_messages))
 
     @staticmethod
     def advanced_sort(element, separator):
@@ -224,6 +225,39 @@ class ExtensionsToolbox(object):
         minutes = rest2 / 60
         seconds = rest2 % 60
         return days, hours, minutes, seconds
+
+    @staticmethod
+    def convert_byte_size_to_human_readable(size, multiplier=1024, decimals=0):
+        """
+        Convert the specified size (in bytes) to human readable format
+        :param size: Size to be converted
+        :type size: int
+        :param multiplier: Multiplier to use. Either 1000 or 1024
+        :type multiplier: int
+        :param decimals: Amount of decimals returned
+        :type decimals: int
+        :return: Human readable form of the size
+        :rtype: str
+        """
+        ExtensionsToolbox.verify_required_params(actual_params={'size': size,
+                                                                'decimals': decimals,
+                                                                'multiplier': multiplier},
+                                                 required_params={'size': (int, None),
+                                                                  'decimals': (int, range(6)),
+                                                                  'multiplier': (int, [1000, 1024])})
+
+        units = {1000: ['B', 'KB', 'MB', 'GB', 'TB'],
+                 1024: ['B', 'KiB', 'MiB', 'GiB', 'TiB']}[multiplier]
+
+        counter = 0
+        negative = size < 0
+        size = abs(size)
+        while size >= multiplier and counter < 4:
+            size /= float(multiplier)
+            counter += 1
+
+        size = size * -1 if negative is True else size * 1
+        return '{{0:.{0}f}}{{1}}'.format(decimals).format(size, units[counter])
 
     @staticmethod
     def merge_dicts(dict1, dict2):
