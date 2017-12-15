@@ -495,3 +495,15 @@ class Systemd(object):
                 if entry in line:
                     return_value.append(line)
         return return_value
+
+    def get_service_fd(self, name, client):
+        """
+        Returns the open file descriptors for a service that is running
+        :param name: name of the service
+        :type name: str
+        :param client: Client on which to extract something from the service file
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        """
+        pid = self.get_service_pid(name, client)
+        file_descriptors = client.run(['lsof',  '-i', '-a', '-p', pid])
+        return file_descriptors.split('\n')[1:]

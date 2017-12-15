@@ -472,3 +472,6 @@ class Upstart(object):
                 if entry in line:
                     return_value.append(line)
         return return_value
+
+    def get_service_fd(self, name, client):
+        raise NotImplementedError('Get_service_fd has not yet been implemented')
