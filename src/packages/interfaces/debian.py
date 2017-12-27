@@ -23,6 +23,7 @@ import re
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
+from ovs_extensions.generic.decorators import timeout, TimeoutError
 from ovs_extensions.log.logger import Logger
 
 
@@ -125,6 +126,7 @@ class DebianPackage(object):
             versions[package_name] = LooseVersion(client.run(version_commands[package_name], allow_insecure=True))
         return versions
 
+    @timeout(200)
     def install(self, package_name, client):
         """
         Install the specified package
