@@ -25,7 +25,7 @@ class TimeoutError(Exception):
 
 def timeout(seconds=200):
     def decorator(func):
-        def _handle_timeout(*args): # to handle unexpected arguments
+        def _handle_timeout(*args, **kwargs): # to handle unexpected arguments
             raise TimeoutError('Function {0} has expired after {1} seconds'.format(func.__name__, seconds))
 
         def wrapper(*args, **kwargs):
