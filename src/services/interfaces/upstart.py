@@ -94,6 +94,7 @@ class Upstart(object):
             service_name = target_name
 
         params.update({'SERVICE_NAME': ExtensionsToolbox.remove_prefix(service_name, 'ovs-'),
+                       'RUN_FILE_DIR': self._run_file_dir,
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else 'started {0}'.format(startup_dependency)})
         template_content = client.file_read(template_file)
         for key, value in params.iteritems():
@@ -322,14 +323,17 @@ class Upstart(object):
         client.run(['kill', '-s', signal, pid])
 
     @classmethod
-    def list_services(cls, client):
+    def list_services(cls, client, add_status_info=False):
         """
         List all created services on a system
         :param client: Client on which to list all the services
         :type client: ovs_extensions.generic.sshclient.SSHClient
+        :param add_status_info: Add status information of service in the output
+        :type add_status_info: bool
         :return: List of all services which have been created at some point
         :rtype: generator
         """
+        _ = add_status_info
         for filename in client.dir_list('/etc/init'):
             if filename.endswith('.conf'):
                 yield filename.replace('.conf', '')
@@ -468,3 +472,6 @@ class Upstart(object):
                 if entry in line:
                     return_value.append(line)
         return return_value
+
+    def get_service_fd(self, name, client):
+        raise NotImplementedError('Get_service_fd has not yet been implemented')

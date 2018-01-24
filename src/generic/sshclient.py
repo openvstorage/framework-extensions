@@ -299,7 +299,7 @@ class SSHClient(object):
 
     @connected()
     @mocked(MockedSSHClient.run)
-    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False, return_stderr=False, timeout=None):
+    def run(self, command, debug=False, suppress_logging=False, allow_nonzero=False, allow_insecure=False, return_stderr=False, return_exit_code=False, timeout=None):
         """
         Executes a shell command
         :param suppress_logging: Do not log anything
@@ -314,6 +314,8 @@ class SSHClient(object):
         :type allow_insecure: bool
         :param return_stderr: Return stderr
         :type return_stderr: bool
+        :param return_exit_code: Return exit code of the command
+        :type return_exit_code: bool
         :param timeout: Timeout after which the command should be aborted (in seconds)
         :type timeout: int
         :return: The command's stdout or tuple for stdout and stderr
@@ -347,10 +349,16 @@ class SSHClient(object):
                 if debug is True:
                     self._logger.debug('stdout: {0}'.format(stdout))
                     self._logger.debug('stderr: {0}'.format(stderr))
+                return_value = [stdout]
+                # Order matters for backwards compatibility
                 if return_stderr is True:
-                    return stdout, stderr
-                else:
-                    return stdout
+                    return_value.append(stderr)
+                if return_exit_code is True:
+                    return_value.append(exit_code)
+                # Backwards compatibility
+                if len(return_value) == 1:
+                    return return_value[0]
+                return tuple(return_value)
             except CalledProcessError as cpe:
                 if suppress_logging is False:
                     self._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
@@ -369,10 +377,16 @@ class SSHClient(object):
                 if suppress_logging is False:
                     self._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
+            return_value = [output]
+            # Order matters for backwards compatibility
             if return_stderr is True:
-                return output, error
-            else:
-                return output
+                return_value.append(error)
+            if return_exit_code is True:
+                return_value.append(exit_code)
+            # Backwards compatibility
+            if len(return_value) == 1:
+                return return_value[0]
+            return tuple(return_value)
 
     @mocked(MockedSSHClient.dir_create)
     def dir_create(self, directories):

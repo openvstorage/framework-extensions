@@ -23,6 +23,7 @@ import time
 import subprocess
 from flask import Response
 from ovs_extensions.api.exceptions import HttpBadRequestException
+from ovs_extensions.dal.base import ObjectNotFoundException
 
 
 class HTTPRequestDecorators(object):
@@ -100,7 +101,7 @@ class HTTPRequestDecorators(object):
             start = time.time()
             if authenticate is True and not cls.authorized():
                 data = {'_success': False, '_error': 'Invalid credentials'}
-                status = 401
+                status_code = 401
             else:
                 try:
                     if args or kwargs:
@@ -113,27 +114,31 @@ class HTTPRequestDecorators(object):
                         return_data = {}
                     if isinstance(return_data, tuple):
                         data = return_data[0]
-                        status = return_data[1]
+                        status_code = return_data[1]
                     else:
                         data = return_data
-                        status = 200
+                        status_code = 200
                     data['_success'] = True
                     data['_error'] = ''
+                except ObjectNotFoundException as ex:
+                    cls.logger.exception('DAL lookup exception')
+                    data = {'_success': False, '_error': str(ex)}
+                    status_code = 404
                 except HttpBadRequestException as ex:
                     cls.logger.exception('API exception')
                     data = {'_success': False, '_error': str(ex)}
-                    status = ex.status_code
+                    status_code = ex.status_code
                 except subprocess.CalledProcessError as ex:
                     cls.logger.exception('CPE exception')
                     data = {'_success': False, '_error': ex.output if ex.output != '' else str(ex)}
-                    status = 500
+                    status_code = 500
                 except Exception as ex:
                     cls.logger.exception('Unexpected exception')
                     data = {'_success': False, '_error': str(ex)}
-                    status = 500
+                    status_code = 500
             data['_version'] = cls.version
             data['_duration'] = time.time() - start
-            return Response(json.dumps(data), content_type='application/json', status=status)
+            return Response(json.dumps(data), content_type='application/json', status=status_code)
 
         new_function.original = f
         new_function.__name__ = f.__name__

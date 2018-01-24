@@ -45,8 +45,8 @@ class RelationMapper(object):
             if os.path.isfile('/'.join([path, filename])) and filename.endswith('.py'):
                 name = filename.replace('.py', '')
                 mod = imp.load_source(name, '/'.join([path, filename]))
-                for member in inspect.getmembers(mod):
-                    if inspect.isclass(member[1]) and member[1].__module__ == name:
+                for member in inspect.getmembers(mod, predicate=inspect.isclass):
+                    if member[1].__module__ == name:
                         current_class = member[1]
                         if 'Base' not in current_class.__name__:
                             object_class = None

@@ -19,6 +19,8 @@ Generic module for managing configuration somewhere
 """
 import os
 import json
+from subprocess import check_output
+from ovs_extensions.packages.packagefactory import PackageFactory
 
 
 class NotFoundException(Exception):
@@ -54,7 +56,9 @@ class Configuration(object):
         > print Configuration.get('/bar')
         < {u'a': {u'b': u'test'}}
     """
+    BASE_KEY = '/ovs/framework'
     CACC_LOCATION = None
+    EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _unittest_data = {}
 
@@ -351,3 +355,35 @@ class Configuration(object):
         :rtype: tuple(str, dict)
         """
         raise NotImplementedError()
+
+    @classmethod
+    def get_edition(cls):
+        """
+        Retrieve the installed edition (community or enterprise)
+            * Community: Free edition downloaded from apt.openvstorage.org
+            * Enterprise: Paid edition which is indicated by the packages with 'ee' in their name and downloaded from apt-ee.openvstorage.com
+        WARNING: This method assumes every node in the cluster has the same edition installed
+        :return: The edition which has been installed
+        :rtype: str
+        """
+        # Verify edition via configuration management
+        try:
+            edition = cls.get(key=cls.EDITION_KEY)
+            if edition in [PackageFactory.EDITION_ENTERPRISE, PackageFactory.EDITION_COMMUNITY]:
+                return edition
+        except Exception:
+            pass
+
+        # Verify edition via StorageDriver package
+        try:
+            return PackageFactory.EDITION_ENTERPRISE if 'ee-' in check_output([PackageFactory.VERSION_CMD_SD], shell=True) else PackageFactory.EDITION_COMMUNITY
+        except Exception:
+            pass
+
+        # Verify edition via ALBA package
+        try:
+            return PackageFactory.EDITION_ENTERPRISE if 'ee-' in check_output([PackageFactory.VERSION_CMD_ALBA], shell=True) else PackageFactory.EDITION_COMMUNITY
+        except Exception:
+            pass
+
+        return PackageFactory.EDITION_COMMUNITY
