@@ -29,9 +29,9 @@ class PackageFactory(object):
     Factory class returning specialized classes
     """
     # Version commands
-    VERSION_CMD_SD = "volumedriver_fs --version | grep version: | awk '{print $2}'"
+    VERSION_CMD_SD = "volumedriver_fs --version | grep version\: | grep -o [a-zA-Z0-9\.\-]*$"
     VERSION_CMD_ALBA = 'alba version --terse'
-    VERSION_CMD_ARAKOON = "arakoon --version | grep version: | awk '{print $2}'"
+    VERSION_CMD_ARAKOON = "arakoon --version | grep version: | grep -o [a-zA-Z0-9\.\-]*$"
 
     # Update Components
     COMP_SD = 'storagedriver'
