@@ -25,13 +25,13 @@ import grp
 import pwd
 import glob
 import json
-import types
 import select
 import socket
 import logging
 import tempfile
 import warnings
 import unicodedata
+from threading import RLock
 from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen
 from ovs_extensions.generic.remote import remote
@@ -57,7 +57,7 @@ def connected():
             :param self
             """
             try:
-                if self._client is not None and not self._client.is_connected():
+                if self._client is not None and not self.is_connected():
                     self._connect()
                 return outer_function(self, *args, **kwargs)
             except AttributeError as ex:
@@ -90,14 +90,6 @@ def mocked(mock_function):
             return mock_wrapper
         return f
     return wrapper
-
-
-def is_connected(self):
-    """
-    Monkey-patch method to check whether the Paramiko client is connected
-    :param self
-    """
-    return self._transport is not None
 
 
 class UnableToConnectException(Exception):
@@ -133,6 +125,7 @@ class SSHClient(object):
     Remote/local client
     """
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
+    REFERENCE_ATTR = 'ovs_ref_counter'
 
     _raise_exceptions = {}  # Used by unit tests
     client_cache = {}
@@ -140,6 +133,12 @@ class SSHClient(object):
     def __init__(self, endpoint, username='ovs', password=None, cached=True, timeout=None):
         """
         Initializes an SSHClient
+        Please note that the underlying (cached) Paramiko instance is not thread safe!
+        When using the client in a multithreaded use-case. Use the cached=False to avoid any racing between threads
+        Possible issues that can happen when you don't:
+        - The underlying Paramiko session will never get actived anymore (a deactivation of another thread lead to the deadlock)
+        - The underlying Paramiko connection would be closed by garbage collection (a patch has been implemented to avoid, but still worth mentioning)
+        The downside to using a non-cached instance is that the connection needs to happen again: this can take between 0.1sec up to 1sec
         :param endpoint: Ip address to connect to / storagerouter
         :type endpoint: basestring | ovs.dal.hybrids.storagerouter.StorageRouter
         :param username: Name of the user to connect as
@@ -166,6 +165,7 @@ class SSHClient(object):
         self.password = password
         self.timeout = timeout
         self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
+        self._client_lock = RLock()
 
         current_user = check_output('whoami', shell=True).strip()
         if username is None:
@@ -196,10 +196,16 @@ class SSHClient(object):
                 import paramiko
                 client = paramiko.SSHClient()
                 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                client.is_connected = types.MethodType(is_connected, client)
                 if cached is True:
                     SSHClient.client_cache[key] = client
                 self._client = client
+
+        if self._client is not None:
+            # Increment the ref counter to avoid closing the connection
+            if not hasattr(self._client, self.REFERENCE_ATTR):
+                setattr(self._client, self.REFERENCE_ATTR, 0)
+            self._client.ovs_ref_counter += 1  # GIL will be locking this
+
         self._connect()
 
     def __del__(self):
@@ -211,6 +217,24 @@ class SSHClient(object):
                 self._disconnect()
         except Exception:
             pass  # Absorb destructor exceptions
+
+    def is_connected(self):
+        """
+        Check whether the client is still connected
+        :return: True when the connection is still active else False
+        :rtype: bool
+        """
+        if self._client is None:
+            return False
+        try:
+            transport = self._client.get_transport()
+            if transport is None:
+                return False
+            transport.send_ignore()
+            return True
+        except EOFError:
+            # Connection is closed
+            return False
 
     def _connect(self):
         """
@@ -252,11 +276,16 @@ class SSHClient(object):
     def _disconnect(self):
         """
         Disconnects from the remote end
+        :return: None
+        :rtype: NoneType
         """
         if self.is_local is True:
             return
-
-        self._client.close()
+        with self._client_lock:
+            # Check if it is safe to disconnect
+            self._client.ovs_ref_counter -= 1
+            if self._client.ovs_ref_counter == 0:  # When this is not 0 that means that other SSHClients are using this reference
+                self._client.close()
 
     @classmethod
     def _clean(cls):
