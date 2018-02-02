@@ -24,6 +24,7 @@ import os
 import json
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.packages.packagefactory import PackageFactory
@@ -479,7 +480,7 @@ class ArakoonInstaller(object):
         for node in self.config.nodes:
             try:
                 self._service_manager.unregister_service(service_name=service_name, node_name=node.name)
-            except:
+            except Exception:
                 self._logger.exception('Un-registering service {0} on {1} failed'.format(service_name, node.ip))
 
         # Cleans up a complete cluster (remove services, directories and configuration files)
@@ -984,7 +985,6 @@ class ArakoonInstaller(object):
         :rtype: PyrakoonClient
         """
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
             return MockPyrakoonClient(config.cluster_id, None)
 
         from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
