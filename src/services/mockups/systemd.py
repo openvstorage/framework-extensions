@@ -17,7 +17,7 @@
 """
 Systemd Mock module
 """
-
+import random
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 
@@ -50,7 +50,8 @@ class SystemdMock(object):
         params.update({'SERVICE_NAME': ExtensionsToolbox.remove_prefix(name, 'ovs-'),
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else '{0}.service'.format(startup_dependency)})
         if self.has_service(name=name, client=client) is False:
-            SystemdMock.services[key] = {name: 'HALTED'}
+            SystemdMock.services[key] = {name: {'state': 'HALTED',
+                                                'pid': None}}
         if delay_registration is False:
             self.register_service(node_name=self._system.get_my_machine_id(client), service_metadata=params)
         return params
@@ -61,7 +62,7 @@ class SystemdMock(object):
         """
         name = self._get_name(name, client)
         key = 'None' if client is None else client.ip
-        if SystemdMock.services.get(key, {}).get(name) == 'RUNNING':
+        if SystemdMock.services.get(key, {}).get(name, {}).get('state') == 'RUNNING':
             return 'active'
         return 'inactive'
 
@@ -84,7 +85,8 @@ class SystemdMock(object):
         key = 'None' if client is None else client.ip
         if name not in SystemdMock.services[key]:
             raise RuntimeError('Service {0} does not exist'.format(name))
-        SystemdMock.services[key][name] = 'RUNNING'
+        SystemdMock.services[key][name]['state'] = 'RUNNING'
+        self.get_service_pid(name, client)  # Add a PID
         if self.get_service_status(name, client) != 'active':
             raise RuntimeError('Start {0} failed'.format(name))
 
@@ -96,7 +98,7 @@ class SystemdMock(object):
         key = 'None' if client is None else client.ip
         if name not in SystemdMock.services[key]:
             raise RuntimeError('Service {0} does not exist'.format(name))
-        SystemdMock.services[key][name] = 'HALTED'
+        SystemdMock.services[key][name]['state'] = 'HALTED'
         if self.get_service_status(name, client) != 'inactive':
             raise RuntimeError('Stop {0} failed'.format(name))
 
@@ -142,6 +144,27 @@ class SystemdMock(object):
         :return: None
         """
         self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+
+    def get_service_pid(self, name, client):
+        """
+        Retrieve the PID of a mocked service
+        This will generate a PID and store it for further mocked use
+        :param name: Name of the service to retrieve the PID for
+        :type name: str
+        :param client: Client on which to retrieve the PID for the service
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :return: The PID of the service or 0 if no PID found
+        :rtype: int
+        """
+        pid = 0
+        name = self._get_name(name, client)
+        key = 'None' if client is None else client.ip
+        if self.get_service_status(name, client) == 'active':
+            pid = SystemdMock.services[key][name].get('pid')
+            if pid is None:
+                pid = random.randint(1000, 65535)
+                SystemdMock.services[key][name]['pid'] = pid
+        return pid
 
     @classmethod
     def extract_from_service_file(cls, name, client, entries=None):
