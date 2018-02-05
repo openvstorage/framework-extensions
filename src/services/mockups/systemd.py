@@ -50,8 +50,9 @@ class SystemdMock(object):
         params.update({'SERVICE_NAME': ExtensionsToolbox.remove_prefix(name, 'ovs-'),
                        'STARTUP_DEPENDENCY': '' if startup_dependency is None else '{0}.service'.format(startup_dependency)})
         if self.has_service(name=name, client=client) is False:
-            SystemdMock.services[key] = {name: {'state': 'HALTED',
-                                                'pid': None}}
+            if key not in SystemdMock.services:
+                SystemdMock.services[key] = {}
+            SystemdMock.services[key].update({name: {'state': 'HALTED', 'pid': None}})
         if delay_registration is False:
             self.register_service(node_name=self._system.get_my_machine_id(client), service_metadata=params)
         return params
@@ -87,6 +88,7 @@ class SystemdMock(object):
             raise RuntimeError('Service {0} does not exist'.format(name))
         SystemdMock.services[key][name]['state'] = 'RUNNING'
         self.get_service_pid(name, client)  # Add a PID
+        self.get_service_start_time(name, client)  # Add start time
         if self.get_service_status(name, client) != 'active':
             raise RuntimeError('Start {0} failed'.format(name))
 
@@ -181,6 +183,27 @@ class SystemdMock(object):
         """
         _ = name, client, entries
         return []
+
+    def get_service_start_time(self, name, client):
+        """
+        Retrieves the start time of the service
+        :param name: Name of the service to retrieve the PID for
+        :type name: str
+        :param client: Client on which to retrieve the PID for the service
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :raises ValueError when no PID could be found for the given process
+        :return: A string representing the datetime of when the service was started eg Mon Jan 1 3:30:00 2018
+        :rtype: str
+        """
+        name = self._get_name(name, client)
+        key = 'None' if client is None else client.ip
+        if self.get_service_status(name, client) == 'active':
+            start_time = SystemdMock.services[key][name].get('start_time')
+            if start_time is None:
+                start_time = 'Mon Jan {0} {1}:{2}:00 2018'.format(random.randint(0, 30), random.randint(0, 23), random.randint(0, 59))
+                SystemdMock.services[key][name]['start_time'] = start_time
+            return start_time
+        raise ValueError('No PID could be found for service {0} on node with IP {1}'.format(name, client.ip))
 
     @classmethod
     def _service_exists(cls, name, client, path):
