@@ -21,7 +21,28 @@ import os
 import copy
 import json
 import uuid
+from threading import RLock
+from functools import wraps
 from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
+
+
+def synchronize():
+    """
+    Synchronization decorator
+    """
+    def wrap(f):
+        """
+        Wrapper function
+        """
+        @wraps(f)
+        def new_function(self, *args, **kwargs):
+            """
+            Wrapped function
+            """
+            with self._lock:
+                return f(self, *args, **kwargs)
+        return new_function
+    return wrap
 
 
 class DummyPersistentStore(object):
@@ -33,9 +54,10 @@ class DummyPersistentStore(object):
 
     def __init__(self):
         self._sequences = {}
-        self._sequences_tlog = {}
         self._keep_in_memory_only = True
+        self._lock = RLock()
 
+    @synchronize()
     def _clean(self):
         """
         Empties the store
@@ -48,13 +70,13 @@ class DummyPersistentStore(object):
             except OSError:
                 pass
 
+    @synchronize()
     def _read(self):
         """
         Reads the local json file
         """
         if self._keep_in_memory_only is True:
             return DummyPersistentStore._data
-
         try:
             f = open(self._path, 'r')
             data = json.loads(f.read())
@@ -63,6 +85,7 @@ class DummyPersistentStore(object):
             data = {}
         return data
 
+    @synchronize()
     def get(self, key):
         """
         Retrieves a certain value for a given key
@@ -73,6 +96,7 @@ class DummyPersistentStore(object):
         else:
             raise KeyNotFoundException(key)
 
+    @synchronize()
     def get_multi(self, keys, must_exist=True):
         """
         Retrieves values for all given keys
@@ -86,6 +110,7 @@ class DummyPersistentStore(object):
             else:
                 yield None
 
+    @synchronize()
     def prefix(self, key):
         """
         Lists all keys starting with the given prefix
@@ -93,29 +118,27 @@ class DummyPersistentStore(object):
         data = self._read()
         return [k for k in data.keys() if k.startswith(key)]
 
+    @synchronize()
     def prefix_entries(self, key):
         """
         Returns all key-values starting with the given prefix
         """
         data = self._read()
-        return [(k, v) for k, v in data.iteritems() if k.startswith(key)]
+        return [(k, copy.deepcopy(v)) for k, v in data.iteritems() if k.startswith(key)]
 
-    def set(self, key, value, transaction=None, _tlog=None):
+    @synchronize()
+    def set(self, key, value, transaction=None):
         """
         Sets the value for a key to a given value
         """
         if transaction is not None:
-            return self._sequences[transaction].append([self.set, {'key': key, 'value': value}])
+            return self._sequences[transaction].append([self.set, {'key': key, 'value': copy.deepcopy(value)}])
         data = self._read()
-        if _tlog is not None:
-            if key in data:
-                self._sequences_tlog[_tlog].append([self.set, {'key': key, 'value': data[key]}])
-            else:
-                self._sequences_tlog[_tlog].append([self.delete, {'key': key}])
         data[key] = copy.deepcopy(value)
         self._save(data)
 
-    def delete(self, key, must_exist=True, transaction=None, _tlog=None):
+    @synchronize()
+    def delete(self, key, must_exist=True, transaction=None):
         """
         Deletes a given key from the store
         """
@@ -123,13 +146,12 @@ class DummyPersistentStore(object):
             return self._sequences[transaction].append([self.delete, {'key': key, 'must_exist': must_exist}])
         data = self._read()
         if key in data:
-            if _tlog is not None:
-                self._sequences_tlog[_tlog].append([self.set, {'key': key, 'value': data[key]}])
             del data[key]
             self._save(data)
         elif must_exist is True:
             raise KeyNotFoundException(key)
 
+    @synchronize()
     def exists(self, key):
         """
         Check if key exists
@@ -140,6 +162,7 @@ class DummyPersistentStore(object):
         except KeyNotFoundException:
             return False
 
+    @synchronize()
     def nop(self):
         """
         Executes a nop command
@@ -147,13 +170,13 @@ class DummyPersistentStore(object):
         _ = self
         pass
 
-    def assert_value(self, key, value, transaction=None, _tlog=None):
+    @synchronize()
+    def assert_value(self, key, value, transaction=None):
         """
         Asserts a key-value pair
         """
-        _ = _tlog
         if transaction is not None:
-            return self._sequences[transaction].append([self.assert_value, {'key': key, 'value': value}])
+            return self._sequences[transaction].append([self.assert_value, {'key': key, 'value': copy.deepcopy(value)}])
         data = self._read()
         if value is None:
             if key in data:
@@ -164,11 +187,11 @@ class DummyPersistentStore(object):
             if json.dumps(data[key], sort_keys=True) != json.dumps(value, sort_keys=True):
                 raise AssertException(key)
 
-    def assert_exists(self, key, transaction=None, _tlog=None):
+    @synchronize()
+    def assert_exists(self, key, transaction=None):
         """
         Asserts whether a given key exists
         """
-        _ = _tlog
         if transaction is not None:
             return self._sequences[transaction].append([self.assert_exists, {'key': key}])
         data = self._read()
@@ -181,20 +204,19 @@ class DummyPersistentStore(object):
         """
         key = str(uuid.uuid4())
         self._sequences[key] = []
-        self._sequences_tlog[key] = []
         return key
 
+    @synchronize()
     def apply_transaction(self, transaction):
         """
         Applies a transaction
         """
-        self._sequences_tlog[transaction] = []
+        begin_data = copy.deepcopy(self._read())  # Safer to copy than to reverse all actions
         for item in self._sequences[transaction]:
             try:
-                item[0](_tlog=transaction, **item[1])
+                item[0](**item[1])
             except Exception:
-                for titem in self._sequences_tlog[transaction]:
-                    titem[0](**titem[1])
+                self._save(begin_data)
                 raise
 
     def _save(self, data):
