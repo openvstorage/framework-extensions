@@ -503,4 +503,4 @@ class Systemd(object):
         pid = self.get_service_pid(name, client)
         if pid in [0, -1]:
             raise ValueError('No PID could be found for service {0} on node with IP {1}'.format(name, client.ip))
-        return client.run(['ps', '-o', 'lstart', '-p', pid]).strip().splitlines()[-1].replace(' ', '-')
+        return client.run(['ps', '-o', 'lstart', '-p', pid]).strip().splitlines()[-1]
