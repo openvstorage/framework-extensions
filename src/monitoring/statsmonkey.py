@@ -183,7 +183,9 @@ class StatsMonkey(object):
         return points
 
     @classmethod
-    def _convert_to_float_values(cls, json_output, prefix=list()):
+    def _convert_to_float_values(cls, json_output, prefix=None):
+        if prefix is None:
+            prefix = []
         output = {}
         for key in json_output.keys():
             path = prefix + [key]

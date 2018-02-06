@@ -472,3 +472,22 @@ class Upstart(object):
                 if entry in line:
                     return_value.append(line)
         return return_value
+
+    def get_service_fd(self, name, client):
+        raise NotImplementedError('Get_service_fd has not yet been implemented')
+
+    def get_service_start_time(self, name, client):
+        """
+        Retrieves the start time of the service
+        :param name: Name of the service to retrieve the PID for
+        :type name: str
+        :param client: Client on which to retrieve the PID for the service
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :raises ValueError when no PID could be found for the given process
+        :return: A string representing the datetime of when the service was started eg Mon Jan 1 3:30:00 2018
+        :rtype: str
+        """
+        pid = self.get_service_pid(name, client)
+        if pid in [0, -1]:
+            raise ValueError('No PID could be found for service {0} on node with IP {1}'.format(name, client.ip))
+        return client.run(['ps', '-o', 'lstart', '-p', pid]).strip().splitlines()[-1]
