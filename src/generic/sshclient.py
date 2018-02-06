@@ -136,7 +136,7 @@ class SSHClient(object):
         Please note that the underlying (cached) Paramiko instance is not thread safe!
         When using the client in a multithreaded use-case. Use the cached=False to avoid any racing between threads
         Possible issues that can happen when you don't:
-        - The underlying Paramiko session will never get actived anymore (a deactivation of another thread lead to the deadlock)
+        - The underlying Paramiko session will never get activated anymore (a deactivation of another thread leads to the deadlock)
         - The underlying Paramiko connection would be closed by garbage collection (a patch has been implemented to avoid, but still worth mentioning)
         The downside to using a non-cached instance is that the connection needs to happen again: this can take between 0.1sec up to 1sec
         :param endpoint: Ip address to connect to / storagerouter
