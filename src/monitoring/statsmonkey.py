@@ -23,7 +23,7 @@ import copy
 import math
 import time
 from ovs.extensions.generic.configuration import Configuration
-from ovs.lib.helpers.toolbox import Toolbox
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from threading import Thread
 
 
@@ -161,7 +161,7 @@ class StatsMonkey(object):
         if not isinstance(config, dict):
             raise ValueError('StatsMonkey configuration must be of type dict')
 
-        required_params = {'host': (str, Toolbox.regex_ip),
+        required_params = {'host': (str, ExtensionsToolbox.regex_ip),
                            'port': (int, {'min': 1025, 'max': 65535}),
                            'password': (str, None),
                            'interval': (int, {'min': 1}, False),
@@ -171,8 +171,7 @@ class StatsMonkey(object):
         if config.get('transport') == 'influxdb':
             required_params['username'] = (str, None)
 
-        Toolbox.verify_required_params(actual_params=config,
-                                       required_params=required_params)
+        ExtensionsToolbox.verify_required_params(actual_params=config, required_params=required_params)
         cls._config = config
         return cls._config
 
