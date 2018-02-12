@@ -53,13 +53,15 @@ class DebianPackage(object):
             output = client.run(command, allow_insecure=True).strip()
         return output.replace('-', ' ').title()
 
-    def get_installed_versions(self, client=None, package_names=None):
+    def get_installed_versions(self, client=None, package_names=None, get_alba_info=False):
         """
         Retrieve currently installed versions of the packages provided (or all if none provided)
         :param client: Client on which to check the installed versions
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :param package_names: Name of the packages to check
         :type package_names: list
+        :param get_alba_info: get the information on the alba package
+        :type get_alba_info: bool
         :return: Package installed versions
         :rtype: dict
         """
@@ -68,6 +70,10 @@ class DebianPackage(object):
             package_names = set()
             for names in self.package_info['names'].itervalues():
                 package_names = package_names.union(names)
+        if get_alba_info is True:
+            from ovs_extensions.packages.packagefactory import PackageFactory  # Import here to circumvent circular dependencies
+            alba_name = PackageFactory.PKG_ALBA_EE
+            package_names.add(alba_name)
         for package_name in sorted(package_names):
             command = "dpkg -s '{0}' | grep Version | awk '{{print $2}}'".format(package_name.replace(r"'", r"'\''"))
             if client is None:
