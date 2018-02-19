@@ -17,9 +17,9 @@
 """
 IPMI calls
 """
-
-from ovs_extensions.generic.sshclient import SSHClient
-from source.tools.configuration import Configuration
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.system import System
+from ovs.extensions.generic.configuration import Configuration
 
 IPMI_INFO_LOCATION = 'ovs/alba/asdnodes/{0}/config/ipmi'
 
@@ -30,15 +30,16 @@ class IPMIController():
     """
 
     @staticmethod
-    def power_off(node_id):
+    def power_off_node(node_id):
         ip, username, pwd = Configuration.get(IPMI_INFO_LOCATION.format(node_id))
-        _local_client = SSHClient(endpoint=ip, username=username, password=pwd)
-        out, err = _local_client.run(['ipmitool', '-I', '-H', '-U', '-P', 'chassis', 'power', 'off'])
+        _local_client = SSHClient(endpoint=System.get_my_storagerouter())
+        out, err = _local_client.run(['ipmitool', '-I','lanplus', '-H',ip, '-U',username, '-P', pwd, 'chassis', 'power', 'off'])
+        return out
 
 
     @staticmethod
-    def status(node_id):
+    def status_node(node_id):
         ip, username, pwd = Configuration.get(IPMI_INFO_LOCATION.format(node_id))
-        _local_client = SSHClient(endpoint=ip, username=username, password=pwd)
-        out, err = _local_client.run(['ipmitool', '-I', '-H', '-U', '-P', 'chassis', 'status'])
-
+        _local_client = SSHClient(System.get_my_storagerouter())
+        out, err = _local_client.run(['ipmitool', '-I','lanplus', '-H',ip, '-U',username, '-P', pwd, 'chassis', 'status'])
+        return out
