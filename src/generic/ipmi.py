@@ -29,17 +29,46 @@ class IPMIController():
     Controller class that can execute ipmi calls
     """
 
+    def __init__(self, node_id):
+        ipmi_info = dict(Configuration.get(IPMI_INFO_LOCATION.format(node_id)))
+        self.ip = ipmi_info.get('ip')
+        self.username = ipmi_info.get('username')
+        self.pwd = ipmi_info.get('password')
+
+        self._local_client = SSHClient(System.get_my_storagerouter())
+
     @staticmethod
-    def power_off_node(node_id):
-        ip, username, pwd = Configuration.get(IPMI_INFO_LOCATION.format(node_id))
-        _local_client = SSHClient(endpoint=System.get_my_storagerouter())
-        out, err = _local_client.run(['ipmitool', '-I','lanplus', '-H',ip, '-U',username, '-P', pwd, 'chassis', 'power', 'off'])
+    def _parse_status(status_string):
+        status_dict = {}
+        print status_string.split('\n')
+        for line in status_string.split('\n'):
+            key, value = line.split(':')
+            key = key.strip()
+            status_dict[key] = value
+        return status_dict
+
+    def power_off_node(self):
+        """
+        This function will shut down the provided node using the package freeipmi
+        :return:
+        """
+        command = ['ipmi-power', '-h', self.ip , '-u', self.username, '-p', self.pwd, '-f']
+        try:
+            out, err = self._local_client.run(command)
+        except ValueError:
+            out = self._local_client.run(command)
+            out = IPMIController._parse_status(status_string=out)
         return out
 
-
-    @staticmethod
-    def status_node(node_id):
-        ip, username, pwd = Configuration.get(IPMI_INFO_LOCATION.format(node_id))
-        _local_client = SSHClient(System.get_my_storagerouter())
-        out, err = _local_client.run(['ipmitool', '-I','lanplus', '-H',ip, '-U',username, '-P', pwd, 'chassis', 'status'])
+    def status_node_freeipmi(self):
+        """
+        This function will call the power status of the provided node using the package "freeipmi"
+        :return: <node_id>: on/off
+        """
+        command = ['ipmi-power', '-h', self.ip , '-u', self.username, '-p', self.pwd, '-s']
+        try:
+            out, err = self._local_client.run(command)
+        except ValueError:
+            out = self._local_client.run(command)
+            out = IPMIController._parse_status(status_string=out)
         return out
