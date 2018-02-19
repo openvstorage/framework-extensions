@@ -17,11 +17,15 @@
 """
 IPMI calls
 """
+import time
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
-from ovs.extensions.generic.configuration import Configuration
 
 IPMI_INFO_LOCATION = 'ovs/alba/asdnodes/{0}/config/ipmi'
+SLEEPTIME = 3
+IPMI_POWER_ON = 'on'
+IPMI_POWER_OFF = 'off'
 
 
 class IPMIController():
@@ -35,37 +39,66 @@ class IPMIController():
         self.username = ipmi_info.get('username')
         self.pwd = ipmi_info.get('password')
 
+        self.basic_command = ['ipmi-power', '-h', self.ip, '-u', self.username, '-p', self.pwd]
+
         self._local_client = SSHClient(System.get_my_storagerouter())
 
     @staticmethod
     def _parse_status(status_string):
         status_dict = {}
-        print status_string.split('\n')
         for line in status_string.split('\n'):
             key, value = line.split(':')
             key = key.strip()
+            value = value.strip()
             status_dict[key] = value
         return status_dict
 
-    def power_off_node(self):
+    def power_off_node(self, retries=10):
         """
         This function will shut down the provided node using the package freeipmi
-        :return:
+        :return: <node_ip>: ok
+        :raises: upon timeout
+        :raises: if something went wrong calling the command
         """
-        command = ['ipmi-power', '-h', self.ip , '-u', self.username, '-p', self.pwd, '-f']
+        command = self.basic_command + ['-f']
         try:
             out, err = self._local_client.run(command)
+            return err
         except ValueError:
             out = self._local_client.run(command)
             out = IPMIController._parse_status(status_string=out)
-        return out
+            for i in xrange(retries):
+                if self.status_node().get(self.ip) == IPMI_POWER_OFF:
+                    return out
+                time.sleep(SLEEPTIME)
+            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, SLEEPTIME * retries))
 
-    def status_node_freeipmi(self):
+    def power_on_node(self, retries=10):
+        """
+        This function will power on the provided node using the package freeipmi
+        :return: <node_ip>: ok
+        :raises: upon timeout
+        :raises: if something went wrong calling the command
+        """
+        command = self.basic_command + ['-n']
+        try:
+            out, err = self._local_client.run(command)
+            return err
+        except ValueError:
+            out = self._local_client.run(command)
+            out = IPMIController._parse_status(status_string=out)
+            for i in xrange(retries):
+                if self.status_node().get(self.ip) == IPMI_POWER_ON:
+                    return out
+                time.sleep(SLEEPTIME)
+            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, SLEEPTIME * retries))
+
+    def status_node(self):
         """
         This function will call the power status of the provided node using the package "freeipmi"
-        :return: <node_id>: on/off
+        :return: <node_ip>: on/off
         """
-        command = ['ipmi-power', '-h', self.ip , '-u', self.username, '-p', self.pwd, '-s']
+        command = self.basic_command + ['-s']
         try:
             out, err = self._local_client.run(command)
         except ValueError:
