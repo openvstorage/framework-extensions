@@ -18,30 +18,40 @@
 IPMI calls
 """
 import time
-from ovs.extensions.generic.configuration import Configuration
-from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.generic.system import System
-
-IPMI_INFO_LOCATION = 'ovs/alba/asdnodes/{0}/config/ipmi'
-SLEEPTIME = 3
-IPMI_POWER_ON = 'on'
-IPMI_POWER_OFF = 'off'
-
+from ovs_extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 class IPMIController():
     """
     Controller class that can execute ipmi calls
     """
 
-    def __init__(self, node_id):
-        ipmi_info = dict(Configuration.get(IPMI_INFO_LOCATION.format(node_id)))
-        self.ip = ipmi_info.get('ip')
-        self.username = ipmi_info.get('username')
-        self.pwd = ipmi_info.get('password')
+    IPMI_INFO_LOCATION = 'ovs/alba/asdnodes/{0}/config/ipmi'
+    SLEEPTIME = 3
+    IPMI_POWER_ON = 'on'
+    IPMI_POWER_OFF = 'off'
 
+    def __init__(self, ip, username, password, client):
+        actual_params = {'ip': ip,
+                         'username': username,
+                         'password': password,
+                         'client': client}
+        required_params = {'ip': (str, ExtensionsToolbox.regex_ip, True),
+                           'username': (str, None, True),
+                           'password': (str, None, True),
+                           'client': (SSHClient, None, True)}
+        ExtensionsToolbox.verify_required_params(actual_params=actual_params,
+                                                 required_params=required_params)
+        for key, value in actual_params.iteritems():
+            if value is 'null':
+                raise ValueError("Argument '{0}' cannot be 'null'".format(key))
+
+        self.ip = ip
+        self.username = username
+        self.pwd = password
         self.basic_command = ['ipmi-power', '-h', self.ip, '-u', self.username, '-p', self.pwd]
 
-        self._local_client = SSHClient(System.get_my_storagerouter())
+        self._local_client = client
 
     @staticmethod
     def _parse_status(status_string):
@@ -63,15 +73,15 @@ class IPMIController():
         command = self.basic_command + ['-f']
         try:
             out, err = self._local_client.run(command)
-            return err
+            raise err
         except ValueError:
             out = self._local_client.run(command)
             out = IPMIController._parse_status(status_string=out)
             for i in xrange(retries):
-                if self.status_node().get(self.ip) == IPMI_POWER_OFF:
+                if self.status_node().get(self.ip) == self.IPMI_POWER_OFF:
                     return out
-                time.sleep(SLEEPTIME)
-            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, SLEEPTIME * retries))
+                time.sleep(self.SLEEPTIME)
+            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, self.SLEEPTIME * retries))
 
     def power_on_node(self, retries=10):
         """
@@ -83,15 +93,15 @@ class IPMIController():
         command = self.basic_command + ['-n']
         try:
             out, err = self._local_client.run(command)
-            return err
+            raise err
         except ValueError:
             out = self._local_client.run(command)
             out = IPMIController._parse_status(status_string=out)
             for i in xrange(retries):
-                if self.status_node().get(self.ip) == IPMI_POWER_ON:
+                if self.status_node().get(self.ip) == self.IPMI_POWER_ON:
                     return out
-                time.sleep(SLEEPTIME)
-            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, SLEEPTIME * retries))
+                time.sleep(self.SLEEPTIME)
+            raise RuntimeError('Shutting down node {0} failed after {1} seconds'.format(self.ip, self.SLEEPTIME * retries))
 
     def status_node(self):
         """
@@ -101,6 +111,7 @@ class IPMIController():
         command = self.basic_command + ['-s']
         try:
             out, err = self._local_client.run(command)
+            raise err
         except ValueError:
             out = self._local_client.run(command)
             out = IPMIController._parse_status(status_string=out)
