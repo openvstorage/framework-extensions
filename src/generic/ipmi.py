@@ -58,10 +58,6 @@ class IPMIController(object):
                            'client': (SSHClient, None, True)}
         ExtensionsToolbox.verify_required_params(actual_params=actual_params,
                                                  required_params=required_params)
-        for key, value in actual_params.iteritems():
-            if value is 'null':
-                raise ValueError("Argument '{0}' cannot be 'null'".format(key))
-
         self.ip = ip
         self.username = username
         self.pwd = password
@@ -82,7 +78,8 @@ class IPMIController(object):
     def power_off_node(self, retries=10):
         """
         Will shut down the provided node using the package freeipmi
-        :return: {<node_ip>: ok}
+        :return: dict with key: ip, value: status
+        :rtype: dict
         :raises: IPMITimeOutException upon timeout
         :raises: IPMIException if something went wrong calling the command
         """
