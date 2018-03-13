@@ -83,7 +83,7 @@ class Systemd(object):
             self._logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
-    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
         Add a service
         :param name: Template name of the service to add
@@ -103,9 +103,13 @@ class Systemd(object):
         """
         if params is None:
             params = {}
+        if path is None:
+            path = self._config_template_dir.format('systemd')
+        else:
+            path = path.format('systemd')
+        service_name = self._get_name(name, client, path)
 
-        service_name = self._get_name(name, client, self._config_template_dir.format('systemd'))
-        template_file = '{0}/{1}.service'.format(self._config_template_dir.format('systemd'), service_name)
+        template_file = '{0}/{1}.service'.format(path, service_name)
 
         if not client.file_exists(template_file):
             # Given template doesn't exist so we are probably using system init scripts
