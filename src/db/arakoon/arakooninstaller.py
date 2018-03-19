@@ -343,6 +343,7 @@ class ArakoonInstaller(object):
     """
     Class to dynamically install/(re)configure Arakoon cluster
     """
+    ARAKOON_CONFIG_NAMES = ['cacc', 'config']
     ARAKOON_HOME_DIR = '{0}/arakoon/{1}/db'
     ARAKOON_TLOG_DIR = '{0}/arakoon/{1}/tlogs'
     SSHCLIENT_USER = 'ovs'
@@ -761,7 +762,7 @@ class ArakoonInstaller(object):
 
         config = ArakoonClusterConfig(cluster_id=cluster_name, source_ip=ip, configuration=cls._get_configuration())
         return_value['internal'] = True
-        return_value['downtime'] = len(config.nodes) < 3 if cluster_name not in ['cacc', 'config'] else False
+        return_value['downtime'] = len(config.nodes) < 3 if cluster_name not in cls.ARAKOON_CONFIG_NAMES else False
         return_value['service_name'] = cls.get_service_name_for_cluster(cluster_name=arakoon_metadata['cluster_name'])
         return return_value
 
