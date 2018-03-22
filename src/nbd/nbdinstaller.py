@@ -41,16 +41,11 @@ class NBDInstaller:
         :return:
         """
         print 'Started setup of NBD-manager.'
-
-        #  todo check if module is loaded
-
         with open(NBD_MODPROBE_LOCATION, 'w') as fh:
             for k, v in kwargs:
-                print k, v
                 fh.write('options nbd {0}={1}\n'.format(k, v))
-            # fh.write('options nbd max_part={0}\n'.format(max_part))
         with open(MODULES_PATH, 'r+') as fh2:
-            fh2.write('volumedriver-nbd') #  todo correct?
+            fh2.write('volumedriver-nbd')
 
         check_output(['modprobe', 'nbd'])
         check_output(['apt-get', 'install', 'volumedriver-nbd'])

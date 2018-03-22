@@ -17,17 +17,15 @@
 NBD controller module
 """
 import os
-import sys
 import yaml
-from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.system import System
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 
 class NBDManager(object):
-
     """
-    NBD Controller object
+    Abstract implementation of the NBD Manager object to create, start, stop or remove NBD device services on this node.
     """
 
     DEVICE_PATH = '/dev/{0}'
@@ -62,7 +60,12 @@ class NBDManager(object):
         Create NBD service
         :param volume_uri: tcp://user:pass@ip:port/volume-name
         :param block_size: block size in bytes
-        :return: (boolean, path)
+        :return: path /dev/nbdx
+        :raises: RuntimeError if volume uri -ip:port does not match ip regex
+                                            -tcp does not match tcp connection regex
+                                 block size is too small or no integer
+        :raises CalledProcessError when create_service has failed
+
         """
 
         # unittests
@@ -73,6 +76,7 @@ class NBDManager(object):
         else:
             node_id = System.get_my_machine_id()
         node_id = node_id.strip()
+
         # Parameter verification
         if type(volume_uri) != str:
             raise RuntimeError
@@ -104,6 +108,7 @@ class NBDManager(object):
             starting_number = number
         nbd_number = 'nbd{0}'.format(starting_number).strip()
         config_path = node_path+'/'+nbd_number+'/config'
+
         # Set self._configuration keys and values in local config
         nbd_path = self.DEVICE_PATH.format(nbd_number)
         config_settings = {'volume_uri': volume_uri,
@@ -121,14 +126,20 @@ class NBDManager(object):
                                           params={'NODE_ID': str(node_id),
                                                   'NBDX': nbd_number,
                                                   'SCRIPT': self.SERVICE_SCRIPT_PATH,
-                                                  'WD': self.WORKING_DIRECTORY,
+                                                  'WD': self.WORKING_DIRECTORY,  # Module path and wd depend on the module the nbd service is called in eg. ISCSI manager
                                                   'MODULE_PATH': self.MODULE_PATH},
-
                                           target_name=self.SERVICE_NAME.format(nbd_number, vol_name),
                                           path=self.SERVICE_FILE_PATH)
         return True, nbd_path
 
     def _get_service_path(self, nbd_path):
+        """
+        Get the arakoon service file path of the given service
+        :param nbd_path: /dev/nbdx
+        :return: return the service config path
+        :raises: RuntimeError when multiple or no paths are found
+        """
+
         nbd_number = nbd_path.split('/')[-1]
         paths = [i for i in self._configuration.list(self.BASE_PATH, recursive=True) if i.endswith('config') and nbd_number in i]
 
@@ -139,6 +150,11 @@ class NBDManager(object):
         return paths[0]
 
     def _get_vol_name(self, nbd_path):
+        """
+
+        :param nbd_path:
+        :return:
+        """
         nbd_service_path = self._get_service_path(nbd_path)
         content = self._configuration.get(nbd_service_path, raw=True)
         content = content.split('\n')
@@ -155,11 +171,14 @@ class NBDManager(object):
         Destroy NBD device with given path
         :param nbd_path: /dev/NBDX
         :return: whether or not the destroy action failed
+        :raises CalledProcessError when stop_service of remove_service has failed
+        :raises OSError
         """
+
         nbd_number = nbd_path.split('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
-            self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client, timeout=60)
+            self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
             self._service_manager.remove_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
         self._configuration.delete(self._get_service_path(nbd_path))
         try:
@@ -172,11 +191,17 @@ class NBDManager(object):
         Start NBD device with given path
         :param nbd_path: /dev/NBDX
         :return: whether or not the start action succeeded
+        :raises CalledProcessError when start_service has failed
         """
-        nbd_number = nbd_path.split('/')[-1]
-        vol_name = self._get_vol_name(nbd_path)
-        if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client):
-            self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)
+
+        try:
+            nbd_number = nbd_path.split('/')[-1]
+            vol_name = self._get_vol_name(nbd_path)
+            if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client):
+                self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)
+                return {'result': True, 'details': None}
+        except Exception as ex:
+            return {'result': False, 'details': ex}
 
 
     def stop_device(self, nbd_path):
@@ -185,13 +210,10 @@ class NBDManager(object):
         :param nbd_path: /dev/NBDX
         :return: whether or not the stop device action succeeded
         """
+
         nbd_number = nbd_path.split('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
 
-        if self._service_manager.get_service_status(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client) == 'inactive':
-            return True
-        else:
-            return False
 
