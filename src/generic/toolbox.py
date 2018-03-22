@@ -119,7 +119,7 @@ class ExtensionsToolbox(object):
         return correct, allowed_types, given_type
 
     @staticmethod
-    def verify_required_params(required_params, actual_params, verify_keys=False):
+    def verify_required_params(required_params, actual_params, verify_keys=False, return_errors=False):
         """
         Verify whether the actual parameters match the required parameters
         :param required_params: Required parameters which actual parameters have to meet
@@ -128,8 +128,10 @@ class ExtensionsToolbox(object):
         :type actual_params: dict
         :param verify_keys: Verify whether the passed in keys are actually part of the required keys
         :type verify_keys: bool
-        :return: None
-        :rtype: NoneType
+        :param return_errors: Return the list of errors instead of raising (Defaults to False)
+        :type return_errors: bool
+        :return: None or list of errors
+        :rtype: NoneType or list
         """
         if not isinstance(required_params, dict) or not isinstance(actual_params, dict):
             raise RuntimeError('Required and actual parameters must be of type dictionary')
@@ -183,8 +185,9 @@ class ExtensionsToolbox(object):
                     error_messages.append('{0} param "{1}" with value "{2}" should be 1 of the following: {3}'.format(mandatory_or_optional, required_key, actual_value, expected_value))
                 elif ExtensionsToolbox.check_type(expected_value, ExtensionsToolbox.compiled_regex_type)[0] is True and not re.match(expected_value, actual_value):
                     error_messages.append('{0} param "{1}" with value "{2}" does not match regex "{3}"'.format(mandatory_or_optional, required_key, actual_value, expected_value.pattern))
-        if error_messages:
+        if len(error_messages) > 0 and return_errors is False:
             raise RuntimeError('Invalid parameters detected\n' + '\n'.join(error_messages))
+        return error_messages
 
     @staticmethod
     def advanced_sort(element, separator):
