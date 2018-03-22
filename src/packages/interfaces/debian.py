@@ -23,7 +23,6 @@ import re
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.generic.decorators import timeout
 from ovs_extensions.log.logger import Logger
 
 
