@@ -62,7 +62,7 @@ class Upstart(object):
             self._logger.info('Service {0} could not be found.'.format(name))
         raise ValueError('Service {0} could not be found.'.format(name))
 
-    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
         Add a service
         :param name: Template name of the service to add
@@ -77,14 +77,20 @@ class Upstart(object):
         :type startup_dependency: str or None
         :param delay_registration: Register the service parameters in the config management right away or not
         :type delay_registration: bool
+        :param path: path to add the service to
+        :type path: str
         :return: Parameters used by the service
         :rtype: dict
         """
         if params is None:
             params = {}
+        if path is None:
+            path = self._config_template_dir.format('systemd')
+        else:
+            path = path.format('systemd')
+        service_name = self._get_name(name, client, path)
 
-        service_name = self._get_name(name, client, self._config_template_dir.format('upstart'))
-        template_file = '{0}/{1}.conf'.format(self._config_template_dir.format('upstart'), service_name)
+        template_file = '{0}/{1}.service'.format(path, service_name)
 
         if not client.file_exists(template_file):
             # Given template doesn't exist so we are probably using system init scripts

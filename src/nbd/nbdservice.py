@@ -28,7 +28,6 @@ class NBDService(object):
     def _get_configuration(cls):
         """
         To be overruled by the module instance of this abstract class
-        :return:
         """
         raise NotImplementedError('No Configuration has been implemented')
 
@@ -40,7 +39,6 @@ class NBDService(object):
         :param node_id: guid of the node this service is
         :return: None
         """
-        print cls
         configuration = cls._get_configuration()
         nbd_config_file_path = NBDManager.OPT_CONFIG_PATH.format(nbdx)
         try:

@@ -41,6 +41,7 @@ class NBDManager(object):
     SERVICE_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nbdservice.py')  # Working directory for the service
     WORKING_DIRECTORY = '/usr/lib/python2.7/dist-packages/ovs_extensions/'  # Working directory for the service
     MODULE_PATH = ''  # Empty for the extensions as the ovs_extensions package is found under dist-packages
+    MANAGER_SERVICE_NAME = ''
 
     def __init__(self):
         self._configuration = self._get_configuration()
@@ -67,7 +68,6 @@ class NBDManager(object):
         :raises CalledProcessError when create_service has failed
 
         """
-
         # unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             node_id = 'unittest_guid'
@@ -107,7 +107,7 @@ class NBDManager(object):
         else:
             starting_number = number
         nbd_number = 'nbd{0}'.format(starting_number).strip()
-        config_path = node_path+'/'+nbd_number+'/config'
+        config_path = os.path.join(node_path, nbd_number, 'config')
 
         # Set self._configuration keys and values in local config
         nbd_path = self.DEVICE_PATH.format(nbd_number)
@@ -127,10 +127,11 @@ class NBDManager(object):
                                                   'NBDX': nbd_number,
                                                   'SCRIPT': self.SERVICE_SCRIPT_PATH,
                                                   'WD': self.WORKING_DIRECTORY,  # Module path and wd depend on the module the nbd service is called in eg. ISCSI manager
-                                                  'MODULE_PATH': self.MODULE_PATH},
+                                                  'MODULE_PATH': self.MODULE_PATH,
+                                                  'MGR_SERVICE': self.MANAGER_SERVICE_NAME},
                                           target_name=self.SERVICE_NAME.format(nbd_number, vol_name),
                                           path=self.SERVICE_FILE_PATH)
-        return True, nbd_path
+        return nbd_path
 
     def _get_service_path(self, nbd_path):
         """
@@ -139,7 +140,6 @@ class NBDManager(object):
         :return: return the service config path
         :raises: RuntimeError when multiple or no paths are found
         """
-
         nbd_number = nbd_path.split('/')[-1]
         paths = [i for i in self._configuration.list(self.BASE_PATH, recursive=True) if i.endswith('config') and nbd_number in i]
 
@@ -151,9 +151,9 @@ class NBDManager(object):
 
     def _get_vol_name(self, nbd_path):
         """
-
-        :param nbd_path:
-        :return:
+        Parse volume name from config file specified for nbd_path
+        :param nbd_path: /dev/nbdx
+        :return: volume name
         """
         nbd_service_path = self._get_service_path(nbd_path)
         content = self._configuration.get(nbd_service_path, raw=True)
@@ -174,7 +174,6 @@ class NBDManager(object):
         :raises CalledProcessError when stop_service of remove_service has failed
         :raises OSError
         """
-
         nbd_number = nbd_path.split('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
@@ -193,24 +192,17 @@ class NBDManager(object):
         :return: whether or not the start action succeeded
         :raises CalledProcessError when start_service has failed
         """
-
-        try:
-            nbd_number = nbd_path.split('/')[-1]
-            vol_name = self._get_vol_name(nbd_path)
-            if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client):
-                self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)
-                return {'result': True, 'details': None}
-        except Exception as ex:
-            return {'result': False, 'details': ex}
-
+        nbd_number = nbd_path.split('/')[-1]
+        vol_name = self._get_vol_name(nbd_path)
+        if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client):
+            self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)
 
     def stop_device(self, nbd_path):
         """
         Stop the NBD device with the given /dev/nbdx path on current node
         :param nbd_path: /dev/NBDX
-        :return: whether or not the stop device action succeeded
+        :return: None
         """
-
         nbd_number = nbd_path.split('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
