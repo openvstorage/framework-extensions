@@ -126,7 +126,6 @@ class DebianPackage(object):
             versions[package_name] = LooseVersion(client.run(version_commands[package_name], allow_insecure=True))
         return versions
 
-    @timeout(200)
     def install(self, package_name, client):
         """
         Install the specified package
