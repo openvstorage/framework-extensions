@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -e
-
-if [ ! -f /etc/openvstorage_id ]
-then
-    python -c "from ovs_extensions.generic.system import System; System.generate_id('openvstorage')"
-fi
