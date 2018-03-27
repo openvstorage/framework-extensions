@@ -65,8 +65,6 @@ class NBDManager(object):
         :raises: RuntimeError if volume uri -ip:port does not match ip regex
                                             -tcp does not match tcp connection regex
                                  block size is too small or no integer
-        :raises CalledProcessError when create_service has failed
-
         """
         # unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
@@ -79,9 +77,9 @@ class NBDManager(object):
 
         # Parameter verification
         if type(volume_uri) != str:
-            raise RuntimeError
+            raise RuntimeError('Invalid parameter: {0} should be of type `str`'.format(volume_uri))
         if type(block_size) != int or block_size < self.MINIMAL_BLOCK_SIZE:
-            raise RuntimeError
+            raise RuntimeError('Invalid parameter: {0} should be of type `int` and bigger then > {1}'.format(block_size, self.MINIMAL_BLOCK_SIZE))
         user_pass, ip_port = volume_uri.split('@')
         ip_port, vol_name = ip_port.split('/')
         ExtensionsToolbox.verify_required_params(required_params={'user_pass': (str, ExtensionsToolbox.regex_tcp_conn, True),
@@ -171,7 +169,6 @@ class NBDManager(object):
         Destroy NBD device with given path
         :param nbd_path: /dev/NBDX
         :return: whether or not the destroy action failed
-        :raises CalledProcessError when stop_service of remove_service has failed
         :raises OSError
         """
         nbd_number = nbd_path.split('/')[-1]
@@ -190,7 +187,6 @@ class NBDManager(object):
         Start NBD device with given path
         :param nbd_path: /dev/NBDX
         :return: whether or not the start action succeeded
-        :raises CalledProcessError when start_service has failed
         """
         nbd_number = nbd_path.split('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
