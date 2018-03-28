@@ -17,6 +17,7 @@
 NBD controller module
 """
 import os
+import apt
 import yaml
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.system import System
@@ -56,7 +57,7 @@ class NBDManager(object):
     def _get_service_manager():
         raise NotImplementedError()
 
-    def create_service(self, volume_uri, block_size=MINIMAL_BLOCK_SIZE, node_id=None, number=None):
+    def create_service(self, volume_uri, block_size=MINIMAL_BLOCK_SIZE):
         """
         Create NBD service
         :param volume_uri: tcp://user:pass@ip:port/volume-name
@@ -65,46 +66,37 @@ class NBDManager(object):
         :raises: RuntimeError if volume uri -ip:port does not match ip regex
                                             -tcp does not match tcp connection regex
                                  block size is too small or no integer
+                                 volumedriver-nbd package is not installed
         """
-        # unittests
+
+        # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             node_id = 'unittest_guid'
-        elif node_id is not None:
-            node_id = node_id
         else:
-            node_id = System.get_my_machine_id()
-        node_id = node_id.strip()
+            node_id = System.get_my_machine_id().strip()
 
         # Parameter verification
+        cache = apt.Cache()
+        try:
+            cache['volumedriver-nbd'].is_installed
+        except KeyError:
+            raise RuntimeError('Package volumedriver-nbd is not yet installed')
         if type(volume_uri) != str:
             raise RuntimeError('Invalid parameter: {0} should be of type `str`'.format(volume_uri))
         if type(block_size) != int or block_size < self.MINIMAL_BLOCK_SIZE:
             raise RuntimeError('Invalid parameter: {0} should be of type `int` and bigger then > {1}'.format(block_size, self.MINIMAL_BLOCK_SIZE))
+
+        node_path = self.NODE_PATH.format(node_id)
         user_pass, ip_port = volume_uri.split('@')
         ip_port, vol_name = ip_port.split('/')
+
         ExtensionsToolbox.verify_required_params(required_params={'user_pass': (str, ExtensionsToolbox.regex_tcp_conn, True),
                                                                   'ip_port': (str, ExtensionsToolbox.regex_ip_port, True),
                                                                   'vol_name': (str, None, True)},
                                                  actual_params={'user_pass': user_pass, 'ip_port': ip_port, 'vol_name': vol_name},
                                                  verify_keys=True)
-        node_path = self.NODE_PATH.format(node_id)
 
-        # Find first device number that is not in use
-        if number is None:
-            if self._configuration.dir_exists(node_path):
-                nbd_numbers = [int(i.lstrip('nbd')) for i in list(self._configuration.list(node_path))]
-                found = False
-                starting_number = 0
-                while found is False:
-                    if starting_number in nbd_numbers:
-                        starting_number += 1
-                    else:
-                        found = True
-            else:
-                starting_number = 0
-        else:
-            starting_number = number
-        nbd_number = 'nbd{0}'.format(starting_number).strip()
+        nbd_number = self._find_first_free_device_number(node_path)
         config_path = os.path.join(node_path, nbd_number, 'config')
 
         # Set self._configuration keys and values in local config
@@ -131,7 +123,30 @@ class NBDManager(object):
                                           path=self.SERVICE_FILE_PATH)
         return nbd_path
 
-    def _get_service_path(self, nbd_path):
+    def _find_first_free_device_number(self, node_path):
+        """
+        Find first device number that is not in use
+        :param node_path: path on the node where devices can be found
+        :return: nbdX
+        """
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            nbd_number = 'nbd_unittest_number'
+        else:
+            if self._configuration.dir_exists(node_path):
+                nbd_numbers = [int(i.lstrip('nbd')) for i in list(self._configuration.list(node_path))]
+                found = False
+                starting_number = 0
+                while found is False:
+                    if starting_number in nbd_numbers:
+                        starting_number += 1
+                    else:
+                        found = True
+            else:
+                starting_number = 0
+            nbd_number = 'nbd{0}'.format(starting_number).strip()
+        return nbd_number
+
+    def _get_service_file_path(self, nbd_path):
         """
         Get the arakoon service file path of the given service
         :param nbd_path: /dev/nbdx
@@ -153,7 +168,7 @@ class NBDManager(object):
         :param nbd_path: /dev/nbdx
         :return: volume name
         """
-        nbd_service_path = self._get_service_path(nbd_path)
+        nbd_service_path = self._get_service_file_path(nbd_path)
         content = self._configuration.get(nbd_service_path, raw=True)
         content = content.split('\n')
         content = [i.split(':', 1) for i in content if i != ['']]
@@ -176,7 +191,7 @@ class NBDManager(object):
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
             self._service_manager.remove_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
-        self._configuration.delete(self._get_service_path(nbd_path))
+        self._configuration.delete(self._get_service_file_path(nbd_path))
         try:
             os.remove(self.OPT_CONFIG_PATH.format(nbd_number))
         except OSError:
@@ -203,5 +218,3 @@ class NBDManager(object):
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
-
-
