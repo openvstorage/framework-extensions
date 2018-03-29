@@ -21,6 +21,7 @@ Generic system module, executing statements on local node
 import os
 import re
 from subprocess import check_output
+from ovs_extensions.generic.sshclient import SSHClient
 
 
 class System(object):
@@ -42,7 +43,35 @@ class System(object):
         :return: Machine ID
         :rtype: str
         """
-        raise NotImplementedError('Generic "get_my_machine_id" is not implemented')
+        cmd = ['cat', '/etc/openvstorage_id']
+        if client is None:
+            return check_output(cmd)
+        else:
+            client.run(cmd)
+
+    @classmethod
+    def generate_id(cls, product='openvstorage', client=None):
+        """
+        Generates a certain ID for a given product. This ID will be saved under /etc/PRODUCT_id
+        :param product: Product to generate the ID for
+        :type product: str
+        :param client: Client to use for ID generation
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :return: The generated ID
+        :rtype: str
+        """
+        id_file_path = os.path.join('/etc', '{0}_id'.format(product))
+        new_id = check_output('openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 16', shell=True)
+        if client is None:
+            if os.path.exists(id_file_path):
+                raise RuntimeError('An ID has already been generated for product {0}'.format(product))
+            with open(id_file_path, 'w') as id_file:
+                id_file.write(new_id)
+        else:
+            if client.file_exists(id_file_path):
+                raise RuntimeError('An ID has already been generated for product {0}'.format(product))
+            client.file_write(id_file_path, new_id)
+        return new_id
 
     @classmethod
     def update_hosts_file(cls, ip_hostname_map, client):
