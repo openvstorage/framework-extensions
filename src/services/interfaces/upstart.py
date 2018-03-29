@@ -85,9 +85,9 @@ class Upstart(object):
         if params is None:
             params = {}
         if path is None:
-            path = self._config_template_dir.format('systemd')
+            path = self._config_template_dir.format('upstart')
         else:
-            path = path.format('systemd')
+            path = path.format('upstart')
         service_name = self._get_name(name, client, path)
 
         template_file = '{0}/{1}.service'.format(path, service_name)

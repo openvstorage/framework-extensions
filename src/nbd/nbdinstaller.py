@@ -21,12 +21,15 @@ Module for iSCSI Manager SetupController
 """
 import argparse
 from subprocess import check_output
+from ovs_extensions.log.logger import Logger
 
 
 class NBDInstaller:
     """
     Command line NBD installer
     """
+    _logger = Logger('extensions-nbd')
+
     def __init__(self):
         pass
 
@@ -45,7 +48,7 @@ class NBDInstaller:
         :type max_part: int
         :return: None
         """
-        print 'Started setup of NBD-manager.'
+        NBDInstaller._logger.info('Started setup of NBD-manager.')
         with open(NBDInstaller.NBD_MODPROBE_LOCATION, 'w') as fh:
             for k, v in kwargs:
                 fh.write('options nbd {0}={1}\n'.format(k, v))
@@ -55,14 +58,14 @@ class NBDInstaller:
         check_output(['modprobe', 'nbd'])
         check_output(['apt-get', 'install', 'volumedriver-nbd'])
 
-        print 'Succesfully loaded NBD'
+        NBDInstaller._logger.info('Succesfully loaded NBD')
 
     @staticmethod
     def remove():
         """
         :return:
         """
-        print 'Started removal of NBD-manager.'
+        NBDInstaller._logger.info('Started removal of NBD-manager.')
         check_output(['rm', NBDInstaller.NBD_MODPROBE_LOCATION])
         module_file = open(NBDInstaller.MODULES_PATH, 'r')
         lines = module_file.readlines()
@@ -74,7 +77,7 @@ class NBDInstaller:
                 else:
                     fh.write(line)
         check_output(['apt-get', 'remove', 'volumedriver-nbd'])
-        print 'Succesfully removed NBD'
+        NBDInstaller._logger.info('Succesfully removed NBD')
 
 
 if __name__ == '__main__':

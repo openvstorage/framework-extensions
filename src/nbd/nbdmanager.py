@@ -170,13 +170,8 @@ class NBDManager(object):
         """
         nbd_service_path = self._get_service_file_path(nbd_path)
         content = self._configuration.get(nbd_service_path, raw=True)
-        content = content.split('\n')
-        content = [i.split(':', 1) for i in content if i != ['']]
-        d = {}
-        for i in content:
-            if i != ['']:
-                d[i[0]] = i[1]
-        vol_name = d.get('volume_uri').split('/')[-1]
+        content= yaml.load(content)
+        vol_name = content.get('volume_uri').rsplit('/')[-1]
         return vol_name
 
     def destroy_device(self, nbd_path):
@@ -203,7 +198,7 @@ class NBDManager(object):
         :param nbd_path: /dev/NBDX
         :return: whether or not the start action succeeded
         """
-        nbd_number = nbd_path.split('/')[-1]
+        nbd_number = nbd_path.rsplit('/')[-1]
         vol_name = self._get_vol_name(nbd_path)
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client):
             self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)

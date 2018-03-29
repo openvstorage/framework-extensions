@@ -46,13 +46,7 @@ class NBDService(object):
         except OSError:
             pass
         content = configuration.get('/ovs/framework/nbdnodes/{0}/{1}/config'.format(node_id, nbdx), raw=True)
-        content_dict = {}
-        for item in content.split('\n'):
-            if item != '':
-                item_key, item_value = item.split(': ')
-                item_key = item_key.strip()
-                item_value= item_value.strip()
-                content_dict[item_key] = item_value
+        content_dict = yaml.load(content)
         with open(nbd_config_file_path, 'w') as nbd_config_file:
             nbd_config_file.write(yaml.dump(content_dict, default_flow_style=False))
 

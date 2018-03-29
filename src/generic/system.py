@@ -20,9 +20,8 @@ Generic system module, executing statements on local node
 
 import os
 import re
-import random, string
-from subprocess import check_output, CalledProcessError
-from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
+from subprocess import check_output
+from ovs_extensions.generic.sshclient import SSHClient
 
 
 class System(object):
