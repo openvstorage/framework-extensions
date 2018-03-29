@@ -37,13 +37,12 @@ class UnitTest(object):
     _ERROR = '\033[91mERROR\033[0m'
     _SUCCESS = '\033[92mSUCCESS\033[0m'
     _FAILURE = '\033[93mFAILURE\033[0m'
-    _PATH_MAPPINGS = {'/usr/bin/ovs': '/opt/OpenvStorage',
-                      'ovs': '/opt/OpenvStorage',
-                      '/usr/bin/iscsi-manager': '/opt/iscsi-manager',
+    _PATH_MAPPINGS = {'ovs': '/opt/OpenvStorage',
                       'iscsi-manager': '/opt/iscsi-manager',
-                      '/usr/bin/asd-manager': '/opt/asd-manager',
                       'asd-manager': '/opt/asd-manager',
-                      '/usr/bin/hprm-manager': '/opt/hprm-manager'}
+                      'hprm-manager': '/opt/hprm-manager'}
+    # Add path mappings of the /usr/bin paths to  the dict, needed for the CLI unittests
+    _PATH_MAPPINGS.update(dict([('/usr/bin/{0}'.format(k), v) for k, v in _PATH_MAPPINGS.iteritems()]))
 
     def __init__(self, mgr):
         """
