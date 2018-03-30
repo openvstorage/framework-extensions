@@ -19,11 +19,11 @@ Generic module for managing configuration in Arakoon
 """
 import os
 import time
-from random import randint
 from ConfigParser import RawConfigParser
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.storage.exceptions import AssertException
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
+from random import randint
 
 
 class ArakoonConfiguration(object):
@@ -178,7 +178,7 @@ class ArakoonConfiguration(object):
         return self._client
 
     def rename(self, key, new_key, max_retries=20):
-        # type: (str, str, bool) -> None
+        # type: (str, str, int) -> None
         """
         Rename a path
         :param key: Start of the path to rename

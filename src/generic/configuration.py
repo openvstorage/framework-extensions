@@ -63,6 +63,7 @@ class Configuration(object):
     _unittest_data = {}
 
     def __init__(self):
+        # type: () -> None
         """
         Dummy init method
         """
@@ -70,6 +71,7 @@ class Configuration(object):
 
     @classmethod
     def get_configuration_path(cls, key):
+        # type: (str) -> str
         """
         Retrieve the configuration path
         For arakoon: 'arakoon://cluster_id/{0}?ini=/path/to/arakoon_cacc.ini:{0}'.format(key)
@@ -85,6 +87,7 @@ class Configuration(object):
 
     @classmethod
     def extract_key_from_path(cls, path):
+        # type: (str) -> str
         """
         Used in unittests to retrieve last key from a path
         :param path: Path to extract key from
@@ -98,6 +101,7 @@ class Configuration(object):
 
     @classmethod
     def get(cls, key, raw=False, **kwargs):
+        # type: (str, bool, **kwargs) -> str
         """
         Get value from the configuration store
         :param key: Key to get
@@ -125,6 +129,8 @@ class Configuration(object):
 
     @classmethod
     def set(cls, key, value, raw=False):
+        # type: (str, any, raw) -> None
+
         """
         Set value in the configuration store
         :param key: Key to store
@@ -180,7 +186,23 @@ class Configuration(object):
         cls._set(key_entries[0], data, raw)
 
     @classmethod
+    def rename(cls, key, new_key, max_retries=20):
+        # type: (str, str, int) -> None
+        """
+        Rename path in the configuration store
+        :param key: Key to store
+        :type key: str
+        :param new_key: New key to store
+        :type new_key: str
+        :param max_retries: Maximal number of attempts that can be made to store new path
+        :type max_retries: int
+        :return: None
+        """
+        cls._rename(key, new_key, max_retries)
+
+    @classmethod
     def exists(cls, key, raw=False):
+        # type: (str, bool) -> bool
         """
         Check if key exists in the configuration store
         :param key: Key to check
@@ -195,6 +217,7 @@ class Configuration(object):
 
     @classmethod
     def dir_exists(cls, key):
+        # type: (str) -> bool
         """
         Check if directory exists in the configuration store
         :param key: Directory to check
@@ -204,6 +227,7 @@ class Configuration(object):
 
     @classmethod
     def list(cls, key, recursive=False):
+        # type: (str, bool) -> Iterable[str]
         """
         List all keys in tree in the configuration store
         :param key: Key to list
@@ -223,6 +247,7 @@ class Configuration(object):
 
     @classmethod
     def _dir_exists(cls, key):
+        # type: (str) -> bool
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
@@ -238,6 +263,7 @@ class Configuration(object):
 
     @classmethod
     def _list(cls, key, recursive):
+        # type: (str, bool) -> Iterable(str)
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             entries = []
@@ -265,6 +291,7 @@ class Configuration(object):
 
     @classmethod
     def _delete(cls, key, recursive):
+        # type: (str, bool) -> None
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             stripped_key = key.strip('/')
@@ -284,6 +311,7 @@ class Configuration(object):
 
     @classmethod
     def _get(cls, key, raw, **kwargs):
+        # type: (str, bool, **kwargs) -> Union[dict, None]
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             if key in ['', '/']:
@@ -311,12 +339,13 @@ class Configuration(object):
 
     @classmethod
     def _set(cls, key, value, raw):
+        # type: (str, any, bool) -> None
         data = value
         if raw is False:
             try:
                 data = json.loads(value)
                 data = json.dumps(data, indent=4)
-            except:
+            except Exception:
                 data = json.dumps(value, indent=4)
         # Unittests
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
@@ -335,7 +364,30 @@ class Configuration(object):
                                 value=data)
 
     @classmethod
+    def _rename(cls, key, new_key, max_retries):
+        # type: (str, str, int) -> None
+        # Unittests
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            stripped_key = key.strip('/')
+            stripped_new_key = new_key.strip('/')
+            data = cls._unittest_data
+            for data_key, data_value in data.iteritems():
+                if data_key.startswith(stripped_key):
+                    entry_suffix = os.path.relpath(stripped_key, data_key)
+                    new_path = os.path.join(stripped_new_key, entry_suffix)
+                    data[new_path] = data_value
+                    return
+            raise NotFoundException
+
+        # Forward call to used configuration store
+        return cls._passthrough(method='rename',
+                                key=key,
+                                new_key=new_key,
+                                max_retries=max_retries)
+
+    @classmethod
     def _passthrough(cls, method, *args, **kwargs):
+        # type: (str, *args, **kwargs) -> any
         store = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
@@ -358,6 +410,7 @@ class Configuration(object):
 
     @classmethod
     def get_edition(cls):
+        # type: () -> str
         """
         Retrieve the installed edition (community or enterprise)
             * Community: Free edition downloaded from apt.openvstorage.org
