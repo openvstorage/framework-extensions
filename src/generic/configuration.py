@@ -376,6 +376,7 @@ class Configuration(object):
                     entry_suffix = os.path.relpath(stripped_key, data_key)
                     new_path = os.path.join(stripped_new_key, entry_suffix)
                     data[new_path] = data_value
+                    data.pop(data_key)
                     return
             raise NotFoundException
 

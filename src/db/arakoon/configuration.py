@@ -20,10 +20,10 @@ Generic module for managing configuration in Arakoon
 import os
 import time
 from ConfigParser import RawConfigParser
+from random import randint
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.storage.exceptions import AssertException
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
-from random import randint
 
 
 class ArakoonConfiguration(object):
@@ -209,7 +209,6 @@ class ArakoonConfiguration(object):
                 client.assert_value(entry, entry_value, transaction=transaction)  # The value of the key should not have changed
                 client.set(new_key_entry, entry_value, transaction=transaction)
                 client.delete(entry, transaction=transaction)
-                client.assert_value(new_key_entry, entry_value, transaction=transaction)  # The value of the new key should not have changed
             try:
                 client.apply_transaction(transaction)
                 success = True
