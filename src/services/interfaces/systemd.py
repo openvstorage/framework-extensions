@@ -427,7 +427,7 @@ class Systemd(object):
             pass
 
     def register_service(self, node_name, service_metadata):
-        # type: (str, dict) -> None
+        # type: (str, Dict[str, Union[str, int]]) -> None
         """
         Register the metadata of the service to the configuration management
         :param node_name: Name of the node on which the service is running
@@ -455,7 +455,7 @@ class Systemd(object):
         self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
     def is_rabbitmq_running(self, client):
-        # type: (SSHClient) -> tuple(bool)
+        # type: (SSHClient) -> Tuple[bool]
         """
         Check if rabbitmq is correctly running
         :param client: Client on which to check the rabbitmq process
