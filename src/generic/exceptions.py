@@ -31,3 +31,11 @@ class NotFoundError(RuntimeError):
     Method not found error
     """
     pass
+
+
+class NoLockAvailableException(Exception):
+    """
+    Custom exception thrown when lock could not be acquired in time
+    """
+    pass
+

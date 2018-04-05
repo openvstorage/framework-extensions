@@ -20,6 +20,7 @@ Generic module for managing configuration somewhere
 import os
 import json
 from subprocess import check_output
+from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
 
 
@@ -56,11 +57,14 @@ class Configuration(object):
         > print Configuration.get('/bar')
         < {u'a': {u'b': u'test'}}
     """
+
     BASE_KEY = '/ovs/framework'
     CACC_LOCATION = None
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _unittest_data = {}
+    _clients = {}
+    _logger = Logger('extensions')
 
     def __init__(self):
         # type: () -> None
@@ -68,6 +72,24 @@ class Configuration(object):
         Dummy init method
         """
         _ = self
+
+    @classmethod
+    def lock(cls, name, wait=None, expiration=60):
+        """
+        Places a mutex on the Configuration management
+        To be used a context manager
+        :param name: Name of the lock to acquire.
+        :type name: str
+        :param expiration: Expiration time of the lock (in seconds)
+        :type expiration: float
+        :param wait: Amount of time to wait to acquire the lock (in seconds)
+        :type wait: float
+        """
+        store = cls.get_store_info()
+        if store == 'arakoon':
+            from ovs_extensions.db.arakoon.configuration import ArakoonConfigurationLock
+            return ArakoonConfigurationLock(cacc_location=cls.CACC_LOCATION, name=name, wait=wait, expiration=expiration)
+        raise NotImplementedError('No lock implemented for store {0}'.format(store))
 
     @classmethod
     def get_configuration_path(cls, key):
@@ -390,15 +412,35 @@ class Configuration(object):
     def _passthrough(cls, method, *args, **kwargs):
         # type: (str, *args, **kwargs) -> any
         store = cls.get_store_info()
+        instance = cls._clients.get(store, cls._build_instance())
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
+            not_found_exception = ArakoonNotFound
+        else:
+            not_found_exception = Exception
+        try:
+            return getattr(instance, method)(*args, **kwargs)
+        except not_found_exception as ex:
+            raise NotFoundException(ex.message)
+
+    @classmethod
+    def _build_instance(cls, cache=True):
+        """
+        Build an instance of the underlying Configuration to use
+        :param cache: Cache the instance
+        :type cache: bool
+        :return: An instance of an underlying Configuration
+        :rtype: any
+        """
+        store = cls.get_store_info()
+        if store == 'arakoon':
             from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
-            try:
-                instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
-                return getattr(instance, method)(*args, **kwargs)
-            except ArakoonNotFound as ex:
-                raise NotFoundException(ex.message)
-        raise NotImplementedError('Store {0} is not implemented'.format(store))
+            instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
+        else:
+            raise NotImplementedError('Store {0} is not implemented'.format(store))
+        if cache is True:
+            cls._clients[store] = instance
+        return instance
 
     @classmethod
     def get_store_info(cls):
