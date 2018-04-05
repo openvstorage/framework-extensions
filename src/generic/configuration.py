@@ -19,8 +19,6 @@ Generic module for managing configuration somewhere
 """
 import os
 import json
-import time
-from contextlib import contextmanager
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
@@ -65,6 +63,7 @@ class Configuration(object):
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _unittest_data = {}
+    _clients = {}
     _logger = Logger('extensions')
 
     def __init__(self):
@@ -86,7 +85,11 @@ class Configuration(object):
         :param wait: Amount of time to wait to acquire the lock (in seconds)
         :type wait: float
         """
-        return ConfigurationLock(name=name, wait=wait, expiration=expiration, configuration=cls, logger=cls._logger)
+        store = cls.get_store_info()
+        if store == 'arakoon':
+            from ovs_extensions.db.arakoon.configuration import ArakoonConfigurationLock
+            return ArakoonConfigurationLock(cacc_location=cls.CACC_LOCATION, name=name, wait=wait, expiration=expiration)
+        raise NotImplementedError('No lock implemented for store {0}'.format(store))
 
     @classmethod
     def get_configuration_path(cls, key):
@@ -409,15 +412,35 @@ class Configuration(object):
     def _passthrough(cls, method, *args, **kwargs):
         # type: (str, *args, **kwargs) -> any
         store = cls.get_store_info()
+        instance = cls._clients.get(store, cls._build_instance())
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
+            not_found_exception = ArakoonNotFound
+        else:
+            not_found_exception = Exception
+        try:
+            return getattr(instance, method)(*args, **kwargs)
+        except not_found_exception as ex:
+            raise NotFoundException(ex.message)
+
+    @classmethod
+    def _build_instance(cls, cache=True):
+        """
+        Build an instance of the underlying Configuration to use
+        :param cache: Cache the instance
+        :type cache: bool
+        :return: An instance of an underlying Configuration
+        :rtype: any
+        """
+        store = cls.get_store_info()
+        if store == 'arakoon':
             from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
-            try:
-                instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
-                return getattr(instance, method)(*args, **kwargs)
-            except ArakoonNotFound as ex:
-                raise NotFoundException(ex.message)
-        raise NotImplementedError('Store {0} is not implemented'.format(store))
+            instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
+        else:
+            raise NotImplementedError('Store {0} is not implemented'.format(store))
+        if cache is True:
+            cls._clients[store] = instance
+        return instance
 
     @classmethod
     def get_store_info(cls):
@@ -460,146 +483,3 @@ class Configuration(object):
             pass
 
         return PackageFactory.EDITION_COMMUNITY
-
-
-class NoLockAvailableException(Exception):
-    """
-    Custom exception thrown when lock could not be acquired in due time
-    """
-    pass
-
-
-class ConfigurationLock(object):
-    """
-    Lock implementation which uses the underlying Configuration management implementation
-    To be used as a context manager
-    """
-    LOCK_LOCATION = '/ovs/locks/{0}'
-    EXPIRATION_SUFFIX = 'configuration_lock_management'
-    EXPIRATION_KEY = 'expires'
-
-    def __init__(self, name, wait=None, expiration=60, configuration=None, logger=None, management=False):
-        """
-        Initialize a ConfigurationLock
-        :param name: Name of the lock to acquire.
-        :type name: str
-        :param expiration: Expiration time of the lock (in seconds)
-        :type expiration: float
-        :param wait: Amount of time to wait to acquire the lock (in seconds)
-        :type wait: float
-        :param configuration: Configuration implementation to use (Default to the generic one)
-        :type configuration: ovs_extensions.generic.configuration.Configuration
-        :param logger: Logger instance to use (Default to extensions)
-        :tpye logger: ovs_extensions.log.logger.Logger
-        :param management: Indicator that this lock is used to manage other locks
-        :type management: bool
-        """
-        if not isinstance(name, str) or (name.endswith(self.EXPIRATION_SUFFIX) and management is False):
-            raise ValueError('The name is not a string or ends with the reserved suffix \'{0}\''.format(self.EXPIRATION_SUFFIX))
-        self.name = name
-        self._expiration = expiration
-        self._management = management
-        self._configuration = configuration or Configuration
-        self._logger = logger or Configuration._logger
-        self._key = self.LOCK_LOCATION.format(self.name)
-        self._wait = wait
-        self._start = 0
-        self._has_lock = False
-
-    def __enter__(self):
-        self.acquire()
-        return self
-
-    def __exit__(self, *args, **kwargs):
-        _ = args, kwargs
-        self.release()
-
-    def acquire(self, wait=None):
-        """
-        Acquire a lock on the mutex, optionally given a maximum wait timeout
-        :param wait: Time to wait for lock
-        """
-        if self._has_lock:
-            return True
-        self._start = time.time()
-        if wait is None:
-            wait = self._wait
-        while self._configuration.exists(self._key):
-            time.sleep(0.005)
-            # Check if it has expired
-            try:
-                lock_data = self._configuration.get(self._key)
-            except NotFoundException:
-                continue  # Key was removed in meanwhile
-            except Exception:
-                self._logger.exception('Unable to retrieve the key data')
-                continue
-            expiration = lock_data.get(self.EXPIRATION_KEY, None)
-            if time.time() > expiration or expiration is None:
-                # Remove the expired lock
-                try:
-                    self._configuration.delete(self._key)
-                except NotFoundException:
-                    pass  # Handled by another client
-                except:
-                    self._logger.exception('Unable to remove the expired entry')
-                continue  # Always check the key again even when errors occurred
-            passed = time.time() - self._start
-            if wait is not None and passed > wait:
-                if self._logger is not None:
-                    self._logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self._key, passed, wait))
-                raise NoLockAvailableException('Could not acquire lock {0}'.format(self._key))
-        # Create the lock entry
-        now = time.time()
-        try:
-            with self._get_management_lock():  # Management locks can override each other
-                self._configuration.set(self._key, {'time_set': now, self.EXPIRATION_KEY: now + self._expiration})
-        except NoLockAvailableException:
-            self._logger.info('Lost the race with another lock, back to acquiring')
-            return self.acquire(wait)
-        except:
-            self._logger.exception('Exception occurred while setting the lock')
-            raise
-        passed = time.time() - self._start
-        if passed > 0.2:  # More than 200 ms is a long time to wait
-            if self._logger is not None:
-                self._logger.warning('Waited {0} sec for lock {1}'.format(passed, self._key))
-        self._start = time.time()
-        self._has_lock = True
-        return True
-
-    def release(self):
-        """
-        Releases the lock
-        """
-        if self._has_lock:
-            try:
-                self._configuration.delete(self._key)
-            except NotFoundException:
-                pass
-            except:
-                self._logger.exception('Unable to remove the lock')
-                raise
-            passed = time.time() - self._start
-            if passed > 0.5:  # More than 500 ms is a long time to hold a lock
-                if self._logger is not None:
-                    self._logger.warning('A lock on {0} was kept for {1} sec'.format(self._key, passed))
-            self._has_lock = False
-
-    def _get_management_lock(self):
-        """
-        Returns a lock that performs management on other locks.
-         If the current lock is a management lock return an empty contextmanager
-        """
-        @contextmanager
-        def _empty_context_manager():  # Lambda: yield did not work
-            yield
-
-        if self._management is False:
-            return ConfigurationLock(name='{0}_{1}'.format(self.name, self.EXPIRATION_SUFFIX),
-                                     wait=1,
-                                     expiration=5,
-                                     configuration=self._configuration,
-                                     logger=self._logger,
-                                     management=True)
-        return _empty_context_manager()
