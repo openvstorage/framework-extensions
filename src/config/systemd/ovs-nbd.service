@@ -9,7 +9,7 @@ Group=root
 Environment=PYTHONPATH=<MODULE_PATH>
 WorkingDirectory=<WD>
 ExecStartPre=/usr/bin/python <SCRIPT> <NODE_ID> <NBDX>
-ExecStart=/usr/local/bin/volumedriver_nbd attach file:///etc/ovs_nbd/<NBDX>
+ExecStart=/usr/local/bin/volumedriver_nbd attach file:///etc/ovs_nbd/<NBDX> -f
 ExecStop=/usr/local/bin/volumedriver_nbd detach /dev/<NBDX>
 Restart=on-failure
 RestartSec=5
