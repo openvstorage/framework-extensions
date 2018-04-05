@@ -39,7 +39,22 @@ class NBDInstaller:
     MODULES_PATH = '/etc/modules'
 
     @staticmethod
-    def setup(**kwargs):
+    def setup(nbds_max=NBDS_MAX_DEFAULT, max_part=MAX_PART_DEFAULT):
+        # type: (int, int) -> None
+        """
+        Setup of the nbd manager. This visible function should be used for installing via python shell and only accepts correct arguments.
+        Only allowed parameters are currently
+        :param nbds_max:
+        :type nbds_max: int
+        :param max_part: maximum number of partitions to be made
+        :type max_part: int
+        :return: None
+        """
+        NBDInstaller._setup(nbds_max=nbds_max, max_part=max_part)
+
+    @staticmethod
+    def _setup(**kwargs):
+        # type: (any) -> None
         """
         Setup of the nbd manager. Only allowed parameters are currently
         :param nbds_max:
@@ -50,7 +65,7 @@ class NBDInstaller:
         """
         NBDInstaller._logger.info('Started setup of NBD-manager.')
         with open(NBDInstaller.NBD_MODPROBE_LOCATION, 'w') as fh:
-            for k, v in kwargs:
+            for k, v in kwargs.iteritems():
                 fh.write('options nbd {0}={1}\n'.format(k, v))
         with open(NBDInstaller.MODULES_PATH, 'r+') as fh2:
             fh2.write('volumedriver-nbd')
@@ -63,8 +78,10 @@ class NBDInstaller:
     @staticmethod
     def remove():
         """
-        :return:
+        Removes the NBD manager
+        :return: None
         """
+        # type: None -> None
         NBDInstaller._logger.info('Started removal of NBD-manager.')
         check_output(['rm', NBDInstaller.NBD_MODPROBE_LOCATION])
         module_file = open(NBDInstaller.MODULES_PATH, 'r')
@@ -86,7 +103,7 @@ if __name__ == '__main__':
     parser_setup = subparsers.add_parser('setup', help='Run NBD {0} '.format('setup'))
     parser_setup.add_argument('--nbds_max', help="the maximal number of nbd volumes per node to be made. Defaults to {0}".format(NBDInstaller.NBDS_MAX_DEFAULT), type=int, default=NBDInstaller.NBDS_MAX_DEFAULT)
     parser_setup.add_argument('--max_part', help="the maximal number of partitions to be made. Defaults to {0}".format(NBDInstaller.MAX_PART_DEFAULT), type=int, default=NBDInstaller.MAX_PART_DEFAULT)
-    parser_setup.set_defaults(func=NBDInstaller.setup)
+    parser_setup.set_defaults(func=NBDInstaller._setup)
 
     parser_remove = subparsers.add_parser('remove', help='Run NBD {0} '.format('flow'))
     parser_remove.set_defaults(func=NBDInstaller.remove)
