@@ -81,7 +81,7 @@ class NBDInstaller:
         Removes the NBD manager
         :return: None
         """
-        # type: None -> None
+        # type: () -> None
         NBDInstaller._logger.info('Started removal of NBD-manager.')
         check_output(['rm', NBDInstaller.NBD_MODPROBE_LOCATION])
         module_file = open(NBDInstaller.MODULES_PATH, 'r')

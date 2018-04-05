@@ -43,6 +43,7 @@ class Systemd(object):
 
     @classmethod
     def _service_exists(cls, name, client, path):
+        # type: (str, SSHClient, str) -> bool
         if path is None:
             path = '/lib/systemd/system/'
         else:
@@ -69,6 +70,7 @@ class Systemd(object):
                 yield service_info
 
     def _get_name(self, name, client, path=None, log=True):
+        # type: (str, SSHClient, str, bool) -> str
         """
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
@@ -84,6 +86,7 @@ class Systemd(object):
         raise ValueError('Service {0} could not be found.'.format(name))
 
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
+        # type: (str, SSHClient, dict, str, str, bool, str) -> dict
         """
         Add a service
         :param name: Template name of the service to add
@@ -140,6 +143,7 @@ class Systemd(object):
         return params
 
     def regenerate_service(self, name, client, target_name):
+        # type: (str, SSHClient, str) -> None
         """
         Regenerates the service files of a service.
         :param name: Template name of the service to regenerate
@@ -185,6 +189,7 @@ class Systemd(object):
         return client.run(['systemctl', 'is-active', name], allow_nonzero=True)
 
     def remove_service(self, name, client, delay_unregistration=False):
+        # type: (str, SSHClient, bool) -> None
         """
         Remove a service
         :param name: Name of the service to remove
@@ -211,6 +216,7 @@ class Systemd(object):
             self.unregister_service(service_name=name, node_name=self._system.get_my_machine_id(client))
 
     def start_service(self, name, client, timeout=5):
+        # type: (str, SSHClient, int) -> None
         """
         Start a service
         :param name: Name of the service to start
@@ -247,6 +253,7 @@ class Systemd(object):
         raise RuntimeError('Did not manage to start service {0} on node with IP {1}'.format(name, client.ip))
 
     def stop_service(self, name, client, timeout=5):
+        # type: (str, SSHClient, int) -> None
         """
         Stop a service
         :param name: Name of the service to stop
@@ -277,6 +284,7 @@ class Systemd(object):
         raise RuntimeError('Did not manage to stop service {0} on node with IP {1}'.format(name, client.ip))
 
     def restart_service(self, name, client, timeout=5):
+        # type: (str, SSHClient, int) -> None
         """
         Restart a service
         :param name: Name of the service to restart
@@ -310,6 +318,7 @@ class Systemd(object):
         raise RuntimeError('Did not manage to restart service {0} on node with IP {1}'.format(name, client.ip))
 
     def has_service(self, name, client):
+        # type: (str, SSHClient) -> bool
         """
         Verify existence of a service
         :param name: Name of the service to verify
@@ -326,6 +335,7 @@ class Systemd(object):
         return True
 
     def get_service_pid(self, name, client):
+        # type: (str, SSHClient) -> int
         """
         Retrieve the PID of a service
         :param name: Name of the service to retrieve the PID for
@@ -346,6 +356,7 @@ class Systemd(object):
         return int(pid)
 
     def send_signal(self, name, signal, client):
+        # type: (str, signal, SSHClient) -> None
         """
         Send a signal to a service
         :param name: Name of the service to send a signal
@@ -364,6 +375,7 @@ class Systemd(object):
         client.run(['kill', '-s', signal, pid])
 
     def monitor_services(self):
+        # type: () -> None
         """
         Monitor the local services
         :return: None
@@ -415,6 +427,7 @@ class Systemd(object):
             pass
 
     def register_service(self, node_name, service_metadata):
+        # type: (str, dict) -> None
         """
         Register the metadata of the service to the configuration management
         :param node_name: Name of the node on which the service is running
@@ -429,6 +442,7 @@ class Systemd(object):
                                 value=service_metadata)
 
     def unregister_service(self, node_name, service_name):
+        # type: (str, str) -> None
         """
         Un-register the metadata of a service from the configuration management
         :param node_name: Name of the node on which to un-register the service
@@ -441,6 +455,7 @@ class Systemd(object):
         self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
     def is_rabbitmq_running(self, client):
+        # type: (SSHClient) -> tuple(bool)
         """
         Check if rabbitmq is correctly running
         :param client: Client on which to check the rabbitmq process
@@ -471,6 +486,7 @@ class Systemd(object):
         return rabbitmq_running, same_process
 
     def extract_from_service_file(self, name, client, entries=None):
+        # type: (str, SSHClient, list) -> list
         """
         Extract an entry, multiple entries or the entire service file content for a service
         :param name: Name of the service
@@ -503,6 +519,7 @@ class Systemd(object):
         return return_value
 
     def get_service_fd(self, name, client):
+        # type: (str, SSHClient) -> str
         """
         Returns the open file descriptors for a service that is running
         :param name: name of the service
@@ -515,6 +532,7 @@ class Systemd(object):
         return file_descriptors.split('\n')[1:]
 
     def get_service_start_time(self, name, client):
+        # type: (str, SSHClient) -> str
         """
         Retrieves the start time of the service
         :param name: Name of the service to retrieve the PID for

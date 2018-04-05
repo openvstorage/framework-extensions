@@ -45,6 +45,7 @@ class NBDManager(object):
     MANAGER_SERVICE_NAME = ''
 
     def __init__(self):
+        # type: () -> None
         self._configuration = self._get_configuration()
         self._service_manager = self._get_service_manager()
         self._client = SSHClient('127.0.0.1', username='root')
@@ -58,6 +59,7 @@ class NBDManager(object):
         raise NotImplementedError()
 
     def create_service(self, volume_uri, block_size=MINIMAL_BLOCK_SIZE):
+        # type: (str, int) -> str
         """
         Create NBD service
         :param volume_uri: tcp://user:pass@ip:port/volume-name
@@ -124,6 +126,7 @@ class NBDManager(object):
         return nbd_path
 
     def _find_first_free_device_number(self, node_path):
+        # type: (str) -> str
         """
         Find first device number that is not in use
         :param node_path: path on the node where devices can be found
@@ -147,6 +150,7 @@ class NBDManager(object):
         return nbd_number
 
     def _get_service_file_path(self, nbd_path):
+        # type: (str) -> str
         """
         Get the arakoon service file path of the given service
         :param nbd_path: /dev/nbdx
@@ -163,6 +167,7 @@ class NBDManager(object):
         return paths[0]
 
     def _get_vol_name(self, nbd_path):
+        # type: (str) -> str
         """
         Parse volume name from config file specified for nbd_path
         :param nbd_path: /dev/nbdx
@@ -170,11 +175,12 @@ class NBDManager(object):
         """
         nbd_service_path = self._get_service_file_path(nbd_path)
         content = self._configuration.get(nbd_service_path, raw=True)
-        content= yaml.load(content)
+        content = yaml.load(content)
         vol_name = content.get('volume_uri').rsplit('/')[-1]
         return vol_name
 
     def destroy_device(self, nbd_path):
+        # type: (str) -> None
         """
         Destroy NBD device with given path
         :param nbd_path: /dev/NBDX
@@ -193,6 +199,7 @@ class NBDManager(object):
             pass
 
     def start_device(self, nbd_path):
+        # type: (str) -> None
         """
         Start NBD device with given path
         :param nbd_path: /dev/NBDX
@@ -204,6 +211,7 @@ class NBDManager(object):
             self._service_manager.start_service(self.SERVICE_NAME.format(nbd_number, vol_name), self._client)
 
     def stop_device(self, nbd_path):
+        # type: (str) -> None
         """
         Stop the NBD device with the given /dev/nbdx path on current node
         :param nbd_path: /dev/NBDX
