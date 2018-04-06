@@ -40,7 +40,7 @@ class ArakoonConfiguration(object):
         self.cacc_location = cacc_location
         self._logger = Logger('extensions')
         # Build a client
-        self._client = self.get_client(self.cacc_location)
+        self._client = self.get_client()
 
     def get_configuration_path(self, key):
         # type: (str) -> str
@@ -156,8 +156,7 @@ class ArakoonConfiguration(object):
         key = ArakoonConfiguration._clean_key(key)
         self._client.set(key, value)
 
-    @staticmethod
-    def get_client(cacc_location):
+    def get_client(self):
         # type: () -> PyrakoonClient
         """
         Builds a PyrakoonClient
@@ -167,7 +166,7 @@ class ArakoonConfiguration(object):
         :rtype: ovs_extensions.db.arakoon.pyrakoon.client.PyrakoonClient
         """
         parser = RawConfigParser()
-        with open(cacc_location) as config_file:
+        with open(self.cacc_location) as config_file:
             parser.readfp(config_file)
         nodes = {}
         for node in parser.get('global', 'cluster').split(','):
@@ -253,7 +252,8 @@ class ArakoonConfigurationLock(object):
         self.id = str(uuid.uuid4())
         self.name = name
         self._cacc_location = cacc_location
-        self._client = ArakoonConfiguration.get_client(self._cacc_location)
+        config = ArakoonConfiguration(self._cacc_location)
+        self._client = config.get_client()
         self._expiration = expiration
         self._data_set = None
         self._key = self.LOCK_LOCATION.format(self.name)
