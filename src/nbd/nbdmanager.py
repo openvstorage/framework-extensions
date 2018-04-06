@@ -192,7 +192,7 @@ class NBDManager(object):
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
             self._service_manager.remove_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
-        self._configuration.delete(self._get_service_file_path(nbd_path))
+        self._configuration.delete(os.path.join(self.NODE_PATH.format(System.get_my_machine_id().strip()), nbd_number))
         try:
             os.remove(self.OPT_CONFIG_PATH.format(nbd_number))
         except OSError:
