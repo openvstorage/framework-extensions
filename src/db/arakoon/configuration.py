@@ -26,7 +26,6 @@ from ConfigParser import RawConfigParser
 from random import randint
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.generic.exceptions import NoLockAvailableException
-from ovs.extensions.generic.logger import Logger
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient, ArakoonAssertionFailed, ArakoonNotFound
 
 
