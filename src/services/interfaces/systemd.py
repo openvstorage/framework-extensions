@@ -356,7 +356,7 @@ class Systemd(object):
         return int(pid)
 
     def send_signal(self, name, signal, client):
-        # type: (str, signal, SSHClient) -> None
+        # type: (str, int, SSHClient) -> None
         """
         Send a signal to a service
         :param name: Name of the service to send a signal
