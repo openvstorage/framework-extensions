@@ -18,14 +18,14 @@
 IPMI calls
 """
 import time
+from subprocess import CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
-from subprocess import CalledProcessError
 
 
 class IPMICallException(Exception):
     """
-    Custom Exception to informat that an IPMI call failed
+    Custom Exception to inform that an IPMI call failed
     """
     pass
 
@@ -39,15 +39,27 @@ class IPMITimeOutException(Exception):
 
 class IPMIController(object):
     """
-    Controller class that can execute ipmi calls
+    Controller class that can execute IPMI calls
+    Depends on 'freeipmi'
     """
 
-    IPMI_INFO_LOCATION = 'ovs/alba/asdnodes/{0}/config/ipmi'
-    SLEEPTIME = 3
+    SLEEP_TIME = 3
     IPMI_POWER_ON = 'on'
     IPMI_POWER_OFF = 'off'
 
     def __init__(self, ip, username, password, client):
+        # type: (str, str, str, SSHClient) -> None
+        """
+        Intialize an IPMIController
+        :param ip: IP of the host to control through IPMI
+        :type ip: str
+        :param username: IPMI username of the host to control through IPMI
+        :type username: str
+        :param password: IPMI password of the host to control through IPMI
+        :type password: str
+        :param client: SSHClient to perform all IPMI commands on
+        :type client: SSHClient
+        """
         actual_params = {'ip': ip,
                          'username': username,
                          'password': password,
@@ -60,13 +72,19 @@ class IPMIController(object):
                                                  required_params=required_params)
         self.ip = ip
         self.username = username
-        self.pwd = password
-        self.basic_command = ['ipmi-power', '-h', self.ip, '-u', self.username, '-p', self.pwd]
-
+        self._basic_command = ['ipmi-power', '-h', self.ip, '-u', self.username, '-p', self._pwd]
         self._client = client
+        self._pwd = password
 
     @staticmethod
     def _parse_status(status_string):
+        # type: (str) -> Dict[str, str]
+        """
+        Parses the string returned from IPMI commands
+        :param status_string: String to parse eg x.x.x.x:off\n
+        :return: A dict reflecting the string but in a usable manner
+        :rtype: dict
+        """
         status_dict = {}
         for line in status_string.split('\n'):
             key, value = line.split(':')
@@ -75,52 +93,68 @@ class IPMIController(object):
             status_dict[key] = value
         return status_dict
 
-    def power_off_node(self, retries=10):
+    def power_off_node(self, retries=10, retry_interval=SLEEP_TIME):
+        # type: (int, float) -> Dict[str, str]
         """
-        Will shut down the provided node using the package freeipmi
-        :return: dict with key: ip, value: status
+        Power off the host
+        :param retries: Number of tries to assert that the power state is off
+        Total wait time could be <retries> * <retry_interval> in the worst case
+        :type retries: int
+        :param retry_interval: Wait time after a try (in seconds)
+        :type retry_interval: float
+        :return: {<node_ip>: <node_status>}
         :rtype: dict
         :raises: IPMITimeOutException upon timeout
         :raises: IPMIException if something went wrong calling the command
         """
-        command = self.basic_command + ['-f']
+        command = self._basic_command + ['-f']
         try:
             out = self._client.run(command)
             out = IPMIController._parse_status(status_string=out)
             for i in xrange(retries):
                 if self.status_node().get(self.ip) == self.IPMI_POWER_OFF:
                     return out
-                time.sleep(self.SLEEPTIME)
-            raise IPMITimeOutException('Shutting down node {0} failed after {1} seconds'.format(self.ip, self.SLEEPTIME * retries))
+                time.sleep(retry_interval)
+            raise IPMITimeOutException('Shutting down node {0} failed after {1} seconds'.format(self.ip, retry_interval * retries))
         except CalledProcessError as ex:
             raise IPMICallException("Error '{0}' occurred using IPMI command '{1}'".format(ex.returncode, command))
 
-    def power_on_node(self, retries=10):
+    def power_on_node(self, retries=10, retry_interval=SLEEP_TIME):
+        # type: (int, float) -> Dict[str, str]
         """
-        This function will power on the provided node using the package freeipmi
+        Power on the host
+        :param retries: Number of tries to assert that the power state is off
+        Total wait time could be <retries> * <retry_interval> in the worst case
+        :type retries: int
+        :param retry_interval: Wait time after a try (in seconds)
+        :type retry_interval: float
         :return: {<node_ip>: ok}
+        :rtype: dict
         :raises: IPMITimeOutException upon timeout
         :raises: IPMIException if something went wrong calling the command
         """
-        command = self.basic_command + ['-n']
+        command = self._basic_command + ['-n']
         try:
             out = self._client.run(command)
             out = IPMIController._parse_status(status_string=out)
             for i in xrange(retries):
                 if self.status_node().get(self.ip) == self.IPMI_POWER_ON:
                     return out
-                time.sleep(self.SLEEPTIME)
-            raise IPMITimeOutException('Shutting down node {0} failed after {1} seconds'.format(self.ip, self.SLEEPTIME * retries))
+                time.sleep(retry_interval)
+            raise IPMITimeOutException('Shutting down node {0} failed after {1} seconds'.format(self.ip, retry_interval * retries))
         except CalledProcessError as ex:
             raise IPMICallException("Error '{0}' occurred using command '{}'".format(ex.returncode, command))
 
     def status_node(self):
+        # type: () -> Dict[str, str]
         """
-        This function will call the power status of the provided node using the package "freeipmi"
-        :return: <node_ip>: on/off
+        Retrieve power status of the host
+        :return: {<node_ip>: on/off}
+        :rtype: dict
+        :rtype: dict(str, str)
         :raises IPMICallException
         """
-        command = self.basic_command + ['-s']
+        command = self._basic_command + ['-s']
         try:
             out = self._client.run(command)
             out = IPMIController._parse_status(status_string=out)

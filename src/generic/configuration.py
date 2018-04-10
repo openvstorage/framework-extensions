@@ -123,7 +123,7 @@ class Configuration(object):
 
     @classmethod
     def get(cls, key, raw=False, **kwargs):
-        # type: (str, bool, **kwargs) -> str
+        # type: (str, bool, **kwargs) -> any
         """
         Get value from the configuration store
         :param key: Key to get
