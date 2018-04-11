@@ -49,8 +49,7 @@ def locked():
 class PyrakoonClient(object):
     """
     Arakoon client wrapper:
-    * Uses json serialisation
-    * Raises generic exception
+    - Easier sequence management
     """
     _logger = Logger('extensions')
 

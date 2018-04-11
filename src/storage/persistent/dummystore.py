@@ -24,6 +24,7 @@ import uuid
 from threading import RLock
 from functools import wraps
 from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 
 
 def synchronize():
@@ -47,15 +48,39 @@ def synchronize():
 
 class DummyPersistentStore(object):
     """
-    This is a dummy persistent store that makes use of a local json file
+    This is a dummy persistent store that makes use of a local json file or memory
+    When operating in memory mode: all functions that make use of _read() are already modifying the DB.
+    This is intended but can lead to consistency problems (copy.deepcopy of the read is slow!)
+    Can be used to substitute both PyrakoonStore and PyrakoonClient
+    (this implementation does not enforce the JSON serialization like PyrakoonStore and implements all methods from PyrakoonClient)
+    Note: when mimicking PyrakoonClient instead of store, set mimick_pyrakoonclient = True in the init so the same exceptions would be
     """
     _path = '/run/dummypersistent.json'
     _data = {}
 
-    def __init__(self):
+    def __init__(self, mimick_pyrakoonclient=False):
         self._sequences = {}
         self._keep_in_memory_only = True
         self._lock = RLock()
+        self.mimick_pyrakoonclient = mimick_pyrakoonclient
+
+    @property
+    def key_not_found_exception(self):
+        """
+        Get the appropriate KeyNotFoundException class
+        """
+        if self.mimick_pyrakoonclient is True:
+            return ArakoonNotFound
+        return KeyNotFoundException
+
+    @property
+    def assertion_exception(self):
+        """
+        Get the appropriate AssertionException class
+        """
+        if self.mimick_pyrakoonclient is True:
+            return ArakoonAssertionFailed
+        return AssertException
 
     @synchronize()
     def _clean(self):
@@ -94,7 +119,7 @@ class DummyPersistentStore(object):
         if key in data:
             return copy.deepcopy(data[key])
         else:
-            raise KeyNotFoundException(key)
+            raise self.key_not_found_exception(key)
 
     @synchronize()
     def get_multi(self, keys, must_exist=True):
@@ -106,7 +131,7 @@ class DummyPersistentStore(object):
             if key in data:
                 yield copy.deepcopy(data[key])
             elif must_exist is True:
-                raise KeyNotFoundException(key)
+                raise self.key_not_found_exception(key)
             else:
                 yield None
 
@@ -149,7 +174,22 @@ class DummyPersistentStore(object):
             del data[key]
             self._save(data)
         elif must_exist is True:
-            raise KeyNotFoundException(key)
+            raise self.key_not_found_exception(key)
+
+    @synchronize()
+    def delete_prefix(self, key):
+        """
+        Deletes all keys which start with the given prefix
+        """
+        data = self._read()
+        deleted = False
+        for data_key in data:
+            if not isinstance(data_key, str) and not data_key.startswith(key):
+                continue
+            deleted &= True
+            del data[data_key]
+        if deleted is True:
+            self._save(data)
 
     @synchronize()
     def exists(self, key):
@@ -159,7 +199,7 @@ class DummyPersistentStore(object):
         try:
             self.get(key)
             return True
-        except KeyNotFoundException:
+        except self.key_not_found_exception:
             return False
 
     @synchronize()
@@ -180,12 +220,12 @@ class DummyPersistentStore(object):
         data = self._read()
         if value is None:
             if key in data:
-                raise AssertException(key)
+                raise self.assertion_exception(key)
         else:
             if key not in data:
-                raise AssertException(key)
+                raise self.assertion_exception(key)
             if json.dumps(data[key], sort_keys=True) != json.dumps(value, sort_keys=True):
-                raise AssertException(key)
+                raise self.assertion_exception(key)
 
     @synchronize()
     def assert_exists(self, key, transaction=None):
@@ -196,7 +236,7 @@ class DummyPersistentStore(object):
             return self._sequences[transaction].append([self.assert_exists, {'key': key}])
         data = self._read()
         if key not in data:
-            raise AssertException(key)
+            raise self.assertion_exception(key)
 
     def begin_transaction(self):
         """

@@ -22,28 +22,18 @@ import json
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
-
-
-class NotFoundException(Exception):
-    """Not found exception."""
-    pass
-
-
-class ConnectionException(Exception):
-    """Connection exception."""
-    pass
+# Import for backwards compatibility/easier access
+from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
 
 
 class Configuration(object):
     """
     Configuration wrapper.
-
     Uses a special key format to specify the path within the configuration store, and specify a path inside the json data
     object that might be stored inside the key.
     key  = <main path>[|<json path>]
     main path = slash-delimited path
     json path = dot-delimited path
-
     Examples:
         > Configuration.set('/foo', 1)
         > print Configuration.get('/foo')
@@ -62,7 +52,6 @@ class Configuration(object):
     CACC_LOCATION = None
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
-    _unittest_data = {}
     _clients = {}
     _logger = Logger('extensions')
 
@@ -72,6 +61,9 @@ class Configuration(object):
         Dummy init method
         """
         _ = self
+    #####################
+    # To be implemented #
+    #####################
 
     @classmethod
     def lock(cls, name, wait=None, expiration=60):
@@ -85,11 +77,10 @@ class Configuration(object):
         :param wait: Amount of time to wait to acquire the lock (in seconds)
         :type wait: float
         """
-        store = cls.get_store_info()
-        if store == 'arakoon':
-            from ovs_extensions.db.arakoon.configuration import ArakoonConfigurationLock
-            return ArakoonConfigurationLock(cacc_location=cls.CACC_LOCATION, name=name, wait=wait, expiration=expiration)
-        raise NotImplementedError('No lock implemented for store {0}'.format(store))
+        return cls._passthrough(method='lock',
+                                name=name,
+                                wait=wait,
+                                expiration=expiration)
 
     @classmethod
     def get_configuration_path(cls, key):
@@ -102,10 +93,7 @@ class Configuration(object):
         :return: Configuration path
         :rtype: str
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            return 'file://opt/OpenvStorage/config/framework.json?key={0}'.format(key)
-        return cls._passthrough(method='get_configuration_path',
-                                key=key)
+        raise NotImplementedError('No getter was implemented')
 
     @classmethod
     def extract_key_from_path(cls, path):
@@ -117,9 +105,11 @@ class Configuration(object):
         :return: The last part of the path
         :rtype: str
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            return path.split('=')[-1]
         raise NotImplementedError()
+
+    ###################
+    # Implementations #
+    ###################
 
     @classmethod
     def get(cls, key, raw=False, **kwargs):
@@ -130,11 +120,14 @@ class Configuration(object):
         :param raw: Raw data if True else json format
         :return: Value for key
         """
-        default_specified = 'default' in kwargs  # Using this bool here, because the default value itself could be None or False-ish and we want to be able to return the default value specified
+        # Using this bool here, because the default value itself could be None or False-ish and we want to be able to return the default value specified
+        default_specified = 'default' in kwargs
         default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
-            data = cls._get(key_entries[0], raw, **kwargs)
+            data = cls._get(key_entries[0], **kwargs)
+            if raw is False:
+                data = json.loads(data)
             if len(key_entries) == 1:
                 return data
             try:
@@ -150,9 +143,15 @@ class Configuration(object):
             raise
 
     @classmethod
+    def _get(cls, key, **kwargs):
+        # type: (str, **kwargs) -> Union[dict, None]
+        return cls._passthrough(method='get',
+                                key=key,
+                                **kwargs)
+
+    @classmethod
     def set(cls, key, value, raw=False):
         # type: (str, any, raw) -> None
-
         """
         Set value in the configuration store
         :param key: Key to store
@@ -161,11 +160,18 @@ class Configuration(object):
         :return: None
         """
         key_entries = key.split('|')
+        set_data = value
+        if raw is False:
+            try:
+                set_data = json.loads(value)
+                set_data = json.dumps(set_data, indent=4)
+            except Exception:
+                set_data = json.dumps(value, indent=4)
         if len(key_entries) == 1:
-            cls._set(key_entries[0], value, raw)
+            cls._set(key_entries[0], set_data)
             return
         try:
-            data = cls._get(key_entries[0], raw)
+            data = cls.get(key_entries[0], raw)
         except NotFoundException:
             data = {}
         temp_config = data
@@ -176,8 +182,15 @@ class Configuration(object):
             else:
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
-        temp_config[entries[-1]] = value
-        cls._set(key_entries[0], data, raw)
+        temp_config[entries[-1]] = set_data
+        cls._set(key_entries[0], data)
+
+    @classmethod
+    def _set(cls, key, value):
+        # type: (str, any) -> None
+        return cls._passthrough(method='set',
+                                key=key,
+                                value=value)
 
     @classmethod
     def delete(cls, key, remove_root=False, raw=False):
@@ -192,7 +205,7 @@ class Configuration(object):
         if len(key_entries) == 1:
             cls._delete(key_entries[0], recursive=True)
             return
-        data = cls._get(key_entries[0], raw)
+        data = cls.get(key_entries[0], raw)
         temp_config = data
         entries = key_entries[1].split('.')
         if len(entries) > 1:
@@ -205,7 +218,14 @@ class Configuration(object):
             del temp_config[entries[-1]]
         if len(entries) == 1 and remove_root is True:
             del data[entries[0]]
-        cls._set(key_entries[0], data, raw)
+        cls.set(key_entries[0], data, raw)
+
+    @classmethod
+    def _delete(cls, key, recursive):
+        # type: (str, bool) -> None
+        return cls._passthrough(method='delete',
+                                key=key,
+                                recursive=recursive)
 
     @classmethod
     def rename(cls, key, new_key, max_retries=20):
@@ -221,6 +241,14 @@ class Configuration(object):
         :return: None
         """
         cls._rename(key, new_key, max_retries)
+
+    @classmethod
+    def _rename(cls, key, new_key, max_retries):
+        # type: (str, str, int) -> None
+        return cls._passthrough(method='rename',
+                                key=key,
+                                new_key=new_key,
+                                max_retries=max_retries)
 
     @classmethod
     def exists(cls, key, raw=False):
@@ -248,6 +276,11 @@ class Configuration(object):
         return cls._dir_exists(key)
 
     @classmethod
+    def _dir_exists(cls, key):
+        # type: (str) -> bool
+        return cls._passthrough(method='dir_exists', key=key)
+
+    @classmethod
     def list(cls, key, recursive=False):
         # type: (str, bool) -> Iterable[str]
         """
@@ -261,6 +294,13 @@ class Configuration(object):
         return cls._list(key, recursive=recursive)
 
     @classmethod
+    def _list(cls, key, recursive):
+        # type: (str, bool) -> Iterable(str)
+        return cls._passthrough(method='list',
+                                key=key,
+                                recursive=recursive)
+
+    @classmethod
     def get_client(cls):
         """
         Retrieve a configuration store client
@@ -268,156 +308,24 @@ class Configuration(object):
         return cls._passthrough(method='get_client')
 
     @classmethod
-    def _dir_exists(cls, key):
-        # type: (str) -> bool
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            stripped_key = key.strip('/')
-            current_dict = cls._unittest_data
-            for part in stripped_key.split('/'):
-                if part not in current_dict or not isinstance(current_dict[part], dict):
-                    return False
-                current_dict = current_dict[part]
-            return True
-        # Forward call to used configuration store
-        return cls._passthrough(method='dir_exists',
-                                key=key)
-
-    @classmethod
-    def _list(cls, key, recursive):
-        # type: (str, bool) -> Iterable(str)
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            entries = []
-            data = cls._unittest_data
-            ends_with_dash = key.endswith('/')
-            starts_with_dash = key.startswith('/')
-            stripped_key = key.strip('/')
-            for part in stripped_key.split('/'):
-                if part not in data:
-                    raise NotFoundException(key)
-                data = data[part]
-            if data:
-                for sub_key in data:
-                    if ends_with_dash is True:
-                        entries.append('/{0}/{1}'.format(stripped_key, sub_key))
-                    else:
-                        entries.append(sub_key if starts_with_dash is True else '/{0}'.format(sub_key))
-            elif starts_with_dash is False or ends_with_dash is True:
-                entries.append('/{0}'.format(stripped_key))
-            return entries
-        # Forward call to used configuration store
-        return cls._passthrough(method='list',
-                                key=key,
-                                recursive=recursive)
-
-    @classmethod
-    def _delete(cls, key, recursive):
-        # type: (str, bool) -> None
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            stripped_key = key.strip('/')
-            data = cls._unittest_data
-            for part in stripped_key.split('/')[:-1]:
-                if part not in data:
-                    raise NotFoundException(key)
-                data = data[part]
-            key_to_remove = stripped_key.split('/')[-1]
-            if key_to_remove in data:
-                del data[key_to_remove]
-            return
-        # Forward call to used configuration store
-        return cls._passthrough(method='delete',
-                                key=key,
-                                recursive=recursive)
-
-    @classmethod
-    def _get(cls, key, raw, **kwargs):
-        # type: (str, bool, **kwargs) -> Union[dict, None]
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            if key in ['', '/']:
-                return
-            stripped_key = key.strip('/')
-            data = cls._unittest_data
-            for part in stripped_key.split('/')[:-1]:
-                if part not in data:
-                    raise NotFoundException(key)
-                data = data[part]
-            last_part = stripped_key.split('/')[-1]
-            if last_part not in data:
-                raise NotFoundException(key)
-            data = data[last_part]
-            if isinstance(data, dict):
-                data = None
-        else:
-            # Forward call to used configuration store
-            data = cls._passthrough(method='get',
-                                    key=key,
-                                    **kwargs)
-        if raw is True:
-            return data
-        return json.loads(data)
-
-    @classmethod
-    def _set(cls, key, value, raw):
-        # type: (str, any, bool) -> None
-        data = value
-        if raw is False:
-            try:
-                data = json.loads(value)
-                data = json.dumps(data, indent=4)
-            except Exception:
-                data = json.dumps(value, indent=4)
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            stripped_key = key.strip('/')
-            ut_data = cls._unittest_data
-            for part in stripped_key.split('/')[:-1]:
-                if part not in ut_data:
-                    ut_data[part] = {}
-                ut_data = ut_data[part]
-
-            ut_data[stripped_key.split('/')[-1]] = data
-            return
-        # Forward call to used configuration store
-        return cls._passthrough(method='set',
-                                key=key,
-                                value=data)
-
-    @classmethod
-    def _rename(cls, key, new_key, max_retries):
-        # type: (str, str, int) -> None
-        # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
-            stripped_key = key.strip('/')
-            stripped_new_key = new_key.strip('/')
-            data = cls._unittest_data
-            for data_key, data_value in data.iteritems():
-                if data_key.startswith(stripped_key):
-                    entry_suffix = os.path.relpath(stripped_key, data_key)
-                    new_path = os.path.join(stripped_new_key, entry_suffix)
-                    data[new_path] = data_value
-                    data.pop(data_key)
-                    return
-            raise NotFoundException
-
-        # Forward call to used configuration store
-        return cls._passthrough(method='rename',
-                                key=key,
-                                new_key=new_key,
-                                max_retries=max_retries)
-
-    @classmethod
     def _passthrough(cls, method, *args, **kwargs):
         # type: (str, *args, **kwargs) -> any
-        store = cls.get_store_info()
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            store = 'unittest'
+        else:
+            store = cls.get_store_info()
         instance = cls._clients.get(store, cls._build_instance())
+        # Map towards generic exceptions
+        not_found_exception = NotFoundException
         if store == 'arakoon':
             from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
             not_found_exception = ArakoonNotFound
+        elif store == 'unittest':
+            from ovs_extensions.storage.exceptions import KeyNotFoundException
+            not_found_exception = KeyNotFoundException
+            pass
         else:
-            not_found_exception = Exception
+            raise NotImplementedError('Store {0} is not implemented'.format(store))
         try:
             return getattr(instance, method)(*args, **kwargs)
         except not_found_exception as ex:
@@ -430,12 +338,18 @@ class Configuration(object):
         :param cache: Cache the instance
         :type cache: bool
         :return: An instance of an underlying Configuration
-        :rtype: any
+        :rtype: ovs_extensions.generic.configuration.clients.base.ConfigurationBase
         """
-        store = cls.get_store_info()
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            store = 'unittest'
+        else:
+            store = cls.get_store_info()
         if store == 'arakoon':
-            from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
+            from ovs_extensions.generic.configuration.clients.arakoon import ArakoonConfiguration
             instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
+        elif store == 'unittest':
+            from ovs_extensions.generic.configuration.clients.mock_keyvalue import ConfigurationMockKeyValue
+            instance = ConfigurationMockKeyValue()
         else:
             raise NotImplementedError('Store {0} is not implemented'.format(store))
         if cache is True:
