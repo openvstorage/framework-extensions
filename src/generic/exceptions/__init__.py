@@ -1,4 +1,4 @@
-# Copyright (C) 2017 iNuron NV
+# Copyright (C) 2018 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -17,25 +17,10 @@
 """
 Exceptions module
 """
+# Backwards compatibility - re-export the exceptions
 
+from credentials import InvalidCredentialsError
+from methods import NotFoundError
 
-class InvalidCredentialsError(RuntimeError):
-    """
-    Invalid credentials error
-    """
-    pass
-
-
-class NotFoundError(RuntimeError):
-    """
-    Method not found error
-    """
-    pass
-
-
-class NoLockAvailableException(Exception):
-    """
-    Custom exception thrown when lock could not be acquired in time
-    """
-    pass
-
+__all__ = ["InvalidCredentialsError",
+           "NotFoundError"]

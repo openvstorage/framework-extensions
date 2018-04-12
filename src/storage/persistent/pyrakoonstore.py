@@ -28,7 +28,7 @@ from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundExcept
 
 class PyrakoonStore(object):
     """
-    Arakoon client wrapper:
+    Pyrakoon client wrapper:
     * Uses json serialisation
     * Raises generic exception
     """
@@ -92,6 +92,15 @@ class PyrakoonStore(object):
         """
         try:
             return self._client.delete(key, must_exist, transaction)
+        except ArakoonNotFound as field:
+            raise KeyNotFoundException(field.message)
+
+    def delete_prefix(self, prefix):
+        """
+        Deletes all keys which start with the given prefix
+        """
+        try:
+            return self._client.delete_prefix(prefix)
         except ArakoonNotFound as field:
             raise KeyNotFoundException(field.message)
 
