@@ -93,7 +93,8 @@ class Configuration(object):
         :return: Configuration path
         :rtype: str
         """
-        raise NotImplementedError('No getter was implemented')
+        return cls._passthrough(method='get_configuration_path',
+                                key=key)
 
     @classmethod
     def extract_key_from_path(cls, path):
@@ -105,7 +106,8 @@ class Configuration(object):
         :return: The last part of the path
         :rtype: str
         """
-        raise NotImplementedError()
+        return cls._passthrough(method='extract_key_from_path',
+                                path=path)
 
     ###################
     # Implementations #
@@ -125,9 +127,7 @@ class Configuration(object):
         default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
-            data = cls._get(key_entries[0], **kwargs)
-            if raw is False:
-                data = json.loads(data)
+            data = cls._get(key_entries[0], raw=raw, **kwargs)
             if len(key_entries) == 1:
                 return data
             try:
@@ -143,11 +143,14 @@ class Configuration(object):
             raise
 
     @classmethod
-    def _get(cls, key, **kwargs):
-        # type: (str, **kwargs) -> Union[dict, None]
-        return cls._passthrough(method='get',
+    def _get(cls, key, raw=False, **kwargs):
+        # type: (str, bool, **kwargs) -> Union[dict, None]
+        data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
+        if raw is True:
+            return data
+        return json.loads(data)
 
     @classmethod
     def set(cls, key, value, raw=False):
@@ -161,17 +164,11 @@ class Configuration(object):
         """
         key_entries = key.split('|')
         set_data = value
-        if raw is False:
-            try:
-                set_data = json.loads(value)
-                set_data = json.dumps(set_data, indent=4)
-            except Exception:
-                set_data = json.dumps(value, indent=4)
         if len(key_entries) == 1:
-            cls._set(key_entries[0], set_data)
+            cls._set(key_entries[0], set_data, raw=raw)
             return
         try:
-            data = cls.get(key_entries[0], raw)
+            data = cls._get(key_entries[0], raw=raw)
         except NotFoundException:
             data = {}
         temp_config = data
@@ -183,14 +180,21 @@ class Configuration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = set_data
-        cls._set(key_entries[0], data)
+        cls._set(key_entries[0], data, raw=raw)
 
     @classmethod
-    def _set(cls, key, value):
-        # type: (str, any) -> None
+    def _set(cls, key, value, raw=False):
+        # type: (str, any, bool) -> None
+        data = value
+        if raw is False:
+            try:
+                data = json.loads(value)
+                data = json.dumps(data, indent=4)
+            except Exception:
+                data = json.dumps(value, indent=4)
         return cls._passthrough(method='set',
                                 key=key,
-                                value=value)
+                                value=data)
 
     @classmethod
     def delete(cls, key, remove_root=False, raw=False):
@@ -205,7 +209,7 @@ class Configuration(object):
         if len(key_entries) == 1:
             cls._delete(key_entries[0], recursive=True)
             return
-        data = cls.get(key_entries[0], raw)
+        data = cls._get(key_entries[0], raw)
         temp_config = data
         entries = key_entries[1].split('.')
         if len(entries) > 1:
@@ -218,7 +222,7 @@ class Configuration(object):
             del temp_config[entries[-1]]
         if len(entries) == 1 and remove_root is True:
             del data[entries[0]]
-        cls.set(key_entries[0], data, raw)
+        cls._set(key_entries[0], data, raw)
 
     @classmethod
     def _delete(cls, key, recursive):
@@ -314,7 +318,9 @@ class Configuration(object):
             store = 'unittest'
         else:
             store = cls.get_store_info()
-        instance = cls._clients.get(store, cls._build_instance())
+        instance = cls._clients.get(store)
+        if instance is None:
+            instance = cls._build_instance()
         # Map towards generic exceptions
         not_found_exception = NotFoundException
         if store == 'arakoon':

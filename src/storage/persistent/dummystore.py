@@ -55,10 +55,10 @@ class DummyPersistentStore(object):
     (this implementation does not enforce the JSON serialization like PyrakoonStore and implements all methods from PyrakoonClient)
     Note: when mimicking PyrakoonClient instead of store, set mimick_pyrakoonclient = True in the init so the same exceptions would be
     """
-    _path = '/run/dummypersistent.json'
-    _data = {}
-
     def __init__(self, mimick_pyrakoonclient=False):
+        self._data = {}
+        self.id = str(uuid.uuid4())
+        self._path = '/run/dummypersistent_{0}.json'.format(self.id)
         self._sequences = {}
         self._keep_in_memory_only = True
         self._lock = RLock()
@@ -88,10 +88,10 @@ class DummyPersistentStore(object):
         Empties the store
         """
         if self._keep_in_memory_only is True:
-            DummyPersistentStore._data = {}
+            self._data = {}
         else:
             try:
-                os.remove(DummyPersistentStore._path)
+                os.remove(self._path)
             except OSError:
                 pass
 
@@ -101,7 +101,7 @@ class DummyPersistentStore(object):
         Reads the local json file
         """
         if self._keep_in_memory_only is True:
-            return DummyPersistentStore._data
+            return self._data
         try:
             f = open(self._path, 'r')
             data = json.loads(f.read())
@@ -177,18 +177,15 @@ class DummyPersistentStore(object):
             raise self.key_not_found_exception(key)
 
     @synchronize()
-    def delete_prefix(self, key):
+    def delete_prefix(self, prefix):
         """
         Deletes all keys which start with the given prefix
         """
         data = self._read()
-        deleted = False
-        for data_key in data:
-            if not isinstance(data_key, str) and not data_key.startswith(key):
-                continue
-            deleted &= True
-            del data[data_key]
-        if deleted is True:
+        keys_to_delete = [k for k in data if isinstance(k, str) and k.startswith(prefix)]
+        for key in keys_to_delete:
+            del data[key]
+        if len(keys_to_delete) > 0:
             self._save(data)
 
     @synchronize()
@@ -264,7 +261,7 @@ class DummyPersistentStore(object):
         Saves the local json file
         """
         if self._keep_in_memory_only is True:
-            DummyPersistentStore._data = data
+            self._data = data
         else:
             f = open(self._path, 'w+')
             f.write(json.dumps(data, sort_keys=True, indent=2))
