@@ -35,13 +35,38 @@ class ConfigurationMockKeyValue(ConfigurationBaseKeyValue):
 
     @property
     def assertion_exception(self):
+        # type: () -> Any
+        """
+        Returns the used Exception class to indicate that an assertion failed
+        :return: The underlying exception class
+        """
         return self._client.assertion_exception
 
+    @property
+    def key_not_found_exception(self):
+        """
+        Returns the use Exception class to indicate that a key was not found
+        :return: The underlying exception class
+        """
+        return self._client.key_not_found_exception
+
     def lock(self, name, wait=None, expiration=60):
+        """
+        Returns the file mutex implementation
+        :param name: Name to give to the lock
+        :type name: str
+        :param wait: Wait time for the lock (in seconds)
+        :type wait: float
+        :param expiration: Expiration time for the lock (in seconds)
+        :type expiration: float
+        :return: The lock implementation
+        :rtype: ArakoonConfigurationLock
+        """
         return file_mutex(name, wait)
 
     @classmethod
     def _clean_key(cls, key):
+        # type: (str) -> (str)
         """
         Cleans a key. Strips off all beginning and ending '/'
         :param key: Key to clean
@@ -51,8 +76,25 @@ class ConfigurationMockKeyValue(ConfigurationBaseKeyValue):
 
     @classmethod
     def extract_key_from_path(cls, path):
+        # type: (str) -> str
+        """
+        Extract a key from a path.
+        Only used during testing as of now
+        :param path: Path to extract the key from
+        :type path: str
+        :return: The extracted key
+        :rtype: str
+        """
         return path.split('=')[-1]
 
     @classmethod
     def get_configuration_path(cls, key):
+        # type: (str) -> str
+        """
+        Retrieve the full configuration path for specified key
+        :param key: Key to retrieve full configuration path for
+        :type key: str
+        :return: Configuration path
+        :rtype: str
+        """
         return 'file://opt/OpenvStorage/config/framework.json?key={0}'.format(key)

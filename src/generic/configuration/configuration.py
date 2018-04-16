@@ -19,11 +19,13 @@ Generic module for managing configuration somewhere
 """
 import os
 import json
+import sys
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
 # Import for backwards compatibility/easier access
 from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
+from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException  # New exception, not mapping
 
 
 class Configuration(object):
@@ -153,19 +155,20 @@ class Configuration(object):
         return json.loads(data)
 
     @classmethod
-    def set(cls, key, value, raw=False):
-        # type: (str, any, raw) -> None
+    def set(cls, key, value, raw=False, transaction=None):
+        # type: (str, any, raw, str) -> None
         """
         Set value in the configuration store
         :param key: Key to store
         :param value: Value to store
         :param raw: Raw data if True else json format
+        :param transaction: Transaction to apply the delete too
         :return: None
         """
         key_entries = key.split('|')
         set_data = value
         if len(key_entries) == 1:
-            cls._set(key_entries[0], set_data, raw=raw)
+            cls._set(key_entries[0], set_data, raw=raw, transaction=transaction)
             return
         try:
             data = cls._get(key_entries[0], raw=raw)
@@ -180,11 +183,11 @@ class Configuration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = set_data
-        cls._set(key_entries[0], data, raw=raw)
+        cls._set(key_entries[0], data, raw=raw, transaction=transaction)
 
     @classmethod
-    def _set(cls, key, value, raw=False):
-        # type: (str, any, bool) -> None
+    def _set(cls, key, value, raw=False, transaction=None):
+        # type: (str, any, bool, str) -> None
         data = value
         if raw is False:
             try:
@@ -194,20 +197,23 @@ class Configuration(object):
                 data = json.dumps(value, indent=4)
         return cls._passthrough(method='set',
                                 key=key,
-                                value=data)
+                                value=data,
+                                transaction=transaction)
 
     @classmethod
-    def delete(cls, key, remove_root=False, raw=False):
+    def delete(cls, key, remove_root=False, raw=False, transaction=None):
+        # type: (str, bool, bool, str) -> None
         """
         Delete key - value from the configuration store
         :param key: Key to delete
         :param remove_root: Remove root
         :param raw: Raw data if True else json format
+        :param transaction: Transaction to apply the delete too
         :return: None
         """
         key_entries = key.split('|')
         if len(key_entries) == 1:
-            cls._delete(key_entries[0], recursive=True)
+            cls._delete(key_entries[0], recursive=True, transaction=transaction)
             return
         data = cls._get(key_entries[0], raw)
         temp_config = data
@@ -222,14 +228,15 @@ class Configuration(object):
             del temp_config[entries[-1]]
         if len(entries) == 1 and remove_root is True:
             del data[entries[0]]
-        cls._set(key_entries[0], data, raw)
+        cls._set(key_entries[0], data, raw, transaction=transaction)
 
     @classmethod
-    def _delete(cls, key, recursive):
+    def _delete(cls, key, recursive, transaction=None):
         # type: (str, bool) -> None
         return cls._passthrough(method='delete',
                                 key=key,
-                                recursive=recursive)
+                                recursive=recursive,
+                                transaction=transaction)
 
     @classmethod
     def rename(cls, key, new_key, max_retries=20):
@@ -244,11 +251,6 @@ class Configuration(object):
         :type max_retries: int
         :return: None
         """
-        cls._rename(key, new_key, max_retries)
-
-    @classmethod
-    def _rename(cls, key, new_key, max_retries):
-        # type: (str, str, int) -> None
         return cls._passthrough(method='rename',
                                 key=key,
                                 new_key=new_key,
@@ -277,11 +279,6 @@ class Configuration(object):
         :param key: Directory to check
         :return: True if exists
         """
-        return cls._dir_exists(key)
-
-    @classmethod
-    def _dir_exists(cls, key):
-        # type: (str) -> bool
         return cls._passthrough(method='dir_exists', key=key)
 
     @classmethod
@@ -295,14 +292,53 @@ class Configuration(object):
         :type recursive: bool
         :return: Generator object
         """
-        return cls._list(key, recursive=recursive)
-
-    @classmethod
-    def _list(cls, key, recursive):
-        # type: (str, bool) -> Iterable(str)
         return cls._passthrough(method='list',
                                 key=key,
                                 recursive=recursive)
+
+    @classmethod
+    def begin_transaction(cls):
+        # type: () -> None
+        """
+        Starts a new transaction. Get/set/delete calls can be chained into one
+        :return: New transaction ID
+        """
+        return cls._passthrough(method='begin_transaction')
+
+    @classmethod
+    def apply_transaction(cls, transaction):
+        # type: (str) -> None
+        """
+        Applies the given transaction
+        :param transaction: ID of the transaction to apply
+        :type transaction: str
+        :return: None
+        """
+        return cls._passthrough(method='apply_transaction',
+                                transaction=transaction)
+
+    @classmethod
+    def assert_value(cls, key, value, transaction=None):
+        # type: (str, Any, str) -> None
+        """
+        Asserts a key-value pair
+        Raises when the assertion failed
+        :raises: A
+        """
+        return cls._passthrough(method='assert_value',
+                                key=key,
+                                value=value,
+                                transaction=transaction)
+
+    @classmethod
+    def assert_exists(cls, key, transaction=None):
+        """
+        Asserts whether a given key exists
+        Raises when the assertion failed
+        """
+        return cls._passthrough(method='assert_exists',
+                                key=key,
+                                transaction=transaction)
 
     @classmethod
     def get_client(cls):
@@ -322,20 +358,18 @@ class Configuration(object):
         if instance is None:
             instance = cls._build_instance()
         # Map towards generic exceptions
-        not_found_exception = NotFoundException
-        if store == 'arakoon':
-            from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
-            not_found_exception = ArakoonNotFound
-        elif store == 'unittest':
-            from ovs_extensions.storage.exceptions import KeyNotFoundException
-            not_found_exception = KeyNotFoundException
-            pass
-        else:
-            raise NotImplementedError('Store {0} is not implemented'.format(store))
+        not_found_exception = instance.key_not_found_exception
+        assertion_exception = instance.assertion_exception
         try:
             return getattr(instance, method)(*args, **kwargs)
         except not_found_exception as ex:
-            raise NotFoundException(ex.message)
+            # Preserve traceback
+            exception_type, exception_instance, traceback = sys.exc_info()
+            raise NotFoundException, NotFoundException(ex.message), traceback
+        except assertion_exception as ex:
+            # Preserve traceback
+            exception_type, exception_instance, traceback = sys.exc_info()
+            raise ConfigurationAssertionException, ConfigurationAssertionException(ex.message), traceback
 
     @classmethod
     def _build_instance(cls, cache=True):

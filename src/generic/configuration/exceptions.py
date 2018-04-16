@@ -40,3 +40,11 @@ class ConfigurationConnectionException(Exception):
     Throw when no connection could be made
     """
     pass
+
+
+class ConfigurationAssertionException(Exception):
+    """
+    Assertion Exception
+    Thrown when an assert failed
+    """
+    pass
