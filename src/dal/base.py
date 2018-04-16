@@ -243,6 +243,45 @@ class Base(object):
                 if rel_name not in current_relations:
                     connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
+    @classmethod
+    def _update_table(cls):
+        # Modifies the current table settings according to the object definition
+        # use with caution (only during code migrations)
+        # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints
+        """
+        Change properties of table
+        Allowed args:
+        :param property_name: Property name
+        :type property_name: str
+        :param mandatory: whether or not the property is mandatory
+        :type mandatory: bool
+        :param not_null: whether or not the property can be null
+        :type not_null: bool
+        :param unique: whether or not the property must be unique
+        :type unique: bool
+        :return:
+        """
+        new_property = ['{0} {1} {2} {3}'.format(prop.name,
+                                               Base._get_prop_type(prop.property_type),
+                                               'NOT NULL' if prop.mandatory is True else '',
+                                               'UNIQUE' if prop.unique is True else '') for prop in cls._properties]
+        print new_property
+        with cls.connector() as con:
+            cur = con.cursor()
+            cur.execute("select * from sqlite_master ")
+
+            schema = cur.fetchone()
+            con.close()
+            print schema
+            entries = [tmp.strip() for tmp in schema[0].splitlines() if tmp.find("constraint") >= 0 or tmp.find("unique") >= 0]
+            for i in entries: print(i)
+
+        # PRAGMA foreign_keys = off;
+        # BEGIN TRANSACTION;
+        # ALTER TABLE tablename RENAME TO _old_table
+
+        # CREATE TABLE tablename (
+        #    ( column 1 datatype [)
     def __repr__(self):
         """ Short representation of the object. """
         return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
