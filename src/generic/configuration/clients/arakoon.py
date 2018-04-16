@@ -41,10 +41,38 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
 
     @property
     def assertion_exception(self):
+        # type: () -> type[ArakoonAssertionFailed]
+        """
+        Returns the used Exception class to indicate that an assertion failed
+        :return: The underlying exception class
+        :rtype: type[ArakoonAssertionFailed]
+        """
         return ArakoonAssertionFailed
 
+    @property
+    def key_not_found_exception(self):
+        # type: () -> type[ArakoonNotFound]
+        """
+        Returns the use Exception class to indicate that a key was not found
+        :return: The underlying exception class
+        :rtype: type[ArakoonNotFound]
+        """
+        return ArakoonNotFound
+
     def lock(self, name, wait=None, expiration=60):
-        return ArakoonConfigurationLock(name, wait, expiration)
+        # type: (str, float, float) -> ArakoonConfigurationLock
+        """
+        Returns the Arakoon lock implementation
+        :param name: Name to give to the lock
+        :type name: str
+        :param wait: Wait time for the lock (in seconds)
+        :type wait: float
+        :param expiration: Expiration time for the lock (in seconds)
+        :type expiration: float
+        :return: The lock implementation
+        :rtype: ArakoonConfigurationLock
+        """
+        return ArakoonConfigurationLock(self.cacc_location, name, wait, expiration)
 
     def get_configuration_path(self, key):
         # type: (str) -> str
@@ -84,11 +112,26 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
     @staticmethod
     def _clean_key(key):
         # type: (str) -> str
+        """
+        Cleans a key for Arakoon usage
+        :param key: Key to clean
+        :type key: str
+        :return: Cleaned key
+        :rtype: str
+        """
         return key.lstrip('/')
 
     @classmethod
     def extract_key_from_path(cls, path):
         # type: (str) -> str
+        """
+        Extract a key from a path.
+        Only used during testing as of now
+        :param path: Path to extract the key from
+        :type path: str
+        :return: The extracted key
+        :rtype: str
+        """
         # Only available in unittests
         raise RuntimeError('Only available during unittests')
 
