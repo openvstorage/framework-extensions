@@ -211,7 +211,7 @@ class Base(object):
 
     @classmethod
     def _ensure_table(cls):
-        # type (None) -> None
+        # type (None): -> None
         relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
         relations = ['{0} INTEGER'.format(relation) for relation in relation_list]
         properties = ['{0} {1} {2} {3}'.format(prop.name,
@@ -273,9 +273,11 @@ class Base(object):
         create_cmd = schema[0][0]
         sql_entries = create_cmd.split('(')[1].split(',')
         sql_entries = [entry.strip() for entry in sql_entries]
-        index_sql_code = 'id INTEGER PRIMARY KEY AUTOINCREMENT'  # SQL table contains id, DAL does not, so has to be removed for comparison
-        if index_sql_code in sql_entries:
-            sql_entries.pop(sql_entries.index(index_sql_code))
+
+        for index, entry in iter(sql_entries): # SQL table contains id, DAL does not, so has to be removed for comparison
+            if 'id ' in entry:
+                sql_entries.pop(index)
+                break
 
         # Comparison
         difference = False
