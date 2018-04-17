@@ -22,7 +22,7 @@ import json
 import sqlite3
 from ovs_extensions.dal.relations import RelationMapper
 from ovs_extensions.generic.filemutex import file_mutex
-
+from typing import TypeVar, Dict
 
 class ObjectNotFoundException(Exception):
     """ Exception indicating that an object in the DAL was not found. """
@@ -212,6 +212,7 @@ class Base(object):
 
     @classmethod
     def _ensure_table(cls):
+        # type (None) -> None
         relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
         relations = ['{0} INTEGER'.format(relation) for relation in relation_list]
         properties = ['{0} {1} {2} {3}'.format(prop.name,
@@ -245,6 +246,7 @@ class Base(object):
 
     @classmethod
     def _update_table(cls):
+        # type: (None) -> None
         # Modifies the current table settings according to the object definition
         # use with caution (only during code migrations)
         # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints -> create new table
@@ -254,7 +256,7 @@ class Base(object):
         Detects discrepancies between the dal objects and the existing sqlite database tables.
         Changes the database constraints to the constraints existing in dal
 
-        :return:
+        :return: None
         """
         # Fetch DAL entries
         dal_entries = ['{0} {1} {2} {3}'.format(prop.name,
@@ -267,6 +269,7 @@ class Base(object):
             cur = con.cursor()
             cur.execute("select sql from sqlite_master where type='table' and name='{0}' order by NAME ".format(cls._table))
             schema = cur.fetchall()
+
         # Parse SQL entries
         create_cmd = schema[0][0]
         sql_entries = create_cmd.split('(')[1].split(',')
@@ -298,8 +301,6 @@ class Base(object):
                                   "COMMIT;"
                                   "PRAGMA foreign_keys = on;"
                                   "".format(cls._table, str(set), set.names()))
-        else:
-            print 'nothing created'
 
     def __repr__(self):
         """ Short representation of the object. """
@@ -328,6 +329,11 @@ class SQLConstraint(object):
     """
 
     def __init__(self, input):
+        # type: (str) -> None
+        """
+        Init for SQL constraint handeling. Parses a limited amount of constraints to attributes of the object and allows comparison
+        :param input: input string. Format: name TYPE NOT NULL UNIQUE
+        """
         input = input.strip('\n').strip(' ').strip('(').strip(')')
         split = input.split(' ')
         self.name = split.pop(0)
@@ -343,21 +349,36 @@ class SQLConstraint(object):
             self.not_null = False
 
     def __str__(self):
+        # type: (None) -> str
+        """ String representation for the class"""
         return '{0} {1} {2} {3}'.format(self.name,
                                         self.type,
                                         'NOT NULL' if self.not_null else '',
                                         'UNIQUE' if self.unique else '')
 
     def __ne__(self, other):
-        if type(other) is not SQLConstraint:
-            raise RuntimeError('Type other must of SQLConstraint, not {0}'.format(type(other)))
-
-        return str(self) != str(other)
+        # type: (SQLConstraint) -> bool
+        """
+        Not equals implementation for the class
+        :param other: other object, to compare with
+        :type other: SQLConstraint
+        """
+        if isinstance(other, self.__class__):
+            return str(self) != str(other)
+        else:
+            return True
 
     def __eq__(self, other):
-        if type(other) is not SQLConstraint:
-            raise RuntimeError('Type other must of SQLConstraint, not {0}'.format(type(other)))
-        return str(self) == str(other)
+        # type: (SQLConstraint) -> bool
+        """
+        Equals implementation for the class
+        :param other: other object, to compare with
+        :type other: SQLConstraint
+        """
+        if isinstance(other, self.__class__):
+            return str(self) == str(other)
+        else:
+            return False
 
 
 class SQLConstraintset(object):
@@ -388,9 +409,11 @@ class SQLConstraintset(object):
         self.constraints[constraint.name] = constraint
 
     def __str__(self):
+        """String representation of the object"""
         # type: (None) -> str
         return ', '.join([str(c) for c in self.constraints.itervalues()])
 
     def names(self):
+        """Fetch the names of the contraints present in the set"""
         # type: (None) -> str
         return ', '.join([str(c) for c in self.constraints.iterkeys()])
