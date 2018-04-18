@@ -23,6 +23,7 @@ import sqlite3
 from ovs_extensions.dal.relations import RelationMapper
 from ovs_extensions.generic.filemutex import file_mutex
 
+
 class ObjectNotFoundException(Exception):
     """ Exception indicating that an object in the DAL was not found. """
     pass
