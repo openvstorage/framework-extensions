@@ -18,8 +18,11 @@
 Generic module for managing configuration somewhere
 """
 import os
-import json
 import sys
+import json
+import time
+import collections
+from random import randint
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
@@ -161,7 +164,7 @@ class Configuration(object):
         Set value in the configuration store
         :param key: Key to store
         :param value: Value to store
-        :param raw: Raw data if True else json format
+        :param raw: Raw data if True else apply json format
         :param transaction: Transaction to apply the delete too
         :return: None
         """
@@ -190,15 +193,28 @@ class Configuration(object):
         # type: (str, any, bool, str) -> None
         data = value
         if raw is False:
-            try:
-                data = json.loads(value)
-                data = json.dumps(data, indent=4)
-            except Exception:
-                data = json.dumps(value, indent=4)
+            data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,
                                 value=data,
                                 transaction=transaction)
+
+    @classmethod
+    def _dump_data(cls, value):
+        # type: (Union[str, Dict[Any, Any]]) -> str
+        """
+        Dumps data to JSON format if possible
+        :param value: The value to dump
+        :type value: str or dict
+        :return: The converted data
+        :rtype: str
+        """
+        try:
+            data = json.loads(value)
+            data = json.dumps(data, indent=4)
+        except Exception:
+            data = json.dumps(value, indent=4)
+        return data
 
     @classmethod
     def delete(cls, key, remove_root=False, raw=False, transaction=None):
@@ -207,7 +223,7 @@ class Configuration(object):
         Delete key - value from the configuration store
         :param key: Key to delete
         :param remove_root: Remove root
-        :param raw: Raw data if True else json format
+        :param raw: Raw data if True else apply json format
         :param transaction: Transaction to apply the delete too
         :return: None
         """
@@ -298,7 +314,7 @@ class Configuration(object):
 
     @classmethod
     def begin_transaction(cls):
-        # type: () -> None
+        # type: () -> str
         """
         Starts a new transaction. Get/set/delete calls can be chained into one
         :return: New transaction ID
@@ -318,16 +334,27 @@ class Configuration(object):
                                 transaction=transaction)
 
     @classmethod
-    def assert_value(cls, key, value, transaction=None):
-        # type: (str, Any, str) -> None
+    def assert_value(cls, key, value, transaction=None, raw=False):
+        # type: (str, Any, str, bool) -> None
         """
         Asserts a key-value pair
-        Raises when the assertion failed
-        :raises: A
+        :param key: Key to assert for
+        :type key: str
+        :param value: Value that the key should have
+        :type value: any
+        :param transaction: Transaction to apply this action too
+        :type transaction: str
+        :param raw: Raw data if True else apply json format
+        :type raw: bool
+        :return: None
+        :rtype: NoneType
         """
+        data = value
+        if raw is False:
+            data = cls._dump_data(data)
         return cls._passthrough(method='assert_value',
                                 key=key,
-                                value=value,
+                                value=data,
                                 transaction=transaction)
 
     @classmethod
@@ -437,3 +464,51 @@ class Configuration(object):
             pass
 
         return PackageFactory.EDITION_COMMUNITY
+
+    @classmethod
+    def safely_store(cls, callback, max_retries=20):
+        # type: (List[callable], int) -> List[Tuple[str, Any]]
+        """
+        Safely store a key/value pair within the persistent storage
+        :param callback: Callable function which returns the key to set, current value to safe and the expected value
+        When the callback resolves in an iterable different from tuple, it will iterate to set all keys at once
+        :type callback: callable
+        :param max_retries: Number of retries to attempt
+        :type max_retries: int
+        :return: List of key-value pairs of the stored items
+        :rtype: list(tuple(str, any))
+        :raises: ConfigurationAssertionException:
+        - When the save could not happen
+        """
+        tries = 0
+        success = False
+        last_exception = None
+        return_value = []
+        while success is False:
+            transaction = cls.begin_transaction()
+            return_value = []  # Reset value
+            tries += 1
+            if tries > max_retries:
+                raise last_exception
+            callback_result = callback()
+            if not isinstance(callback_result, tuple) and isinstance(callback_result, collections.Iterable):
+                # Multiple key/values to set
+                for key, value, expected_value in callback_result:
+                    return_value.append((key, value))
+                    cls.assert_value(key, expected_value, transaction=transaction)
+                    cls.set(key, value, transaction=transaction)
+            else:
+                # Single key value
+                key, value, expected_value = callback_result
+                return_value.append((key, value))
+                cls.assert_value(key, expected_value, transaction=transaction)
+                cls.set(key, value, transaction=transaction)
+            try:
+                cls.apply_transaction(transaction)
+                success = True
+            except ConfigurationAssertionException as ex:
+                cls._logger.warning('Asserting failed. Retrying {0} more times'.format(max_retries - tries))
+                last_exception = ex
+                time.sleep(randint(0, 25) / 100.0)
+                cls._logger.info('Executing the passed function again')
+        return return_value

@@ -22,5 +22,7 @@ from .configuration import Configuration
 from .exceptions import ConfigurationConnectionException as ConnectionException
 from .exceptions import ConfigurationNotFoundException as NotFoundException
 from .exceptions import ConfigurationNoLockAvailableException as NoLockAvailableException
+from .exceptions import ConfigurationAssertionException  # New exception, not renaming it
 
-__all__ = ["Configuration", "NotFoundException", "NoLockAvailableException", "ConnectionException"]
+__all__ = ["Configuration",
+           "NotFoundException", "NoLockAvailableException", "ConnectionException", "ConfigurationAssertionException"]
