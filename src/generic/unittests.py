@@ -44,13 +44,18 @@ class UnitTest(object):
     # Add path mappings of the /usr/bin paths to  the dict, needed for the CLI unittests
     _PATH_MAPPINGS.update(dict([('/usr/bin/{0}'.format(k), v) for k, v in _PATH_MAPPINGS.iteritems()]))
 
-    def __init__(self, mgr):
+    def __init__(self, component):
+        # type: (str) -> None
         """
         Initialize a UnitTest instance
+        :param component: Component to run unittests for
+        :type component: str
         """
-        self.ovs_path = self._PATH_MAPPINGS.get(mgr, KeyError('Invalid manager specified for running unittests'))
+        self.ovs_path = self._PATH_MAPPINGS.get(component, KeyError('Invalid manager specified for running unittests'))
 
-    def _sec_to_readable(self, seconds, precision=0):
+    @staticmethod
+    def _sec_to_readable(seconds, precision=0):
+        # type: (float, int) -> str
         """
         Parse the seconds to hours, minutes, seconds
         :param seconds: Amount of seconds
@@ -74,6 +79,7 @@ class UnitTest(object):
             return '{0} second{1}'.format(seconds, '' if seconds == 1 else 's')
 
     def _gather_test_info(self, directories=None, silent_invalid_modules=False):
+        # type: (List[str], bool) -> None
         """
         Retrieve all test classes recursively in the specified directories
         :param directories: Directories to recursively check
@@ -134,6 +140,7 @@ class UnitTest(object):
                                                                                'use_case': 'test-case'}
 
     def list_cases_for_file(self, file_path):
+        # type: (str) -> List[str]
         """
         List all test cases for a test class
         :param file_path: Class to list the tests for
@@ -148,6 +155,7 @@ class UnitTest(object):
         return sorted([test_name for test_name in self._test_info if test_name.split('.')[0] == file_path and ':' in test_name])
 
     def list_tests(self, directories=None, print_tests=False, silent_invalid_modules=False):
+        # type: (List[str], bool, bool) -> List[str]
         """
         List all the tests found on the system or in the directories specified
         :param directories: Directories to check for tests
@@ -166,15 +174,15 @@ class UnitTest(object):
                 print test
         return tests
 
-
-    def run_tests(self, tests=None, add_averages=False, path=None):
+    def run_tests(self, tests=None, add_averages=False):
+        # type: (str, bool) -> None
         """
         Execute the tests specified or all if no tests provided
         :param tests: Tests to execute
                       /opt/OpenvStorage/ovs/dal/tests/test_basic
                       /opt/OpenvStorage/ovs/dal/tests/test_basic.Basic
                       /opt/OpenvStorage/ovs/dal/tests/test_basic.Basic:test_recursive
-        :type tests: list
+        :type tests: Comma separated string
         :param add_averages: Add average timings for each test module
         :type add_averages: bool
         :return: None
