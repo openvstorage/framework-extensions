@@ -17,6 +17,9 @@
 
 class NotFoundError(RuntimeError):
     """
-    Method not found error
+    Thrown when a certain resource could not be found
+    Resource could indicate:
+    - API not found
+    - Method not found on class
     """
     pass
