@@ -145,10 +145,12 @@ class PyrakoonClient(object):
             return PyrakoonClient._try(self._identifier, self._client.replace, key, None)
 
     @locked()
-    def delete_prefix(self, prefix):
+    def delete_prefix(self, prefix, transaction=None):
         """
         Removes a given prefix from the store
         """
+        if transaction is not None:
+            raise NotImplementedError('Deleting recursively within a transaction is not possible')
         return PyrakoonClient._try(self._identifier, self._client.deletePrefix, prefix)
 
     @locked()
