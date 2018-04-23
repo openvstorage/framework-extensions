@@ -88,7 +88,7 @@ class ArakoonClusterConfig(object):
         Initializes an empty Cluster Config
         """
         self.plugins = []
-        self._extra_globals = {'tlog_max_entries': 5000}
+        self._extra_globals = {}
         if isinstance(plugins, list):
             self.plugins = plugins
         elif isinstance(plugins, basestring):
