@@ -17,8 +17,8 @@
 
 
 function show_generic_help() {
-    python -c "from ovs_extensions.scripts.system.print_templates import print_miscellaneous_cli; print_miscellaneous_cli('$0') "
-    python -c "from ovs_extensions.scripts.system.print_templates import print_unittest_cli; print_unittest_cli('$0') "
+    python -c "from ovs_extensions.generic.print_templates import print_miscellaneous_cli; print_miscellaneous_cli('$0') "
+    python -c "from ovs_extensions.generic.print_templates import print_unittest_cli; print_unittest_cli('$0') "
 }
 
 function test_unittest() {
