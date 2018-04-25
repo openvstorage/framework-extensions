@@ -192,7 +192,8 @@ class NBDManager(object):
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
             self._service_manager.remove_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
-        self._configuration.delete(os.path.join(self.NODE_PATH.format(System.get_my_machine_id().strip()), nbd_number))
+        path_to_delete = str(os.path.join(self.NODE_PATH.format(System.get_my_machine_id().strip()), nbd_number))  # Casting to string as the DAL might have returned a unicode
+        self._configuration.delete(path_to_delete)
         try:
             os.remove(self.OPT_CONFIG_PATH.format(nbd_number))
         except OSError:
