@@ -158,7 +158,8 @@ class NBDManager(object):
         :raises: RuntimeError when multiple or no paths are found
         """
         nbd_number = nbd_path.split('/')[-1]
-        paths = [i for i in self._configuration.list(self.BASE_PATH, recursive=True) if i.endswith('config') and nbd_number in i]
+        local_id = System.get_my_machine_id()
+        paths = [i for i in self._configuration.list(self.NODE_PATH.format(local_id), recursive=True) if i.endswith('config') and nbd_number in i]
 
         if len(paths) > 1:
             raise RuntimeError('More then 1 path has been found for given nbd_path: {0}'.format(paths))
@@ -192,7 +193,8 @@ class NBDManager(object):
         if self._service_manager.has_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client):
             self._service_manager.stop_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
             self._service_manager.remove_service(self.SERVICE_NAME.format(nbd_number, vol_name), client=self._client)
-        self._configuration.delete(os.path.join(self.NODE_PATH.format(System.get_my_machine_id().strip()), nbd_number))
+        path_to_delete = str(os.path.join(self.NODE_PATH.format(System.get_my_machine_id().strip()), nbd_number))  # Casting to string as the DAL might have returned a unicode
+        self._configuration.delete(path_to_delete)
         try:
             os.remove(self.OPT_CONFIG_PATH.format(nbd_number))
         except OSError:
