@@ -45,9 +45,10 @@ class System(object):
         """
         cmd = ['cat', '/etc/openvstorage_id']
         if client is None:
-            return check_output(cmd)
+            out = check_output(cmd)
         else:
-            client.run(cmd)
+            out = client.run(cmd)
+        return out.strip()
 
     @classmethod
     def generate_id(cls, product='openvstorage', client=None):
