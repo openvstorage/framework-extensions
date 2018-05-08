@@ -20,6 +20,7 @@ Contains the Logger module
 
 import os
 import sys
+import copy
 import time
 import socket
 import logging
@@ -88,7 +89,17 @@ class Logger(logging.Logger):
     _logs = {}  # Used by unittests
     _cache = {}
 
-    def __init__(self, name, forced_target_type=None):
+    def __init__(self, name, forced_target_type=None, default_extra_log_params=None):
+        # type: (str, str, dict) -> None
+        """
+        Initialize a logger instance
+        :param name: Name of the logger instance
+        :type name: str
+        :param forced_target_type: Override the target type. Defaults to checking the context (stdout or file)
+        :type forced_target_type: str
+        :param default_extra_log_params: Default parameters to give with every log
+        :type default_extra_log_params: dict
+        """
         super(Logger, self).__init__(name.split('-')[0])
         self._full_name = name
         self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
@@ -100,6 +111,7 @@ class Logger(logging.Logger):
 
         self.setLevel(handler.level)
         self.handlers = [handler]
+        self.extra_log_params = default_extra_log_params
 
     def get_handler(self, forced_target_type=None):
         """
@@ -252,8 +264,10 @@ class Logger(logging.Logger):
                 Logger._logs[self.name] = {}
             Logger._logs[self.name][msg.strip()] = Logger.LOG_LEVELS[level]
 
-        if extra is not None and 'print_msg' in extra:
-            print msg
-            del extra['print_msg']
+        if self.extra_log_params or extra:
+            total_extra = copy.deepcopy(self.extra_log_params or {})
+            total_extra.update(extra or {})
+            if total_extra.pop('print_msg', None):
+                print msg
 
         super(Logger, self)._log(level, msg, args, exc_info=exc_info, extra=extra)
