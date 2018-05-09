@@ -212,6 +212,7 @@ class Base(object):
 
     @classmethod
     def _ensure_table(cls):
+        # type (None): -> None
         relation_list = ['_{0}_id'.format(relation[0]) for relation in cls._relations]
         relations = ['{0} INTEGER'.format(relation) for relation in relation_list]
         properties = ['{0} {1} {2} {3}'.format(prop.name,
@@ -243,6 +244,66 @@ class Base(object):
                 if rel_name not in current_relations:
                     connection.execute('ALTER TABLE {0} ADD COLUMN {1} INTEGER'.format(cls._table, rel_name))
 
+    @classmethod
+    def _update_table(cls):
+        # type: (None) -> None
+        # Modifies the current table settings according to the object definition
+        # use with caution (only during code migrations)
+        # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints -> create new table
+        # Does not work with primary keys!
+        # Depends on sorting of the unique constraints
+        """
+        Detects discrepancies between the dal objects and the existing sqlite database tables.
+        Changes the database constraints to the constraints existing in dal
+
+        :return: None
+        """
+        # Fetch DAL entries
+        dal_entries = ['{0} {1} {2} {3}'.format(prop.name,
+                                                Base._get_prop_type(prop.property_type),
+                                                'NOT NULL' if prop.mandatory is True else '',
+                                                'UNIQUE' if prop.unique is True else '') for prop in cls._properties]
+
+        # Fetch SQL entries
+        with cls.connector() as con:
+            cur = con.cursor()
+            cur.execute("select sql from sqlite_master where type='table' and name='{0}' order by NAME ".format(cls._table))
+            schema = cur.fetchall()
+
+        # Parse SQL entries
+        create_cmd = schema[0][0]
+        sql_entries = create_cmd.split('(')[1].split(',')
+        sql_entries = [entry.strip() for entry in sql_entries]
+
+        for index, entry in iter(sql_entries): # SQL table contains id, DAL does not, so has to be removed for comparison
+            if 'id ' in entry:
+                sql_entries.pop(index)
+                break
+
+        # Comparison
+        difference = False
+        set = SQLConstraintset(add_id=True)
+        for sql_entry, dal_entry in zip(sorted(sql_entries), sorted(dal_entries)):
+            sql_constraint = SQLConstraint(sql_entry)
+            dal_constraint = SQLConstraint(dal_entry)
+            set.add(dal_constraint)
+            if sql_constraint != dal_constraint:
+                difference = True
+
+        # Alter SQL DB if difference between dal and sql constraints
+        if difference:
+            with cls.connector() as con:
+                cur = con.cursor()
+                cur.executescript("PRAGMA foreign_keys = off;"
+                                  "BEGIN TRANSACTION;"
+                                  "ALTER TABLE {0} RENAME TO _old_table;"
+                                  "CREATE TABLE {0} ({1});"
+                                  "INSERT INTO {0} ({2}) SELECT {2} FROM _old_table;"
+                                  "DROP TABLE _old_table;"
+                                  "COMMIT;"
+                                  "PRAGMA foreign_keys = on;"
+                                  "".format(cls._table, str(set), set.names()))
+
     def __repr__(self):
         """ Short representation of the object. """
         return '<{0} (id: {1}, at: {2})>'.format(self.__class__.__name__, self.id, hex(id(self)))
@@ -262,3 +323,99 @@ class Base(object):
     def __str__(self):
         """ Returns a full representation of the object. """
         return json.dumps(self.export(), indent=4, sort_keys=True)
+
+
+class SQLConstraint(object):
+    """
+    Class to parse and compare SQL constraints
+    """
+
+    def __init__(self, input):
+        # type: (str) -> None
+        """
+        Init for SQL constraint handeling. Parses a limited amount of constraints to attributes of the object and allows comparison
+        :param input: input string. Format: name TYPE NOT NULL UNIQUE
+        """
+        input = input.strip('\n').strip(' ').strip('(').strip(')')
+        split = input.split(' ')
+        self.name = split.pop(0)
+        self.type = split.pop(0)
+        if 'UNIQUE' in split:
+            self.unique = True
+            split.pop(split.index('UNIQUE'))
+        else:
+            self.unique = False
+        if split == ['NOT', 'NULL']:
+            self.not_null = True
+        else:
+            self.not_null = False
+
+    def __str__(self):
+        # type: (None) -> str
+        """ String representation for the class"""
+        return '{0} {1} {2} {3}'.format(self.name,
+                                        self.type,
+                                        'NOT NULL' if self.not_null else '',
+                                        'UNIQUE' if self.unique else '')
+
+    def __ne__(self, other):
+        # type: (SQLConstraint) -> bool
+        """
+        Not equals implementation for the class
+        :param other: other object, to compare with
+        :type other: SQLConstraint
+        """
+        if isinstance(other, self.__class__):
+            return str(self) != str(other)
+        else:
+            return True
+
+    def __eq__(self, other):
+        # type: (SQLConstraint) -> bool
+        """
+        Equals implementation for the class
+        :param other: other object, to compare with
+        :type other: SQLConstraint
+        """
+        if isinstance(other, self.__class__):
+            return str(self) == str(other)
+        else:
+            return False
+
+
+class SQLConstraintset(object):
+    """
+    This class bundels constraints and can output them, either with or without a primary key
+    """
+
+    def __init__(self, add_id=True):
+        # type: (bool) -> None
+        """
+        :param add_id: add an integer as primary key
+        :typ add_id: bool
+        """
+        self.constraints = {}
+        if add_id:
+            self.constraints['id'] = 'id INTEGER PRIMARY KEY AUTOINCREMENT'
+
+    def add(self, constraint):
+        # type: (SQLConstraint) -> None
+        """
+        Add constraint to the constraintset
+        :param constraint: add this constraint to the dict of constraints
+        :type constraint: SQLConstraint
+        :return: None
+        """
+        if type(constraint) is not SQLConstraint:
+            raise RuntimeError('Type should be SQLConstraint, not {0}'.format(type(constraint)))
+        self.constraints[constraint.name] = constraint
+
+    def __str__(self):
+        """String representation of the object"""
+        # type: (None) -> str
+        return ', '.join([str(c) for c in self.constraints.itervalues()])
+
+    def names(self):
+        """Fetch the names of the contraints present in the set"""
+        # type: (None) -> str
+        return ', '.join([str(c) for c in self.constraints.iterkeys()])

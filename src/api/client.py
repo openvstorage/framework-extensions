@@ -30,6 +30,7 @@ from ovs_extensions.api.exceptions import HttpException, HttpForbiddenException,
 from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenException  # Backwards compatibility
 # noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs_extensions.log.logger import Logger
 
 logging.getLogger('urllib3').setLevel(logging.WARNING)
@@ -46,6 +47,22 @@ class OVSClient(object):
     def __init__(self, ip, port, credentials=None, verify=False, version='*', raw_response=False, cache_store=None):
         """
         Initializes the object with credentials and connection information
+        :param ip: IP to which to connect
+        :type ip: str
+        :param port: Port on which to connect
+        :type port: int
+        :param credentials: Credentials to connect
+        :type credentials: tuple
+        :param verify: Additional verification
+        :type verify: bool
+        :param version: API version
+        :type version: object
+        :param raw_response: Retrieve the raw response value
+        :type raw_response: bool
+        :param cache_store: Store in which to keep the generated token for the client instance
+        :type cache_store: any
+        :return: None
+        :rtype: NoneType
         """
         if credentials is not None and len(credentials) != 2:
             raise RuntimeError('Credentials should be None (no authentication) or a tuple containing client_id and client_secret (authenticated)')
@@ -177,6 +194,31 @@ class OVSClient(object):
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
             raise
+
+    @staticmethod
+    def get_instance(connection_info, cache_store=None, version=6):
+        """
+        Retrieve an OVSClient instance to the connection information passed
+        :param connection_info: Connection information, includes: 'host', 'port', 'client_id', 'client_secret'
+        :type connection_info: dict
+        :param cache_store: Store in which to keep the generated token for the client
+        :type cache_store: object
+        :param version: Version for the API
+        :type version: int
+        :return: An instance of the OVSClient class
+        :rtype: ovs_extensions.api.client.OVSClient
+        """
+        ExtensionsToolbox.verify_required_params(actual_params=connection_info,
+                                                 required_params={'host': (str, ExtensionsToolbox.regex_ip),
+                                                                  'port': (int, {'min': 1, 'max': 65535}),
+                                                                  'client_id': (str, None),
+                                                                  'client_secret': (str, None),
+                                                                  'local': (bool, None, False)})
+        return OVSClient(ip=connection_info['host'],
+                         port=connection_info['port'],
+                         credentials=(connection_info['client_id'], connection_info['client_secret']),
+                         version=version,
+                         cache_store=cache_store)
 
     def get(self, api, params=None):
         """

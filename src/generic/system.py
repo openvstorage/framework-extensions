@@ -21,6 +21,7 @@ Generic system module, executing statements on local node
 import os
 import re
 from subprocess import check_output
+from ovs_extensions.generic.sshclient import SSHClient
 
 
 class System(object):
@@ -42,7 +43,36 @@ class System(object):
         :return: Machine ID
         :rtype: str
         """
-        raise NotImplementedError('Generic "get_my_machine_id" is not implemented')
+        cmd = ['cat', '/etc/openvstorage_id']
+        if client is None:
+            out = check_output(cmd)
+        else:
+            out = client.run(cmd)
+        return out.strip()
+
+    @classmethod
+    def generate_id(cls, product='openvstorage', client=None):
+        """
+        Generates a certain ID for a given product. This ID will be saved under /etc/PRODUCT_id
+        :param product: Product to generate the ID for
+        :type product: str
+        :param client: Client to use for ID generation
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :return: The generated ID
+        :rtype: str
+        """
+        id_file_path = os.path.join('/etc', '{0}_id'.format(product))
+        new_id = check_output('openssl rand -base64 64 | tr -dc A-Z-a-z-0-9 | head -c 16', shell=True)
+        if client is None:
+            if os.path.exists(id_file_path):
+                raise RuntimeError('An ID has already been generated for product {0}'.format(product))
+            with open(id_file_path, 'w') as id_file:
+                id_file.write(new_id)
+        else:
+            if client.file_exists(id_file_path):
+                raise RuntimeError('An ID has already been generated for product {0}'.format(product))
+            client.file_write(id_file_path, new_id)
+        return new_id
 
     @classmethod
     def update_hosts_file(cls, ip_hostname_map, client):
@@ -95,19 +125,21 @@ class System(object):
                 yield int(found_port.strip())
 
     @classmethod
-    def get_free_ports(cls, selected_range, exclude=None, nr=1, client=None):
+    def get_free_ports(cls, selected_range, exclude=None, amount=1, client=None):
         """
-        Return requested nr of free ports not currently in use and not within excluded range
-        :param selected_range: e.g. '2000-2010' or '50000-6000, 8000-8999' ; note single port extends to [port -> 65535]
+        Return requested amount of free ports not currently in use and not within excluded range
+        :param selected_range: The range in which the amount of free ports need to be fetched
+                               e.g. '2000-2010' or '5000-6000, 8000-8999' ; note single port extends to [port -> 65535]
         :type selected_range: list
-        :param exclude: excluded list
+        :param exclude: List of port numbers which should be excluded from the calculation
         :type exclude: list
-        :param nr: nr of free ports requested
-        if nr == 0: return the available ports within the requested range regardless of the amount of ports being less than the requested amount
-        :type nr: int
+        :param amount: Amount of free ports requested
+                       if amount == 0: return all the available ports within the requested range
+        :type amount: int
         :param client: SSHClient to node
-        :type client: SSHClient
-        :return: sorted incrementing list of nr of free ports
+        :type client: ovs_extensions.generic.sshclient.SSHClient
+        :raises ValueError: If requested amount of free ports could not be found
+        :return: Sorted incrementing list of the requested amount of free ports
         :rtype: list
         """
         unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
@@ -145,8 +177,8 @@ class System(object):
         for possible_free_port in requested_range:
             if possible_free_port not in ephemeral_port_range and possible_free_port not in exclude_list:
                 free_ports.append(possible_free_port)
-                if len(free_ports) == nr:
+                if len(free_ports) == amount:
                     return free_ports
-        if nr == 0:
+        if amount == 0:
             return free_ports
-        raise ValueError('Unable to find requested nr of free ports')
+        raise ValueError('Unable to find the requested amount of free ports')

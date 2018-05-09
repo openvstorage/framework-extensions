@@ -88,7 +88,7 @@ class ArakoonClusterConfig(object):
         Initializes an empty Cluster Config
         """
         self.plugins = []
-        self._extra_globals = {'tlog_max_entries': 5000}
+        self._extra_globals = {}
         if isinstance(plugins, list):
             self.plugins = plugins
         elif isinstance(plugins, basestring):
@@ -343,6 +343,7 @@ class ArakoonInstaller(object):
     """
     Class to dynamically install/(re)configure Arakoon cluster
     """
+    ARAKOON_CONFIG_NAMES = ['cacc', 'config']
     ARAKOON_HOME_DIR = '{0}/arakoon/{1}/db'
     ARAKOON_TLOG_DIR = '{0}/arakoon/{1}/tlogs'
     SSHCLIENT_USER = 'ovs'
@@ -436,7 +437,7 @@ class ArakoonInstaller(object):
             if filesystem is True:
                 if port_range is None:
                     port_range = [26400]
-                ports = self._system.get_free_ports(selected_range=port_range, nr=2, client=client)
+                ports = self._system.get_free_ports(selected_range=port_range, amount=2, client=client)
             else:
                 ports = self._get_free_ports(client=client, port_range=port_range)
 
@@ -532,7 +533,7 @@ class ArakoonInstaller(object):
             if self.is_filesystem is True:
                 if port_range is None:
                     port_range = [26400]
-                ports = self._system.get_free_ports(selected_range=port_range, nr=2, client=client)
+                ports = self._system.get_free_ports(selected_range=port_range, amount=2, client=client)
             else:
                 ports = self._get_free_ports(client=client, port_range=port_range)
 
@@ -761,7 +762,7 @@ class ArakoonInstaller(object):
 
         config = ArakoonClusterConfig(cluster_id=cluster_name, source_ip=ip, configuration=cls._get_configuration())
         return_value['internal'] = True
-        return_value['downtime'] = len(config.nodes) < 3 if cluster_name not in ['cacc', 'config'] else False
+        return_value['downtime'] = len(config.nodes) < 3 if cluster_name not in cls.ARAKOON_CONFIG_NAMES else False
         return_value['service_name'] = cls.get_service_name_for_cluster(cluster_name=arakoon_metadata['cluster_name'])
         return return_value
 
@@ -1047,7 +1048,7 @@ class ArakoonInstaller(object):
 
         if port_range is None:
             port_range = self._configuration.get('/ovs/framework/hosts/{0}/ports|arakoon'.format(node_name))
-        ports = self._system.get_free_ports(selected_range=port_range, exclude=exclude_ports, nr=2, client=client)
+        ports = self._system.get_free_ports(selected_range=port_range, exclude=exclude_ports, amount=2, client=client)
         self._logger.debug('  Loaded free ports {0} based on existing clusters {1}'.format(ports, clusters))
         return ports
 
