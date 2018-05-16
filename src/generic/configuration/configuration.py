@@ -350,7 +350,8 @@ class Configuration(object):
         :rtype: NoneType
         """
         data = value
-        if raw is False:
+        # When data is None, checking for a key that does not exist. Avoids comparing None to null
+        if raw is False and data is not None:
             data = cls._dump_data(data)
         return cls._passthrough(method='assert_value',
                                 key=key,
@@ -491,15 +492,10 @@ class Configuration(object):
             if tries > max_retries:
                 raise last_exception
             callback_result = callback()
-            if not isinstance(callback_result, tuple) and isinstance(callback_result, collections.Iterable):
-                # Multiple key/values to set
-                for key, value, expected_value in callback_result:
-                    return_value.append((key, value))
-                    cls.assert_value(key, expected_value, transaction=transaction)
-                    cls.set(key, value, transaction=transaction)
-            else:
-                # Single key value
-                key, value, expected_value = callback_result
+            if not isinstance(callback_result, collections.Iterable):
+                raise ValueError('Callback does not produce an iterable result')
+            # Multiple key/values to set
+            for key, value, expected_value in callback_result:
                 return_value.append((key, value))
                 cls.assert_value(key, expected_value, transaction=transaction)
                 cls.set(key, value, transaction=transaction)
