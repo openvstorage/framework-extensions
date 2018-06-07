@@ -19,13 +19,15 @@ Arakoon store module, using pyrakoon
 """
 
 import os
-import time
 import uuid
+import time
+import ujson
 import random
 import logging
 from threading import Lock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
+from ovs_extensions.generic.repeatingtimer import RepeatingTimer
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,13 @@ def locked():
                 return f(self, *args, **kw)
         return new_function
     return wrap
+
+
+class NoLockAvailableException(Exception):
+    """
+    Raised when the lock could not be acquired
+    """
+    pass
 
 
 class PyrakoonClient(object):
@@ -244,3 +253,178 @@ class PyrakoonClient(object):
                 return str(array.decode(encoding))
             array[index] = 0
         return '\xff'
+
+    def lock(self, name, wait=None, expiration=60):
+        # type: (str, float, float) -> PyrakoonLock
+        """
+        Returns the Arakoon lock implementation
+        :param name: Name to give to the lock
+        :type name: str
+        :param wait: Wait time for the lock (in seconds)
+        :type wait: float
+        :param expiration: Expiration time for the lock (in seconds)
+        :type expiration: float
+        :return: The lock implementation
+        :rtype: PyrakoonLock
+        """
+        return PyrakoonLock(self, name, wait, expiration)
+
+
+class PyrakoonLock(object):
+    """
+    Lock implementation around Arakoon
+    To be used as a context manager
+    """
+    LOCK_LOCATION = '/ovs/locks/{0}'
+    EXPIRATION_KEY = 'expires'
+
+    _logger = logging.getLogger('arakoon_lock')
+
+    def __init__(self, client, name, wait=None, expiration=60):
+        # type: (PyrakoonClient, str, float, float) -> None
+        """
+        Initialize a ConfigurationLock
+        :param client: PyrakoonClient to work with
+        :type client: PyrakoonClient
+        :param name: Name of the lock to acquire.
+        :type name: str
+        :param expiration: Expiration time of the lock (in seconds)
+        :type expiration: float
+        :param wait: Amount of time to wait to acquire the lock (in seconds)
+        :type wait: float
+        """
+        self.id = str(uuid.uuid4())
+        self.name = name
+        self._client = client
+        self._expiration = expiration
+        self._data_set = None
+        self._key = self.LOCK_LOCATION.format(self.name)
+        self._wait = wait
+        self._start = 0
+        self._has_lock = False
+        self._refresher = None
+
+    def __enter__(self):
+        # type: () -> PyrakoonLock
+        self.acquire()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
+        _ = args, kwargs
+        self.release()
+
+    def acquire(self, wait=None):
+        # type: (float) -> bool
+        """
+        Acquire a lock on the mutex, optionally given a maximum wait timeout
+        :param wait: Time to wait for lock
+        :type wait: float
+        """
+        if self._has_lock:
+            return True
+        self._start = time.time()
+        if wait is None:
+            wait = self._wait
+        while self._client.exists(self._key):
+            time.sleep(0.005)
+            # Check if it has expired
+            try:
+                original_lock_data = self._client.get(self._key)
+                lock_data = ujson.loads(original_lock_data)
+            except ArakoonNotFound:
+                self._logger.debug('Unable to retrieve data: Key {0} was removed in meanwhile'.format(self._key))
+                continue  # Key was removed in meanwhile
+            except Exception:
+                self._logger.exception('Unable to retrieve the data of key {0}'.format(self._key))
+                continue
+            expiration = lock_data.get(self.EXPIRATION_KEY, None)
+            if expiration is None or time.time() > expiration:
+                self._logger.info('Expiration for key {0} (lock id: {1}) was reached. Looking to remove it.'.format(self._key, lock_data['id']))
+                # Remove the expired lock
+                transaction = self._client.begin_transaction()
+                self._client.assert_value(self._key, original_lock_data, transaction=transaction)
+                self._client.delete(self._key, transaction=transaction)
+                try:
+                    self._client.apply_transaction(transaction)
+                except ArakoonAssertionFailed:
+                    self._logger.warning('Lost the race to cleanup the expired key {0}.'.format(self._key))
+                except:
+                    self._logger.exception('Unable to remove the expired entry')
+                continue  # Always check the key again even when errors occurred
+            passed = time.time() - self._start
+            if wait is not None and passed > wait:
+                self._logger.error('Lock for {0} could not be acquired. {1} sec > {2} sec'.format(self._key, passed, wait))
+                raise NoLockAvailableException('Could not acquire lock {0}'.format(self._key))
+        # Create the lock entry
+        transaction = self._client.begin_transaction()
+        self._client.assert_value(self._key, None, transaction=transaction)  # Key shouldn't exist
+        data_to_set = self._get_lock_data()
+        self._client.set(self._key, data_to_set, transaction=transaction)
+        try:
+            self._client.apply_transaction(transaction)
+            self._data_set = data_to_set
+            self._logger.debug('Acquired lock {0}'.format(self._key))
+        except ArakoonAssertionFailed:
+            self._logger.info('Lost the race with another lock, back to acquiring')
+            return self.acquire(wait)
+        except:
+            self._logger.exception('Exception occurred while setting the lock')
+            raise
+        passed = time.time() - self._start
+        if passed > 0.2:  # More than 200 ms is a long time to wait
+            if self._logger is not None:
+                self._logger.warning('Waited {0} sec for lock {1}'.format(passed, self._key))
+        self._start = time.time()
+        self._has_lock = True
+        self._refresher = RepeatingTimer(5, self.refresh_lock)
+        return True
+
+    def _get_lock_data(self):
+        now = time.time()
+        return ujson.dumps({'time_set': now, self.EXPIRATION_KEY: now + self._expiration, 'id': self.id})
+
+    def release(self):
+        # type: () -> None
+        """
+        Releases the lock
+        """
+        if self._has_lock and self._data_set and self._refresher:
+            self._refresher.cancel()
+            self._refresher.join()
+            transaction = self._client.begin_transaction()
+            self._client.assert_value(self._key, self._data_set, transaction=transaction)
+            self._client.delete(self._key, transaction=transaction)
+            try:
+                self._client.apply_transaction(transaction)
+                self._logger.debug('Removed lock {0}'.format(self._key))
+            except ArakoonAssertionFailed:
+                self._logger.warning('The lock was removed and possible in use. Another client must have cleaned up the expired entry')
+            except:
+                self._logger.exception('Unable to remove the lock')
+                raise
+            passed = time.time() - self._start
+            if passed > 0.5:  # More than 500 ms is a long time to hold a lock
+                if self._logger is not None:
+                    self._logger.warning('A lock on {0} was kept for {1} sec'.format(self._key, passed))
+            self._has_lock = False
+
+    def refresh_lock(self):
+        """
+        Refreshes the lock by setting now expiration dates
+        """
+        if self._has_lock and self._data_set is not None:
+            transaction = self._client.begin_transaction()
+            self._client.assert_value(self._key, self._data_set, transaction=transaction)
+            data_to_set = self._get_lock_data()
+            self._client.set(self._key, data_to_set, transaction=transaction)
+            try:
+                self._client.apply_transaction(transaction)
+                self._data_set = data_to_set
+                self._logger.debug('Refreshed lock {0}'.format(self._key))
+            except ArakoonAssertionFailed:
+                self._logger.exception('The lock was taken over by another instance')
+                raise
+            except:
+                self._logger.exception('Unable to remove the lock')
+                raise

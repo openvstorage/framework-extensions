@@ -18,6 +18,9 @@
 Storage exceptions module
 """
 
+# Import for centralized access
+from ovs_extensions.db.arakoon.pyrakoon.client import NoLockAvailableException
+
 
 class KeyNotFoundException(Exception):
     """

@@ -23,6 +23,7 @@ import json
 import uuid
 from threading import RLock
 from functools import wraps
+from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.storage.exceptions import KeyNotFoundException, AssertException
 
 
@@ -229,3 +230,19 @@ class DummyPersistentStore(object):
             f = open(self._path, 'w+')
             f.write(json.dumps(data, sort_keys=True, indent=2))
             f.close()
+
+    def lock(self, name, wait=None, expiration=60):
+        # type: (str, float, float) -> file_mutex
+        """
+        Returns the Arakoon lock implementation
+        :param name: Name to give to the lock
+        :type name: str
+        :param wait: Wait time for the lock (in seconds)
+        :type wait: float
+        :param expiration: Expiration time for the lock (in seconds)
+        :type expiration: float
+        :return: The lock implementation
+        :rtype: ArakoonConfigurationLock
+        """
+        _ = expiration
+        return file_mutex(name, wait)
