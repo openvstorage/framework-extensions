@@ -20,5 +20,5 @@ Shared strings
 import os
 
 ### NBD related config paths
-CONFIG_BASE_PATH = '/ovs/framework/nbdnodes'
-CONFIG_NODE_PATH = os.path.join(CONFIG_BASE_PATH, '{0}')
+NBD = '/ovs/framework/nbdnodes'
+NBD_ID = os.path.join(NBD, '{0}')
