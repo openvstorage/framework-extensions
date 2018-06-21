@@ -293,6 +293,7 @@ class PyrakoonLock(object):
         :param wait: Amount of time to wait to acquire the lock (in seconds)
         :type wait: float
         """
+        raise NotImplementedError('The Pyrakoon lease mechanism has not been properly implemented')
         self.id = str(uuid.uuid4())
         self.name = name
         self._client = client
