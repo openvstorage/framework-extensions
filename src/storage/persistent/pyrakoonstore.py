@@ -150,3 +150,18 @@ class PyrakoonStore(object):
             raise AssertException(assertion)
         except ArakoonNotFound as field:
             raise KeyNotFoundException(field.message)
+
+    def lock(self, name, wait=None, expiration=60):
+        # type: (str, float, float) -> any
+        """
+        Returns the Arakoon lock implementation
+        :param name: Name to give to the lock
+        :type name: str
+        :param wait: Wait time for the lock (in seconds)
+        :type wait: float
+        :param expiration: Expiration time for the lock (in seconds)
+        :type expiration: float
+        :return: The lock implementation
+        :rtype: PyrakoonLock
+        """
+        return self._client.lock(name, wait, expiration)
