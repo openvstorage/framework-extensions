@@ -1,4 +1,4 @@
-# Copyright (C) 2016 iNuron NV
+# Copyright (C) 2018 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -13,24 +13,3 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
-"""
-Storage exceptions module
-"""
-
-# Import for centralized access
-from ovs_extensions.db.arakoon.pyrakoon.client import NoLockAvailableException
-
-
-class KeyNotFoundException(Exception):
-    """
-    Raised when a given key could not be found in the persistent storage
-    """
-    pass
-
-
-class AssertException(Exception):
-    """
-    Assertion failed
-    """
-    pass
