@@ -102,6 +102,7 @@ class SystemdMock(object):
         if name not in SystemdMock.services[key]:
             raise RuntimeError('Service {0} does not exist'.format(name))
         SystemdMock.services[key][name]['state'] = 'HALTED'
+        SystemdMock.services[key][name]['pid'] = None
         if self.get_service_status(name, client) != 'inactive':
             raise RuntimeError('Stop {0} failed'.format(name))
 
