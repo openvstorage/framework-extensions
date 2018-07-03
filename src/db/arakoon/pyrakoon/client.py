@@ -23,9 +23,12 @@ import uuid
 import time
 import ujson
 import random
+from functools import wraps
 from threading import Lock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes,\
+    ArakoonSockSendError, ArakoonAssertionFailed, ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException,\
+    ArakoonNotConnected, ArakoonGoingDown
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
 from ovs_extensions.log.logger import Logger
 
@@ -48,6 +51,65 @@ def locked():
     return wrap
 
 
+def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
+    # type: (bool, float) -> Any
+    """
+    - Handle that Arakoon can be unavailable
+    - Handle master re-elections from Arakoon
+        Only fetch requests are handled by this decorator
+        Any update request must be attempted again by the client because it is unclear which part of the update was done eg.
+        - Did the request reach the Arakoon server but it didn't reply
+        - Did the request never reach the Arakoon server in the first place
+    :param is_read_only: Indicate that the method is a read request
+    :type is_read_only: bool
+    :param max_duration: Maximum duration that a request should take. Logs a clear message that the request took longer when exceeded
+    :type max_duration: float
+    :return: Result of underlying function
+    :rtype: any
+    """
+    def wrap(f):
+        @wraps(f)
+        def retrying_f (self, *args, **kwargs):
+            # type: (PyrakoonClient, list, dict) -> any
+            start = time.time()
+            tries = 0.0
+            back_off_period = 0.2
+            retry_period = self._retry_period
+            deadline = start + retry_period
+            try:
+                while time.time() < deadline:
+                    try:
+                        result = f(self, *args, **kwargs)
+                        duration = time.time() - start
+                        if duration > max_duration:
+                            logger.warning('Pyrakoon call {0} took {1}s'.format(f.__name__, round(duration, 2)))
+                        return result
+                    except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
+                        # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
+                        if not is_read_only and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
+                            raise
+                        # Drop all master connections and master related information
+                        # @todo self is the pyrakoon client, not the arakoon one
+                        self._masterId = None
+                        self.dropConnections()
+                        sleep_time = back_off_period * tries
+                        if time.time() + sleep_time > deadline:
+                            # Exceeded the dealine in meantime
+                            raise
+                        tries += 1.0
+                        logger.warning("Master not found ({0}). Retrying in {1:.2f} sec.".format(ex, sleep_time))
+                        time.sleep(sleep_time)
+            except (ArakoonNotFound, ArakoonAssertionFailed):
+                # No extra logging for some errors
+                raise
+            except Exception:
+                # Log any exception that might be thrown for debugging purposes
+                logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(f.__name__, os.getpid(), current_thread().ident, self.identifier))
+                raise
+        return retrying_f
+    return wrap
+
+
 class NoLockAvailableException(Exception):
     """
     Raised when the lock could not be acquired
@@ -63,19 +125,24 @@ class PyrakoonClient(object):
     """
     _logger = Logger('extensions')
 
-    def __init__(self, cluster, nodes):
+    def __init__(self, cluster, nodes, retry_period=ArakoonClientConfig.getNoMasterRetryPeriod(), back_off_period=0.2):
         """
         Initializes the client
         """
         cleaned_nodes = {}
         for node, info in nodes.iteritems():
             cleaned_nodes[str(node)] = ([str(entry) for entry in info[0]], int(info[1]))
+        # Synchronization
+        self._lock = Lock()
+        # Wrapping
         self._config = ArakoonClientConfig(str(cluster), cleaned_nodes)
         self._client = ArakoonClient(self._config, timeout=5, noMasterTimeout=5)
+
         self._identifier = int(round(random.random() * 10000000))
-        self._lock = Lock()
         self._batch_size = 500
         self._sequences = {}
+        # Retrying
+        self._retry_period = retry_period
 
     @locked()
     def get(self, key, consistency=None):
