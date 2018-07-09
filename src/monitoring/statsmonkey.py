@@ -68,7 +68,7 @@ class StatsMonkey(object):
             else:
                 try:
                     cls._logger.debug("Sending statistics for function '{0}'".format(name))
-                    cls._send_stats(stats=stats)
+                    cls._send_stats(stats=stats, name=name)
                 except Exception:
                     errored = True
                     cls._logger.exception("Sending statistics for function '{0}' failed".format(name))
@@ -166,7 +166,7 @@ class StatsMonkey(object):
                            'password': (str, None),
                            'interval': (int, {'min': 1}, False),
                            'database': (str, None),
-                           'transport': (str, ['influxdb', 'redis']),
+                           'transport': (str, ['influxdb', 'redis', 'graphite']),
                            'environment': (str, None)}
         if config.get('transport') == 'influxdb':
             required_params['username'] = (str, None)
@@ -196,8 +196,10 @@ class StatsMonkey(object):
         return output
 
     @classmethod
-    def _send_stats(cls, stats):
-        if cls._config['transport'] == 'influxdb':
+    def _send_stats(cls, stats, name):
+        if cls._config['transport'] == 'graphite':
+            cls._stats_client.send_statsmonkey_data(stats, name)
+        elif cls._config['transport'] == 'influxdb':
             cls._stats_client.write_points(stats)
         else:
             cls._stats_client.lpush(cls._config['database'], stats)
@@ -213,9 +215,14 @@ class StatsMonkey(object):
         password = cls._config['password']
         database = cls._config['database']
 
-        if cls._config['transport'] == 'influxdb':
+        if cls._config['transport'] == 'graphite':
+            from ovs.extensions.generic.graphiteclient import GraphiteClient
+            cls._stats_client = GraphiteClient(host, port, database)
+
+        elif cls._config['transport'] == 'influxdb':
             import influxdb
             cls._stats_client = influxdb.InfluxDBClient(host=host, port=port, username=user, password=password, database=database)
         else:
             import redis
             cls._stats_client = redis.Redis(host=host, port=port, password=password)
+
