@@ -51,7 +51,7 @@ def locked():
     return wrap
 
 
-def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
+def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=False):
     # type: (bool, float) -> Any
     """
     - Handle that Arakoon can be unavailable
@@ -64,6 +64,9 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
     :type is_read_only: bool
     :param max_duration: Maximum duration that a request should take. Logs a clear message that the request took longer when exceeded
     :type max_duration: float
+    :param override_retry: Override retry. Used when opting to retry even if the read_only would be False.
+    This might lead to an inconsistent state if the Arakoon goes down/master switches while processing the action
+    Only use this option when rebuilding a transaction to assert the consistency
     :return: Result of underlying function
     :rtype: any
     """
@@ -86,7 +89,7 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
                         return result
                     except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
                         # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
-                        if not is_read_only and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and \
+                        if not is_read_only and not override_retry and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and \
                                 not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
                             raise
                         # Drop all master connections and master related information
@@ -116,9 +119,7 @@ class NoLockAvailableException(Exception):
 
 class PyrakoonClient(object):
     """
-    Arakoon client wrapper:
-    * Uses json serialisation
-    * Raises generic exception
+    Arakoon client wrapper
     """
     _logger = Logger('extensions')
 
@@ -408,6 +409,48 @@ class PyrakoonClient(object):
         :rtype: PyrakoonLock
         """
         return PyrakoonLock(self, name, wait, expiration)
+
+    @locked()
+    def apply_callback_transaction(self, transaction_callback, max_retries=0, retry_wait_function=None):
+        # type: (callable, int, callable) -> None
+        """
+        Apply a transaction which is the result of the callback.
+        The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
+        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
+        Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
+        :param transaction_callback: Callback function which returns the transaction ID to apply
+        :type transaction_callback: callable
+        :param max_retries: Number of retries to try. Retries are attempted when an AssertException is thrown.
+        Defaults to 0
+        :param retry_wait_function: Function called retrying the transaction. The current try number is passed as an argument
+        Defaults to lambda retry: time.sleep(randint(0, 25) / 100.0)
+        :type retry_wait_function: callable
+        :return: None
+        :rtype: NoneType
+        """
+        @handle_arakoon_errors(is_read_only=False, max_duration=1, override_retry=True)
+        def apply_callback_transaction():
+            # This inner function will execute the callback again on retry
+            transaction = transaction_callback()
+            self.apply_transaction(transaction)
+
+        def default_retry_wait(retry):
+            _ = retry
+            time.sleep(random.randint(0, 25) / 100.0)
+
+        retry_wait_func = retry_wait_function or default_retry_wait
+        tries = 0
+        success = False
+        while success is False:
+            tries += 1
+            try:
+                return apply_callback_transaction()
+            except ArakoonAssertionFailed as ex:
+                logger.warning('Asserting failed. Retrying {0} more times'.format(max_retries - tries))
+                last_exception = ex
+                if tries > max_retries:
+                    raise last_exception
+                retry_wait_func(tries)
 
 
 class PyrakoonLock(object):

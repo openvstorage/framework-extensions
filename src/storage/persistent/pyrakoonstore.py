@@ -20,10 +20,34 @@ Arakoon store module, using pyrakoon
 
 import ujson
 from ConfigParser import RawConfigParser
+from functools import wraps
 from StringIO import StringIO
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundException
+
+
+def convert_exception():
+    """
+    Converting decorator.
+    """
+    def wrap(f):
+        """
+        Returns a wrapped function
+        """
+        @wraps(f)
+        def new_function(self, *args, **kw):
+            """
+            Executes the decorated function in a locked context
+            """
+            try:
+                return f(self, *args, **kw)
+            except ArakoonNotFound as field:
+                raise KeyNotFoundException(field.message)
+            except ArakoonAssertionFailed as assertion:
+                raise AssertException(assertion)
+        return new_function
+    return wrap
 
 
 class PyrakoonStore(object):
@@ -44,6 +68,7 @@ class PyrakoonStore(object):
             nodes[node] = ([parser.get(node, 'ip')], parser.get(node, 'client_port'))
         self._client = PyrakoonClient(cluster, nodes)
 
+    @convert_exception()
     def get(self, key):
         """
         Retrieves a certain value for a given key
@@ -52,9 +77,8 @@ class PyrakoonStore(object):
             return ujson.loads(self._client.get(key))
         except ValueError:
             raise KeyNotFoundException('Could not parse JSON stored for {0}'.format(key))
-        except ArakoonNotFound as field:
-            raise KeyNotFoundException(field.message)
 
+    @convert_exception()
     def get_multi(self, keys, must_exist=True):
         """
         Get multiple keys at once
@@ -64,21 +88,22 @@ class PyrakoonStore(object):
                 yield None if item is None else ujson.loads(item)
         except ValueError:
             raise KeyNotFoundException('Could not parse JSON stored')
-        except ArakoonNotFound as field:
-            raise KeyNotFoundException(field.message)
 
+    @convert_exception()
     def set(self, key, value, transaction=None):
         """
         Sets the value for a key to a given value
         """
         return self._client.set(key, ujson.dumps(value, sort_keys=True), transaction)
 
+    @convert_exception()
     def prefix(self, prefix):
         """
         Lists all keys starting with the given prefix
         """
         return self._client.prefix(prefix)
 
+    @convert_exception()
     def prefix_entries(self, prefix):
         """
         Lists all keys starting with the given prefix
@@ -86,6 +111,7 @@ class PyrakoonStore(object):
         for item in self._client.prefix_entries(prefix):
             yield [item[0], ujson.loads(item[1])]
 
+    @convert_exception()
     def delete(self, key, must_exist=True, transaction=None):
         """
         Deletes a given key from the store
@@ -95,53 +121,49 @@ class PyrakoonStore(object):
         except ArakoonNotFound as field:
             raise KeyNotFoundException(field.message)
 
+    @convert_exception()
     def nop(self):
         """
         Executes a nop command
         """
         return self._client.nop()
 
+    @convert_exception()
     def exists(self, key):
         """
         Check if key exists
         """
         return self._client.exists(key)
 
+    @convert_exception()
     def assert_value(self, key, value, transaction=None):
         """
         Asserts a key-value pair
         """
-        try:
-            return self._client.assert_value(key, None if value is None else ujson.dumps(value, sort_keys=True), transaction)
-        except ArakoonAssertionFailed as assertion:
-            raise AssertException(assertion)
+        return self._client.assert_value(key, None if value is None else ujson.dumps(value, sort_keys=True), transaction)
 
+    @convert_exception()
     def assert_exists(self, key, transaction=None):
         """
         Asserts that a given key exists
         """
-        try:
-            return self._client.assert_exists(key, transaction)
-        except ArakoonAssertionFailed as assertion:
-            raise AssertException(assertion)
+        return self._client.assert_exists(key, transaction)
 
+    @convert_exception()
     def begin_transaction(self):
         """
         Creates a transaction (wrapper around Arakoon sequences)
         """
         return self._client.begin_transaction()
 
+    @convert_exception()
     def apply_transaction(self, transaction):
         """
         Applies a transaction
         """
-        try:
-            return self._client.apply_transaction(transaction)
-        except ArakoonAssertionFailed as assertion:
-            raise AssertException(assertion)
-        except ArakoonNotFound as field:
-            raise KeyNotFoundException(field.message)
+        return self._client.apply_transaction(transaction)
 
+    @convert_exception()
     def lock(self, name, wait=None, expiration=60):
         # type: (str, float, float) -> any
         """
@@ -156,3 +178,23 @@ class PyrakoonStore(object):
         :rtype: PyrakoonLock
         """
         return self._client.lock(name, wait, expiration)
+
+    @convert_exception()
+    def apply_callback_transaction(self, transaction_callback, max_retries=0, retry_wait_function=None):
+        # type: (callable, int, callable) -> None
+        """
+        Apply a transaction which is the result of the callback.
+        The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
+        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
+        Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
+        :param transaction_callback: Callback function which returns the transaction ID to apply
+        :type transaction_callback: callable
+        :param max_retries: Number of retries to try. Retries are attempted when an AssertException is thrown.
+        Defaults to 0
+        :param retry_wait_function: Function called retrying the transaction. The current try number is passed as an argument
+        Defaults to lambda retry: time.sleep(randint(0, 25) / 100.0)
+        :type retry_wait_function: callable
+        :return: None
+        :rtype: NoneType
+        """
+        return self._client.apply_callback_transaction(transaction_callback, max_retries, retry_wait_function)

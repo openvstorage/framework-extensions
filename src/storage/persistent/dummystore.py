@@ -20,7 +20,9 @@ Dummy persistent module
 import os
 import copy
 import json
+import time
 import uuid
+import random
 from threading import RLock
 from functools import wraps
 from ovs_extensions.generic.filemutex import file_mutex
@@ -246,3 +248,42 @@ class DummyPersistentStore(object):
         """
         _ = expiration
         return file_mutex(name, wait)
+
+    def apply_callback_transaction(self, transaction_callback, max_retries=0, retry_wait_function=None):
+        # type: (callable) -> None
+        """
+        Apply a transaction which is the result of the callback.
+        The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
+        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
+        Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
+        :param transaction_callback: Callback function which returns the transaction ID to apply
+        :type transaction_callback: callable
+        :param max_retries: Number of retries to try. Retries are attempted when an AssertException is thrown.
+        Defaults to 0
+        :param retry_wait_function: Function called retrying the transaction. The current try number is passed as an argument
+        Defaults to lambda retry: time.sleep(randint(0, 25) / 100.0)
+        :type retry_wait_function: callable
+        :return: None
+        :rtype: NoneType
+        """
+        def apply_callback_transaction():
+            # This inner function will execute the callback again on retry
+            transaction = transaction_callback()
+            self.apply_transaction(transaction)
+
+        def default_retry_wait(retry):
+            _ = retry
+            time.sleep(random.randint(0, 25) / 100.0)
+
+        retry_wait_func = retry_wait_function or default_retry_wait
+        tries = 0
+        success = False
+        while success is False:
+            tries += 1
+            try:
+                return apply_callback_transaction()
+            except AssertException as ex:
+                last_exception = ex
+                if tries > max_retries:
+                    raise last_exception
+                retry_wait_func(tries)
