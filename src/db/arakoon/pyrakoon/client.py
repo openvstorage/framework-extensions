@@ -72,12 +72,12 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
         def wrapped(self, *args, **kwargs):
             # type: (PyrakoonClient, list, dict) -> any
             start = time.time()
-            tries = 0.0
-            back_off_period = 0.2
-            retry_period = self._retry_period
-            deadline = start + retry_period
+            tries = 0
+            retries = self._retries
+            retry_back_off_multiplier = self._retry_back_off_multiplier
+            retry_interval_sec = self._retry_interval_sec
             try:
-                while time.time() < deadline:
+                while retries > tries:
                     try:
                         result = f(self, *args, **kwargs)
                         duration = time.time() - start
@@ -86,15 +86,13 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5):
                         return result
                     except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
                         # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
-                        if not is_read_only and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
+                        if not is_read_only and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and \
+                                not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
                             raise
                         # Drop all master connections and master related information
                         self._client._client_masterId = None
                         self._client.dropConnections()
-                        sleep_time = back_off_period * tries
-                        if time.time() + sleep_time > deadline:
-                            # Exceeded the dealine in meantime
-                            raise
+                        sleep_time = retry_interval_sec * retry_back_off_multiplier ** tries
                         tries += 1.0
                         logger.warning("Master not found ({0}). Retrying in {1:.2f} sec.".format(ex, sleep_time))
                         time.sleep(sleep_time)
@@ -124,7 +122,7 @@ class PyrakoonClient(object):
     """
     _logger = Logger('extensions')
 
-    def __init__(self, cluster, nodes, retry_period=ArakoonClientConfig.getNoMasterRetryPeriod(), back_off_period=0.2):
+    def __init__(self, cluster, nodes, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):
         # type: (str, Dict[str, Tuple[str, int]], float, float) -> None
         """
         Initializes the client
@@ -132,12 +130,12 @@ class PyrakoonClient(object):
         :type cluster: str
         :param nodes: Dict with all node sockets. {name of the node: (ip of node, port of node)}
         :type nodes: dict
-        :param retry_period: Time window to retry in. Defaults to 60s
-        :type retry_period: float
-        :param back_off_period: Back off modifier. Multiplies this number to the tries until it reaches the retry_period
-        Defaults to 0.2
-        Default retry settings will retry it for 25 times (with last retry waiting for 25 * 0.2 secs)
-        :type back_off_period: float
+        :param retries: Number of retries to do
+        :type retries: int
+        :param retry_back_off_multiplier: Back off multiplier. Multiplies the retry_interval_sec with this number ** retry
+        :type retry_back_off_multiplier: int
+        :param retry_interval_sec: Seconds to wait before retrying. Exponentially increases with every retry.
+        :type retry_interval_sec: int
         """
         cleaned_nodes = {}
         for node, info in nodes.iteritems():
@@ -152,8 +150,9 @@ class PyrakoonClient(object):
         self._batch_size = 500
         self._sequences = {}
         # Retrying
-        self._retry_period = retry_period
-        self._back_off_period = back_off_period
+        self._retries = retries
+        self._retry_back_off_multiplier = retry_back_off_multiplier
+        self._retry_interval_sec = retry_interval_sec
 
     @locked()
     @handle_arakoon_errors(is_read_only=True)
