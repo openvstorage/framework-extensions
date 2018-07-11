@@ -52,7 +52,7 @@ def locked():
 
 
 def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=False):
-    # type: (bool, float) -> Any
+    # type: (bool, float, bool) -> Any
     """
     - Handle that Arakoon can be unavailable
     - Handle master re-elections from Arakoon
@@ -125,7 +125,7 @@ class PyrakoonClient(object):
     _logger = Logger('extensions')
 
     def __init__(self, cluster, nodes, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):
-        # type: (str, Dict[str, Tuple[str, int]], float, float) -> None
+        # type: (str, Dict[str, Tuple[str, int]], int, int, int) -> None
         """
         Initializes the client
         :param cluster: Identifier of the cluster
