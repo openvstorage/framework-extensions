@@ -24,7 +24,7 @@ import time
 import ujson
 import random
 from functools import wraps
-from threading import Lock, current_thread
+from threading import RLock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
     ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
@@ -79,13 +79,14 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
             retries = self._retries
             retry_back_off_multiplier = self._retry_back_off_multiplier
             retry_interval_sec = self._retry_interval_sec
+            identifier = 'Process {0}, thread {1}, clientid {2}'.format(os.getpid(), current_thread().ident, self._identifier)
             try:
                 while retries > tries:
                     try:
                         result = f(self, *args, **kwargs)
                         duration = time.time() - start
                         if duration > max_duration:
-                            logger.warning('Pyrakoon call {0} took {1}s'.format(f.__name__, round(duration, 2)))
+                            self._logger.warning('Pyrakoon call {0} took {1}s'.format(f.__name__, round(duration, 2)))
                         return result
                     except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
                         # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
@@ -97,14 +98,14 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
                         self._client.dropConnections()
                         sleep_time = retry_interval_sec * retry_back_off_multiplier ** tries
                         tries += 1.0
-                        logger.warning("Master not found ({0}). Retrying in {1:.2f} sec.".format(ex, sleep_time))
+                        self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
                         time.sleep(sleep_time)
             except (ArakoonNotFound, ArakoonAssertionFailed):
                 # No extra logging for some errors
                 raise
             except Exception:
                 # Log any exception that might be thrown for debugging purposes
-                self._logger.error('Error during {0}. Process {1}, thread {2}, clientid {3}'.format(f.__name__, os.getpid(), current_thread().ident, self._identifier))
+                self._logger.error('Error during {0}. {1}'.format(f.__name__, identifier))
                 raise
         return wrapped
     return wrap
@@ -142,7 +143,7 @@ class PyrakoonClient(object):
         for node, info in nodes.iteritems():
             cleaned_nodes[str(node)] = ([str(entry) for entry in info[0]], int(info[1]))
         # Synchronization
-        self._lock = Lock()
+        self._lock = RLock()
         # Wrapping
         self._config = ArakoonClientConfig(str(cluster), cleaned_nodes)
         self._client = ArakoonClient(self._config, timeout=5, noMasterTimeout=5)
@@ -428,10 +429,15 @@ class PyrakoonClient(object):
         :return: None
         :rtype: NoneType
         """
+        # Apply transaction will retry on itself when connection failures happened
+        # This callback function will retry on failures when the request was already sent
+        # The callback aspect is required to re-evaluate the transaction
         @handle_arakoon_errors(is_read_only=False, max_duration=1, override_retry=True)
-        def apply_callback_transaction():
+        def apply_callback_transaction(self):
+            _ = self  # Self is added for the decorator
             # This inner function will execute the callback again on retry
             transaction = transaction_callback()
+
             self.apply_transaction(transaction)
 
         def default_retry_wait(retry):
@@ -444,9 +450,9 @@ class PyrakoonClient(object):
         while success is False:
             tries += 1
             try:
-                return apply_callback_transaction()
+                return apply_callback_transaction(self)
             except ArakoonAssertionFailed as ex:
-                logger.warning('Asserting failed. Retrying {0} more times'.format(max_retries - tries))
+                self._logger.warning('Asserting failed. Retrying {0} more times'.format(max_retries - tries))
                 last_exception = ex
                 if tries > max_retries:
                     raise last_exception
