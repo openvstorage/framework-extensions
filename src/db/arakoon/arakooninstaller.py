@@ -25,7 +25,7 @@ import json
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
-from ovs_extensions.generic.logger import Logger
+from ovs_extensions.log.logger import Logger
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
 

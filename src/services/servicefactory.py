@@ -20,7 +20,7 @@ Service Factory module
 
 import os
 from subprocess import check_output
-from ovs_extensions.generic.logger import Logger
+from ovs_extensions.log.logger import Logger
 from ovs_extensions.services.interfaces.systemd import Systemd
 from ovs_extensions.services.interfaces.upstart import Upstart
 from ovs_extensions.services.mockups.systemd import SystemdMock
