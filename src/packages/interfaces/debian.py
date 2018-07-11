@@ -19,16 +19,15 @@ Debian Package module
 """
 
 import re
-import logging
 from subprocess import check_output, CalledProcessError
-
-logger = logging.getLogger(__name__)
+from ovs_extensions.log.logger import Logger
 
 
 class DebianPackage(object):
     """
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
+    _logger = Logger('extensions')
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
     def __init__(self, packages, versions):
@@ -149,16 +148,16 @@ class DebianPackage(object):
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
         except CalledProcessError as cpe:
-            logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            self._logger.warning('{0}: Install failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            logger.debug('{0}: Trying to install the package again'.format(client.ip))
+            self._logger.debug('{0}: Trying to install the package again'.format(client.ip))
             output = client.run('yes | {0}'.format(command), allow_insecure=True)
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
 
     @staticmethod
     def update(client):
-        """ 
+        """
         Run the 'aptdcon --refresh' command on the specified node to update the package information
         :param client: Root client on which to update the package information
         :type client: ovs_extensions.generic.sshclient.SSHClient
@@ -173,7 +172,7 @@ class DebianPackage(object):
         try:
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])
         except CalledProcessError as cpe:
-            logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
+            DebianPackage._logger.warning('{0}: Update package cache failed, trying to reconfigure the packages: {1}'.format(client.ip, cpe.output))
             client.run(['aptdcon', '--fix-install', '--hide-terminal', '--allow-unauthenticated'])
-            logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
+            DebianPackage._logger.debug('{0}: Trying to update the package cache again'.format(client.ip))
             client.run(['aptdcon', '--refresh', '--sources-file=ovsaptrepo.list'])

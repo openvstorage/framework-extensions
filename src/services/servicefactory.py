@@ -17,14 +17,13 @@
 """
 Service Factory module
 """
+
 import os
-import logging
 from subprocess import check_output
+from ovs_extensions.generic.logger import Logger
 from ovs_extensions.services.interfaces.systemd import Systemd
 from ovs_extensions.services.interfaces.upstart import Upstart
 from ovs_extensions.services.mockups.systemd import SystemdMock
-
-logger = logging.getLogger(__name__)
 
 
 class ServiceFactory(object):
@@ -41,17 +40,13 @@ class ServiceFactory(object):
         """
         Gets the service manager type
         """
-        try:
-            init_info = check_output('cat /proc/1/comm', shell=True)
-            if 'init' in init_info:
-                version_info = check_output('init --version', shell=True)
-                if 'upstart' in version_info:
-                    return 'upstart'
-            elif 'systemd' in init_info:
-                return 'systemd'
-        except Exception as ex:
-            logger.exception('Error loading ServiceManager: {0}'.format(ex))
-            raise
+        init_info = check_output('cat /proc/1/comm', shell=True)
+        if 'init' in init_info:
+            version_info = check_output('init --version', shell=True)
+            if 'upstart' in version_info:
+                return 'upstart'
+        elif 'systemd' in init_info:
+            return 'systemd'
         return None
 
     @classmethod
@@ -71,6 +66,7 @@ class ServiceFactory(object):
                     implementation_class = Systemd
             if implementation_class is not None:
                 cls.manager = implementation_class(system=cls._get_system(),
+                                                   logger=cls._get_logger_instance(),
                                                    configuration=cls._get_configuration(),
                                                    run_file_dir=cls.RUN_FILE_DIR,
                                                    monitor_prefixes=cls.MONITOR_PREFIXES,
@@ -88,3 +84,7 @@ class ServiceFactory(object):
     @classmethod
     def _get_configuration(cls):
         raise NotImplementedError()
+
+    @classmethod
+    def _get_logger_instance(cls):
+        return Logger('extensions-services')

@@ -18,9 +18,8 @@
 FS tab module
 """
 import re
-import logging
+from ovs_extensions.log.logger import Logger
 
-logger = logging.getLogger(__name__)
 
 
 class Fstab(object):
@@ -31,6 +30,7 @@ class Fstab(object):
         """
         Init
         """
+        self._logger = Logger('extensions')
         self.fstab_file = '/etc/fstab'
 
     def _slurp(self):
@@ -56,7 +56,7 @@ class Fstab(object):
         """
         l = self._slurp()
         for i in l:
-            logger.debug("{0} {1} {2} {3} {4} {5}".format(i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
+            self._logger.debug("{0} {1} {2} {3} {4} {5}".format(i['device'], i['directory'], i['fstype'], i['options'], i['dump'], i['fsck']))
 
     def add_config(self, fs_spec, fs_file, fs_vfstype, fs_mntops='defaults', fs_freq='0', fs_passno='0'):
         """
@@ -69,7 +69,7 @@ class Fstab(object):
         :param fs_freq: dump value
         :param fs_passno: fsck value
         """
-        logger.debug(
+        self._logger.debug(
             '/etc/fstab: appending entry {0} {1} {2} {3} {4} {5} to {6}'.format(fs_spec, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
         )
         f = open(self.fstab_file, 'a')
@@ -87,7 +87,7 @@ class Fstab(object):
         :param fs_freq: dump value
         :param fs_passno: fsck value
         """
-        logger.debug(
+        self._logger.debug(
             '{0}: modifying entry {1} to {2} {3} {4} {5} {6} to {7}'.format(self.fstab_file, device, fs_file, fs_vfstype, fs_mntops, fs_freq, fs_passno, self.fstab_file)
         )
 
@@ -137,4 +137,4 @@ class Fstab(object):
                 for line in lines:
                     fstab_file.write('{0} {1} {2} {3} {4} {5}\n'.format(line['device'], line['directory'], line['fstype'], line['options'], line['dump'], line['fsck']))
         else:
-            logger.debug('{0}: no such entry {1} found'.format(self.fstab_file, match_value))
+            self._logger.debug('{0}: no such entry {1} found'.format(self.fstab_file, match_value))

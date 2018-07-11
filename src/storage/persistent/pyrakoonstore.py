@@ -19,14 +19,11 @@ Arakoon store module, using pyrakoon
 """
 
 import ujson
-import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundException
-
-logger = logging.getLogger(__name__)
 
 
 class PyrakoonStore(object):
