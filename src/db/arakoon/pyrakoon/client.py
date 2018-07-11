@@ -94,7 +94,7 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
                                 not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
                             raise
                         # Drop all master connections and master related information
-                        self._client._client_masterId = None
+                        self._client._client.master_id = None
                         self._client.dropConnections()
                         sleep_time = retry_interval_sec * retry_back_off_multiplier ** tries
                         tries += 1.0
