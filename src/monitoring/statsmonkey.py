@@ -22,7 +22,6 @@ Classes: StatsMonkey
 import copy
 import math
 import time
-from ovs.extensions.generic.configuration import Configuration
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from threading import Thread
 
@@ -37,6 +36,10 @@ class StatsMonkey(object):
     _dynamic_dependencies = {}  # Filled out by the inheriting class
 
     _default_interval = 60
+
+    @classmethod
+    def _get_configuration(cls):
+        raise NotImplementedError()
 
     @classmethod
     def run_all_get_stat_methods(cls):
@@ -154,22 +157,24 @@ class StatsMonkey(object):
         :rtype: dict
         """
         config_key = '/ovs/framework/monitoring/stats_monkey'
-        if not Configuration.exists(config_key):
+        config = cls._get_configuration()
+        if not config.exists(config_key):
             raise ValueError('StatsMonkey requires a configuration key at {0}'.format(config_key))
 
-        config = Configuration.get(config_key)
+        config = config.get(config_key)
         if not isinstance(config, dict):
             raise ValueError('StatsMonkey configuration must be of type dict')
 
         required_params = {'host': (str, ExtensionsToolbox.regex_ip),
                            'port': (int, {'min': 1025, 'max': 65535}),
-                           'password': (str, None),
                            'interval': (int, {'min': 1}, False),
                            'database': (str, None),
                            'transport': (str, ['influxdb', 'redis', 'graphite']),
                            'environment': (str, None)}
         if config.get('transport') == 'influxdb':
             required_params['username'] = (str, None)
+        if config.get('transport') in ['influxdb', 'reddis']:
+            required_params['password'] = (str, None)
 
         ExtensionsToolbox.verify_required_params(actual_params=config, required_params=required_params)
         cls._config = config
@@ -197,32 +202,33 @@ class StatsMonkey(object):
 
     @classmethod
     def _send_stats(cls, stats, name):
+        # New client since the configuration can change in meantime
+        stats_client = cls._create_client()
         if cls._config['transport'] == 'graphite':
-            cls._stats_client.send_statsmonkey_data(stats, name)
+            stats_client.send_statsmonkey_data(stats, name)
         elif cls._config['transport'] == 'influxdb':
-            cls._stats_client.write_points(stats)
+            stats_client.write_points(stats)
         else:
-            cls._stats_client.lpush(cls._config['database'], stats)
+            stats_client.lpush(cls._config['database'], stats)
 
     @classmethod
     def _create_client(cls):
+        # type: () -> any
         """
         Validate whether the correct imports can be done to create a client based on the 'transport' specified in the configuration
         """
         host = cls._config['host']
         port = cls._config['port']
         user = cls._config.get('username')
-        password = cls._config['password']
+        password = cls._config.get('password')
         database = cls._config['database']
-
         if cls._config['transport'] == 'graphite':
             from ovs.extensions.generic.graphiteclient import GraphiteClient
-            cls._stats_client = GraphiteClient(host, port, database)
-
+            stats_client = GraphiteClient(host, port, database)
         elif cls._config['transport'] == 'influxdb':
             import influxdb
-            cls._stats_client = influxdb.InfluxDBClient(host=host, port=port, username=user, password=password, database=database)
+            stats_client = influxdb.InfluxDBClient(host=host, port=port, username=user, password=password, database=database)
         else:
             import redis
-            cls._stats_client = redis.Redis(host=host, port=port, password=password)
-
+            stats_client = redis.Redis(host=host, port=port, password=password)
+        return stats_client
