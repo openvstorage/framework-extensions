@@ -1,12 +1,12 @@
 [Unit]
 Description=<NBDX>
 After=local-fs.target network-online.target
-SyslogIdentifier=%N
 
 [Service]
 Type=simple
 User=root
 Group=root
+SyslogIdentifier=%N
 Environment=PYTHONPATH=<MODULE_PATH>
 WorkingDirectory=<WD>
 ExecStartPre=/usr/bin/python <SCRIPT> <NODE_ID> <NBDX>
