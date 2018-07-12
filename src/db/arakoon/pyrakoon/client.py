@@ -23,6 +23,7 @@ import uuid
 import time
 import ujson
 import random
+from functools import wraps
 from threading import Lock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonClient, ArakoonClientConfig
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, ArakoonAssertionFailed
@@ -38,6 +39,7 @@ def locked():
         """
         Returns a wrapped function
         """
+        @wraps(f)
         def new_function(self, *args, **kw):
             """
             Executes the decorated function in a locked context

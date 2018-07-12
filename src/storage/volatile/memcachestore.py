@@ -21,6 +21,7 @@ Memcache store module
 import re
 import ujson
 import memcache
+from functools import wraps
 from threading import Lock
 
 
@@ -32,6 +33,7 @@ def locked():
         """
         Returns a wrapped function
         """
+        @wraps(f)
         def new_function(self, *args, **kwargs):
             """
             Executes the decorated function in a locked context
