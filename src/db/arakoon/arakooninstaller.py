@@ -27,6 +27,7 @@ from StringIO import StringIO
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.packages.packagefactory import PackageFactory
+from ovs_extensions.log.logger import Logger
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
 
@@ -1146,4 +1147,4 @@ class ArakoonInstaller(object):
 
     @classmethod
     def _get_logger_instance(cls):
-        raise NotImplementedError()
+        return Logger('extensions-db')
