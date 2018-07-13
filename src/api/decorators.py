@@ -144,3 +144,22 @@ class HTTPRequestDecorators(object):
         new_function.__name__ = f.__name__
         new_function.__module__ = f.__module__
         return new_function
+
+    @classmethod
+    def proper_wrap(cls, data_type):
+        """
+        Wrap the API data
+        """
+        def wrapper(f):
+            """
+            Wrapper function
+            """
+            @wraps(f)
+            def new_function(*args, **kwargs):
+                """
+                Return the
+                """
+                results = f(*args, **kwargs)
+                return {data_type: results}
+            return new_function
+        return wrapper
