@@ -149,6 +149,12 @@ class HTTPRequestDecorators(object):
     def proper_wrap(cls, data_type):
         """
         Wrap the API data
+
+        Eg.
+        def xyz: return <Data>
+
+        @proper_wrap('data_type')
+        def xyz: return {'data_type': <Data>}
         """
         def wrapper(f):
             """
