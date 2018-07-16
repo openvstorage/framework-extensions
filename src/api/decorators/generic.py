@@ -46,8 +46,10 @@ class HTTPRequestGenericDecorators(object):
                 Return the
                 """
                 results = f(*args, **kwargs)
-                return {data_type: results}
-
+                d = {data_type: results}
+                if data_type != 'data':  # no data key present yet
+                    d['data'] = results
+                return d
             return new_function
 
         return wrapper
