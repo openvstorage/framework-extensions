@@ -22,7 +22,6 @@ import json
 import time
 import subprocess
 from flask import Response
-from functools import wraps
 from ovs_extensions.api.exceptions import HttpBadRequestException
 from ovs_extensions.dal.base import ObjectNotFoundException
 
@@ -146,27 +145,3 @@ class HTTPRequestFlaskDecorators(object):
         new_function.__module__ = f.__module__
         return new_function
 
-    @classmethod
-    def wrap_data(cls, data_type='data'):
-        """
-        Wrap the API data in a dict with given_key
-
-        Eg.
-        def xyz: return <Data>
-
-        @wrap_data('data_type')
-        def xyz: return {'data_type': <Data>}
-        """
-        def wrapper(f):
-            """
-            Wrapper function
-            """
-            @wraps(f)
-            def new_function(*args, **kwargs):
-                """
-                Return the
-                """
-                results = f(*args, **kwargs)
-                return {data_type: results}
-            return new_function
-        return wrapper
