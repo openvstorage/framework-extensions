@@ -280,15 +280,19 @@ class PyrakoonClient(object):
 
     @locked()
     @handle_arakoon_errors(is_read_only=False)
-    def delete_prefix(self, prefix):
+    def delete_prefix(self, prefix, transaction=None):
         # type: (str) -> None
         """
         Removes a given prefix from the store
         :param prefix: Prefix of the key
         :type prefix: str
+        :param transaction: Transaction to apply the update too
+        :type transaction: id
         :return None
         ;:rtype: NoneType
         """
+        if transaction is not None:
+            return self._sequences[transaction].addDeletePrefix(prefix)
         return self._client.deletePrefix(prefix)
 
     @locked()

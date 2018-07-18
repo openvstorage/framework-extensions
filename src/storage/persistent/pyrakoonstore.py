@@ -116,10 +116,14 @@ class PyrakoonStore(object):
         """
         Deletes a given key from the store
         """
-        try:
-            return self._client.delete(key, must_exist, transaction)
-        except ArakoonNotFound as field:
-            raise KeyNotFoundException(field.message)
+        return self._client.delete(key, must_exist, transaction)
+
+    @convert_exception()
+    def delete_prefix(self, prefix, transaction=None):
+        """
+        Deletes all keys which start with the given prefix
+        """
+        return self._client.delete_prefix(prefix, transaction)
 
     @convert_exception()
     def nop(self):
