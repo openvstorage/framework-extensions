@@ -26,7 +26,7 @@ from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.tests.helpers import DalHelper
 from ovs.extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig, ArakoonInstaller
 from ovs.extensions.generic.configuration import Configuration, NotFoundException
-from ovs.extensions.generic.logger import Logger
+from ovs_extensions.log.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
 from ovs.extensions.services.service import ServiceManager
