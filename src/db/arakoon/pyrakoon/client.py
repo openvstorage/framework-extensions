@@ -364,16 +364,31 @@ class PyrakoonClient(object):
 
     @locked()
     @handle_arakoon_errors(is_read_only=False, max_duration=1)
-    def apply_transaction(self, transaction):
+    def apply_transaction(self, transaction, delete=True):
         # type: (str) -> None
         """
         Applies a transaction
         :param transaction: Identifier of the transaction
         :type transaction: str
+        :param delete: Delete transaction after successfully applying the transaction
+        :type delete: bool
         :return: None
         :rtype: NoneType
         """
-        return self._client.sequence(self._sequences[transaction])
+        result = self._client.sequence(self._sequences[transaction])
+        if delete:
+            self.delete_transaction(transaction)
+        return result
+
+    def delete_transaction(self, transaction):
+        """
+        Deletes a transaction
+        :param transaction: Identifier of the transaction
+        :type transaction: str
+        :return: None
+        :rtype: NoneType
+        """
+        self._sequences.pop(transaction, None)
 
     @staticmethod
     def _next_key(key):
