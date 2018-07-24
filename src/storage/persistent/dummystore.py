@@ -155,6 +155,20 @@ class DummyPersistentStore(object):
             raise KeyNotFoundException(key)
 
     @synchronize()
+    def delete_prefix(self, prefix, transaction=None):
+        """
+        Deletes all keys which start with the given prefix
+        """
+        if transaction is not None:
+            return self._sequences[transaction].append([self.delete_prefix, {'prefix': prefix}])
+        data = self._read().copy()
+        keys_to_delete = [k for k in data if isinstance(k, str) and k.startswith(prefix)]
+        for key in keys_to_delete:
+            del data[key]
+        if len(keys_to_delete) > 0:
+            self._save(data)
+
+    @synchronize()
     def exists(self, key):
         """
         Check if key exists
