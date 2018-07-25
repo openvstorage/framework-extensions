@@ -21,13 +21,14 @@ import re
 import uuid
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.generic.filemutex import file_mutex
+from ovs_extensions.log.logger import Logger
 
 
 class DiskTools(object):
     """
     This class contains various helper methods wrt Disk maintenance
     """
-    logger = None  # Instantiated by classes inheriting from this 1
+    logger = Logger('extensions')  # Instantiated by classes inheriting from this 1
 
     def __init__(self):
         raise Exception('Cannot instantiate, completely static class')
