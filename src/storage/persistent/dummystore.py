@@ -161,7 +161,7 @@ class DummyPersistentStore(object):
         """
         if transaction is not None:
             return self._sequences[transaction].append([self.delete_prefix, {'prefix': prefix}])
-        data = self._read().copy()
+        data = self._read()
         keys_to_delete = [k for k in data if isinstance(k, str) and k.startswith(prefix)]
         for key in keys_to_delete:
             del data[key]
@@ -236,6 +236,7 @@ class DummyPersistentStore(object):
                 self._save(begin_data)
                 raise
 
+    @synchronize()
     def _save(self, data):
         """
         Saves the local json file
