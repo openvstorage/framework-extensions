@@ -185,7 +185,7 @@ class DummyPersistentStore(object):
         Deletes all keys which start with the given prefix
         """
         if transaction is not None:
-            raise NotImplementedError('Deleting prefix within a transaction is not possible')
+            return self._sequences[transaction].append([self.delete_prefix, {'prefix': prefix}])
         data = self._read()
         keys_to_delete = [k for k in data if isinstance(k, str) and k.startswith(prefix)]
         for key in keys_to_delete:
