@@ -245,8 +245,11 @@ class ConfigurationBaseKeyValue(ConfigurationClientBase):
                 if entry == key:  # Handle rename of the exact key
                     new_key_entry = new_key
                 else:
-                    entry_suffix = os.path.relpath(entry, key)
-                    new_key_entry = os.path.join(new_key, entry_suffix)
+                    if entry.replace(key, '').startswith('/'):
+                        entry_suffix = os.path.relpath(entry, key)
+                        new_key_entry = os.path.join(new_key, entry_suffix)
+                    else:
+                        continue
                 self._client.assert_value(entry, entry_value, transaction=transaction)  # The value of the key should not have changed
                 self._client.set(new_key_entry, entry_value, transaction=transaction)
                 self._client.delete(entry, transaction=transaction)
