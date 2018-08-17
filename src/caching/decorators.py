@@ -26,6 +26,16 @@ class FileCache(object):
     Can be used to compare too
     """
     def __init__(self, path, mtime, contents):
+        # type: (str, float, Union[str, dict]) -> None
+        """
+        Initializes a new FileCache object
+        :param path: Path to the file
+        :type path: str
+        :param mtime: Last modification time of the file as unix timestamp
+        :type mtime: int
+        :param contents: Contents of the file
+        :type contents: str or dict
+        """
         self.path = path
         self.mtime = mtime
         self.contents = contents
@@ -43,11 +53,14 @@ class FileCache(object):
 
 def cache_file(path):
     """
-    Caches a files contents
-    Used on methods which read a file. Inspects the modified time with the one cached to determine
-    if the file changed
+    The result of the decorated function is tied to a file
+    This means that the result of the function should be based of the file that is specified
+    On evaluation either:
+    - Returns the result of the decorated function if it runs for the first time or the file has changed
+        or
+    - Returns the previous result if the file did not change
     :param path: Path to the file
-    :return: The contents of the file (if any)
+    :type path: str
     """
     def is_cache_valid():
         # type: () -> bool
@@ -65,12 +78,12 @@ def cache_file(path):
         @wraps(f)
         def return_cache(*args, **kwargs):
             if path in _files_cache and is_cache_valid():
-                print 'from_cache'
                 file_cache = _files_cache[path]  # type: FileCache
                 return file_cache.contents
             else:
                 # Store to cache
-                file_cache = FileCache(path, os.path.getmtime(path), f(*args, **kwargs))
+                contents = f(*args, **kwargs)
+                file_cache = FileCache(path, os.path.getmtime(path), contents)
                 _files_cache[path] = file_cache
                 return file_cache.contents
         return return_cache
