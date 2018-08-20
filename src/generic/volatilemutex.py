@@ -18,9 +18,9 @@
 Volatile mutex module
 """
 import time
-import logging
+from ovs_extensions.log.logger import Logger
 
-logger = logging.getLogger(__name__)
+logger = Logger('extensions')
 
 
 class NoLockAvailableException(Exception):
