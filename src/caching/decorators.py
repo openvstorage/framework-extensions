@@ -52,6 +52,7 @@ class FileCache(object):
 
 
 def cache_file(path):
+    # type: (str) -> callable
     """
     The result of the decorated function is tied to a file
     This means that the result of the function should be based of the file that is specified
@@ -75,8 +76,10 @@ def cache_file(path):
         return False
 
     def decorator(f):
+        # type: (callable) -> callable
         @wraps(f)
         def return_cache(*args, **kwargs):
+            # type: (*any, **any) -> any
             if path in _files_cache and is_cache_valid():
                 file_cache = _files_cache[path]  # type: FileCache
                 return file_cache.contents
