@@ -151,13 +151,23 @@ class Disk(object):
         """
         Model a disk object
         :param name: Name of the disk eg sda
+        :type name: str
         :param state: The state of the disk
-        :param aliases:
-        :param is_ssd:
-        :param model:
-        :param size:
-        :param serial:
-        :param partitions:
+        :type state: str
+        :param aliases: Aliases for the disk
+        :type aliases: List[str]
+        :param is_ssd: Flag if the disk is an ssd or not
+        :type is_ssd: bool
+        :param model: Model of the disk
+        :type model: str
+        :param size: Size of the disk in bytes
+        :type size: int
+        :param serial: Serial number of the disk
+        :type: str
+        :param partitions: List of partitions
+        :type partitions: List[Partition]
+        :return: None
+        :rtype: NoneType
         """
         super(Disk, self).__init__()
         if partitions is None:
@@ -221,6 +231,25 @@ class Disk(object):
                    size=entry.size,
                    serial=entry.serial)
         return disk
+
+
+class AliasMapping(dict):
+    """
+    Dictionary containing all friendly path of a device and its aliases
+    """
+    def reverse_mapping(self):
+        # type: () -> dict
+        """
+        Reverse the current mapping. Making all entries within the list values keys and the key the values
+        Used to perform quick reverse lookup at the cost of some memory
+        :return: The reversed map
+        :rtype: dict
+        """
+        reverse = {}
+        for link, aliases in self.iteritems():
+            for alias in aliases:
+                reverse[alias] = link
+        return reverse
 
 
 class DiskTools(object):
@@ -393,16 +422,15 @@ class DiskTools(object):
         raise NotImplementedError()
 
     @classmethod
-    def retrieve_alias_mappings(cls, ssh_client=None):
-        # type: (SSHClient) -> Tuple[dict, dict]
+    def retrieve_alias_mapping(cls, ssh_client=None):
+        # type: (SSHClient) -> AliasMapping
         """
         Retrieve the alias mapping. Both ways
-        :return: Tuple with both dict mappings
-        :rtype: Tuple[dict, dict]
+        :return: The AliasMapping
+        :rtype: AliasMapping
         """
         ssh_client = ssh_client or SSHClient('127.0.0.1', username='root')
-        name_alias_mapping = {}
-        alias_name_mapping = {}
+        name_alias_mapping = AliasMapping()
         for path_type in ssh_client.dir_list(directory='/dev/disk'):
             if path_type in ['by-uuid', 'by-partuuid']:  # UUIDs can change after creating a filesystem on a partition
                 continue
@@ -413,35 +441,49 @@ class DiskTools(object):
                 if link not in name_alias_mapping:
                     name_alias_mapping[link] = []
                 name_alias_mapping[link].append(symlink_path)
-                alias_name_mapping[symlink_path] = link
-        return name_alias_mapping, alias_name_mapping
+        return name_alias_mapping
 
     @classmethod
-    def model_devices(cls, ssh_client=None, name_alias_mapping=None, alias_name_mapping=None):
-        # type: (Optional[SSHClient], Optional[dict], Optional[dict]) -> List[Disk]
+    def model_devices(cls, ssh_client=None, name_alias_mapping=None):
+        # type: (Optional[SSHClient], Optional[AliasMapping]) -> Tuple[List[Disk], AliasMapping]
         """
         Model all disks that are currently on this machine
+        :param ssh_client: SSHClient instance
+        :type ssh_client: SSHClient
         :param name_alias_mapping: The name to alias mapping (Optional)
-        :param alias_name_mapping: The alias to names mapping (Optional)
-        :return: A list of modeled disks
-        :rtype: List[Disk]
+        :type name_alias_mapping: dict
+        :return: A list of modeled disks, The name to alias mapping used, the alias to name mapping used
+        :rtype: Tuple[List[Disk], dict, dict]
         """
         ssh_client = ssh_client or SSHClient('127.0.0.1', username='root')
-        params = [name_alias_mapping, alias_name_mapping]
-        if any(param is not None for param in params) and not all(param is not None for param in params):
-            raise ValueError('Both mappings must be supplied if supplying any.')
-        if not name_alias_mapping and not alias_name_mapping:
-            name_alias_mapping, alias_name_mapping = cls.retrieve_alias_mappings(ssh_client)
+        if not name_alias_mapping:
+            name_alias_mapping = cls.retrieve_alias_mapping(ssh_client)
 
         block_devices = cls._model_block_devices(ssh_client)
         cls.logger.info('Starting to iterate over disks')
+        disks = cls._model_devices(ssh_client, name_alias_mapping, block_devices)
+        return disks, name_alias_mapping
+
+    @classmethod
+    def _model_devices(cls, ssh_client, name_alias_mapping, entries):
+        # type: (SSHClient, AliasMapping, List[LSBLKEntry]) -> List[Disk]
+        """
+        Model the devices
+        :param ssh_client: The SSHClient instance
+        :type ssh_client: SSHClient
+        :param name_alias_mapping: The name to alias mapping
+        :type name_alias_mapping: AliasMapping
+        :param entries: List of LSBLKEntries
+        :type entries: List[LSBLKEntry]
+        :return: List of Disks
+        :rtype: List[Disk]
+        """
         configuration = {}
         parsed_devices = []
-        for device_entry in block_devices:  # type: LSBLKEntry
+        for device_entry in entries:  # type: LSBLKEntry
             if device_entry.type == LSBLKEntry.EntryTypes.ROM:
                 continue
 
-            # If this returns, it means its a device and not a partition
             is_device = cls.is_device(device_entry.kname, ssh_client)
             friendly_path = '/dev/{0}'.format(device_entry.kname)
             system_aliases = sorted(name_alias_mapping.get(friendly_path, [friendly_path]))
@@ -454,7 +496,7 @@ class DiskTools(object):
                 # LVM, RAID1, ... have the tendency to be a device with a partition on it, but the partition is not reported by 'lsblk'
                 device_is_also_partition = bool(device_entry.mountpoint)
                 parsed_devices.append({'name': disk.name, 'state': device_state})
-            if not is_device or device_is_also_partition is True:
+            if not is_device or device_is_also_partition:
                 current_device_name = None
                 current_device_state = None
                 if device_is_also_partition is True:
@@ -469,7 +511,8 @@ class DiskTools(object):
                         try:
                             current_device_name = device_info['name']
                             current_device_state = device_info['state']
-                            starting_block = int(ssh_client.file_read('/sys/block/{0}/{1}/start'.format(current_device_name, device_entry.kname)))
+                            # Will throw exception if the partition is not part of that device
+                            starting_block = cls.get_starting_block(current_device_name, device_entry.kname, ssh_client)
                             offset = starting_block * device_entry.log_sec
                             break
                         except Exception:
@@ -488,7 +531,6 @@ class DiskTools(object):
                         partition.state = 'FAILURE'
                 associated_disk = configuration[current_device_name]  # type: Disk
                 associated_disk.add_partition_model(partition)
-
         return configuration.values()
 
     @classmethod
@@ -507,11 +549,26 @@ class DiskTools(object):
         return bool(ssh_client.file_read_link('/sys/block/{0}'.format(device_name)))
 
     @classmethod
+    def get_starting_block(cls, device_name, partition_name, ssh_client):
+        # type: (str, str, SSHClient) -> int
+        """
+        Get the starting block number of the partition
+        :param device_name: Name of the device the partition is on
+        :param partition_name: Name of the partition
+        :param ssh_client: SSHClient instance
+        :type ssh_client: SSHClient
+        :return: The starting block
+        :rtype: int
+        """
+        starting_block_file = '/sys/block/{0}/{1}/start'.format(device_name, partition_name)
+        return int(ssh_client.file_read(starting_block_file))
+
+    @classmethod
     def _model_block_devices(cls, ssh_client):
         # type: (SSHClient) -> List[LSBLKEntry]
         """
         Models the block devices found on the system
-                :param ssh_client: SSHClient instance
+        :param ssh_client: SSHClient instance
         :type ssh_client: SSHClient
         :return: List of block devices
         :rtype: List[LSBLKEntry]
@@ -522,18 +579,21 @@ class DiskTools(object):
         output = '--output=KNAME,SIZE,MODEL,STATE,MAJ:MIN,FSTYPE,TYPE,ROTA,MOUNTPOINT,LOG-SEC{0}'
         cls.logger.info(command + [output.format(',SERIAL')])
         try:
-            devices = json.loads(ssh_client.run(command + [output.format(',SERIAL')]).splitlines())  # type: dict
+            devices = json.loads(ssh_client.run(command + [output.format(',SERIAL')]))  # type: dict
         except Exception:
-            devices = json.loads(ssh_client.run(command + [output.format('')]).splitlines())  # type: dict
+            devices = json.loads(ssh_client.run(command + [output.format('')]))  # type: dict
         block_devices = devices.get('blockdevices', [])  # type: list
         return [LSBLKEntry.from_lsblk_output(device) for device in block_devices]
 
     @classmethod
     def mountpoint_usable(cls, mountpoint, ssh_client=None):
-        # type: (str) -> bool
+        # type: (str, SSHClient) -> bool
         """
         See if the mountpoint is usable
         :param mountpoint: Mountpoint to test
+        :type mountpoint: str
+        :param ssh_client: Client to use
+        :type ssh_client: SSHClient
         :return: True if the mountpoint is usable
         :rtype: bool
         """
