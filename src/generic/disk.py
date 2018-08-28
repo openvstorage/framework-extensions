@@ -17,6 +17,7 @@
 Disk module
 """
 
+import os
 import re
 import json
 import time
@@ -444,14 +445,16 @@ class DiskTools(object):
         return name_alias_mapping
 
     @classmethod
-    def model_devices(cls, ssh_client=None, name_alias_mapping=None):
-        # type: (Optional[SSHClient], Optional[AliasMapping]) -> Tuple[List[Disk], AliasMapping]
+    def model_devices(cls, ssh_client=None, name_alias_mapping=None, s3=False):
+        # type: (Optional[SSHClient], Optional[AliasMapping], Optional[bool]) -> Tuple[List[Disk], AliasMapping]
         """
         Model all disks that are currently on this machine
         :param ssh_client: SSHClient instance
         :type ssh_client: SSHClient
         :param name_alias_mapping: The name to alias mapping (Optional)
         :type name_alias_mapping: dict
+        :param s3: Whether or not to account for AWS ec2 instances
+        :type s3: bool
         :return: A list of modeled disks, The name to alias mapping used, the alias to name mapping used
         :rtype: Tuple[List[Disk], dict, dict]
         """
@@ -459,10 +462,61 @@ class DiskTools(object):
         if not name_alias_mapping:
             name_alias_mapping = cls.retrieve_alias_mapping(ssh_client)
 
+            if s3:
+                name_alias_mapping.update(cls.map_s3_volumes())
+
         block_devices = cls._model_block_devices(ssh_client)
         cls.logger.info('Starting to iterate over disks')
         disks = cls._model_devices(ssh_client, name_alias_mapping, block_devices)
         return disks, name_alias_mapping
+
+    @classmethod
+    def rename_to_aws(cls, name):
+        # type: (str) -> str
+        """
+        Rename a regular disk to aws disks.
+        Sda -> xvda
+        :param name: name of the disk to be renamed
+        :type name: str
+        :return: new diskname
+        :rtype: str
+        """
+        name = os.path.split(name)[-1]  # Last part of the path is the name of the device
+        if name.startswith('sd'):
+            name = name.replace('sd', 'xvd')
+        return os.path.join('/dev', name)
+
+    @classmethod
+    def convert_to_virtual_id(cls, id):
+        # type: (str) -> str
+        """
+        Add the path mapping to the ID
+        :param id: Volume id to be formatted to path
+        :type id: str
+        :return: /dev/disk/by-virtual-id/<vol-id>
+        """
+        return os.path.join('/dev/disk/by-virtual-id', id)
+
+    @classmethod
+    def map_s3_volumes(cls):
+        # type: () -> Dict[str,str]
+        """
+        Fetch all S3 volumes accessible on the environment
+        :return: All S3 disk names with their mapped volume-IDs
+        """
+        from ec2_metadata import ec2_metadata
+        import boto3
+
+        filter = [{'Name': 'attachment.instance-id', 'Values': [ec2_metadata.instance_id]}]
+        ec2 = boto3.resource('ec2', region_name=ec2_metadata.region)
+        volumes = ec2.volumes.filter(Filters=filter)
+        name_map = {}
+        for volume in volumes:
+            for device in volume.attachments:
+                name = cls.rename_to_aws(device['Device'])
+                volume_id = cls.convert_to_virtual_id(device['VolumeId'])
+                name_map[name] = [volume_id]
+        return name_map
 
     @classmethod
     def _model_devices(cls, ssh_client, name_alias_mapping, entries):
