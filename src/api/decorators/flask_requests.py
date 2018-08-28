@@ -26,7 +26,7 @@ from ovs_extensions.api.exceptions import HttpBadRequestException
 from ovs_extensions.dal.base import ObjectNotFoundException
 
 
-class HTTPRequestDecorators(object):
+class HTTPRequestFlaskDecorators(object):
     """
     Class with decorator functionality for HTTP requests
     """
@@ -144,3 +144,4 @@ class HTTPRequestDecorators(object):
         new_function.__name__ = f.__name__
         new_function.__module__ = f.__module__
         return new_function
+

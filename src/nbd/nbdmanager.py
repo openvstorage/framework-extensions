@@ -19,6 +19,7 @@ NBD controller module
 import os
 import apt
 import yaml
+from ovs_extensions.constants.framework import NBD_ID
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.system import System
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
@@ -34,8 +35,7 @@ class NBDManager(object):
     NBD_SERVICE_NAME = '{0}_{1}'
     MINIMAL_BLOCK_SIZE = 32 * 1024
     OPT_CONFIG_PATH = '/etc/ovs_nbd/{0}'
-    BASE_PATH = '/ovs/framework/nbdnodes'
-    NODE_PATH = os.path.join(BASE_PATH, '{0}')
+    NODE_PATH = NBD_ID
     SERVICE_FILE_PATH = '/usr/lib/python2.7/dist-packages/ovs_extensions/config/{0}/'
 
     # Service file settings: to be overruled

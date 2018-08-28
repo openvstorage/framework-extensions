@@ -17,7 +17,6 @@
 """
 Module for the OVS API client
 """
-import time
 import base64
 import urllib
 import hashlib
@@ -36,13 +35,17 @@ from ovs_extensions.log.logger import Logger
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
-class OVSClient(object):
+class BaseClient(object):
     """
-    Represents the OVS client
+    Basic API client
+    - Supports Authorization with tokens
+    - Caches tokens
     """
     disable_warnings(InsecurePlatformWarning)
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
+
+    _logger = Logger('api')
 
     def __init__(self, ip, port, credentials=None, verify=False, version='*', raw_response=False, cache_store=None):
         """
@@ -73,7 +76,6 @@ class OVSClient(object):
         self._url = 'https://{0}:{1}/api'.format(ip, port)
         self._key = hashlib.sha256('{0}{1}{2}{3}'.format(self.ip, self.port, self.client_id, self.client_secret)).hexdigest()
         self._token = None
-        self._logger = Logger('api')
         self._verify = verify
         self._version = version
         self._raw_response = raw_response
@@ -102,6 +104,41 @@ class OVSClient(object):
             raise error
         self._token = response['access_token']
 
+    def _build_headers(self):
+        """
+        Builds the request headers
+        :return: The request headers
+        :rtype: dict
+        """
+        headers = {'Accept': 'application/json; version={0}'.format(self._version),
+                   'Content-Type': 'application/json'}
+        if self._token is not None:
+            headers['Authorization'] = 'Bearer {0}'.format(self._token)
+        return headers
+
+    @classmethod
+    def _build_url_params(cls, params=None):
+        """
+        Build the URL params
+        :param params: URL parameters
+        :type params: str
+        :return: The url params
+        :rtype: string
+        """
+        url_params = ''
+        if params:
+            url_params = '?{0}'.format(urllib.urlencode(params))
+        return url_params
+
+    def _cache_token(self):
+        """
+        Caches the JWT
+        :return: None
+        :rtype: NoneType
+        """
+        if self._volatile_client is not None:
+            self._volatile_client.set(self._key, self._token, 300)
+
     def _prepare(self, **kwargs):
         """
         Prepares the call:
@@ -111,17 +148,10 @@ class OVSClient(object):
         if self.client_id is not None and self._token is None:
             self._connect()
 
-        headers = {'Accept': 'application/json; version={0}'.format(self._version),
-                   'Content-Type': 'application/json'}
-        if self._token is not None:
-            headers['Authorization'] = 'Bearer {0}'.format(self._token)
-
-        params = ''
-        if 'params' in kwargs and kwargs['params'] is not None:
-            params = '?{0}'.format(urllib.urlencode(kwargs['params']))
+        headers = self._build_headers()
+        params = self._build_url_params(kwargs.get('params'))
         url = '{0}{{0}}{1}'.format(self._url, params)
-        if self._volatile_client is not None:
-            self._volatile_client.set(self._key, self._token, 300)
+        self._cache_token()  # Volatile cache might have expired or the key is gone
 
         return headers, url
 
@@ -171,7 +201,7 @@ class OVSClient(object):
             else:
                 raise HttpException(status_code, message)
 
-    def _call(self, api, params, fct, **kwargs):
+    def _call(self, api, params, fct, timeout=None, **kwargs):
         if not api.endswith('/'):
             api = '{0}/'.format(api)
         if not api.startswith('/'):
@@ -181,7 +211,7 @@ class OVSClient(object):
         first_connect = self._token is None
         headers, url = self._prepare(params=params)
         try:
-            return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, **kwargs))
+            return self._process(fct(url=url.format(api), headers=headers, verify=self._verify, timeout=timeout, **kwargs))
         except HttpForbiddenException:
             if self._volatile_client is not None:
                 self._volatile_client.delete(self._key)
@@ -195,8 +225,8 @@ class OVSClient(object):
                 self._volatile_client.delete(self._key)
             raise
 
-    @staticmethod
-    def get_instance(connection_info, cache_store=None, version=6):
+    @classmethod
+    def get_instance(cls, connection_info, cache_store=None, version=6):
         """
         Retrieve an OVSClient instance to the connection information passed
         :param connection_info: Connection information, includes: 'host', 'port', 'client_id', 'client_secret'
@@ -214,11 +244,11 @@ class OVSClient(object):
                                                                   'client_id': (str, None),
                                                                   'client_secret': (str, None),
                                                                   'local': (bool, None, False)})
-        return OVSClient(ip=connection_info['host'],
-                         port=connection_info['port'],
-                         credentials=(connection_info['client_id'], connection_info['client_secret']),
-                         version=version,
-                         cache_store=cache_store)
+        return cls(ip=connection_info['host'],
+                   port=connection_info['port'],
+                   credentials=(connection_info['client_id'], connection_info['client_secret']),
+                   version=version,
+                   cache_store=cache_store)
 
     def get(self, api, params=None):
         """
@@ -263,28 +293,3 @@ class OVSClient(object):
         :param params: Additional query parameters, eg: _dynamics
         """
         return self._call(api=api, params=params, fct=requests.delete)
-
-    def wait_for_task(self, task_id, timeout=None):
-        """
-        Waits for a task to complete
-        :param task_id: Task to wait for
-        :param timeout: Time to wait for task before raising
-        """
-        start = time.time()
-        finished = False
-        previous_metadata = None
-        while finished is False:
-            if timeout is not None and timeout < (time.time() - start):
-                raise RuntimeError('Waiting for task {0} has timed out.'.format(task_id))
-            task_metadata = self.get('/tasks/{0}/'.format(task_id))
-            finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
-            if finished is False:
-                if task_metadata != previous_metadata:
-                    self._logger.debug('Waiting for task {0}, got: {1}'.format(task_id, task_metadata))
-                    previous_metadata = task_metadata
-                else:
-                    self._logger.debug('Still waiting for task {0}...'.format(task_id))
-                time.sleep(1)
-            else:
-                self._logger.debug('Task {0} finished, got: {1}'.format(task_id, task_metadata))
-                return task_metadata['successful'], task_metadata['result']

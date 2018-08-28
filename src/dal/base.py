@@ -260,7 +260,7 @@ class Base(object):
         """
         # Fetch DAL entries
         dal_entries = ['{0} {1} {2} {3}'.format(prop.name,
-                                                Base._get_prop_type(prop.property_type),
+                                                cls._get_prop_type(prop.property_type),
                                                 'NOT NULL' if prop.mandatory is True else '',
                                                 'UNIQUE' if prop.unique is True else '') for prop in cls._properties]
 
@@ -273,9 +273,9 @@ class Base(object):
         # Parse SQL entries
         create_cmd = schema[0][0]
         sql_entries = create_cmd.split('(')[1].split(',')
-        sql_entries = [entry.strip() for entry in sql_entries]
+        sql_entries = [entry.strip().strip(')') for entry in sql_entries]
 
-        for index, entry in iter(sql_entries): # SQL table contains id, DAL does not, so has to be removed for comparison
+        for index, entry in enumerate(sql_entries): # SQL table contains id, DAL does not, so has to be removed for comparison
             if 'id ' in entry:
                 sql_entries.pop(index)
                 break
