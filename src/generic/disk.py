@@ -481,7 +481,7 @@ class DiskTools(object):
         :return: new diskname
         :rtype: str
         """
-        name = os.path.split(name)[-1]  # Last part of the path is the name of the device
+        name = os.path.rsplit(name)[-1]  # Last part of the path is the name of the device
         if name.startswith('sd'):
             name = name.replace('sd', 'xvd')
         return os.path.join('/dev', name)
@@ -504,8 +504,11 @@ class DiskTools(object):
         Fetch all S3 volumes accessible on the environment
         :return: All S3 disk names with their mapped volume-IDs
         """
-        from ec2_metadata import ec2_metadata
-        import boto3
+        try:
+            from ec2_metadata import ec2_metadata
+            import boto3
+        except ImportError as ex:
+            raise RuntimeError('Failed to load python package: {0}'.format(ex))
 
         filter = [{'Name': 'attachment.instance-id', 'Values': [ec2_metadata.instance_id]}]
         ec2 = boto3.resource('ec2', region_name=ec2_metadata.region)
