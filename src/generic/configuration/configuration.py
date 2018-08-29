@@ -26,9 +26,11 @@ from random import randint
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
+from ovs_extensions.constants.config import CACC_LOCATION
 # Import for backwards compatibility/easier access
 from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
 from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException  # New exception, not mapping
+
 
 
 class Configuration(object):
@@ -54,7 +56,6 @@ class Configuration(object):
     """
 
     BASE_KEY = '/ovs/framework'
-    CACC_LOCATION = None
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _clients = {}
@@ -414,7 +415,7 @@ class Configuration(object):
             store = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.generic.configuration.clients.arakoon import ArakoonConfiguration
-            instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
+            instance = ArakoonConfiguration(cacc_location=CACC_LOCATION)
         elif store == 'unittest':
             from ovs_extensions.generic.configuration.clients.mock_keyvalue import ConfigurationMockKeyValue
             instance = ConfigurationMockKeyValue()
