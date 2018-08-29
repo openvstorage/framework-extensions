@@ -13,6 +13,12 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+
+
+ARAKOON_NAME = 'cacc'
+ARAKOON_NAME_UNITTEST = 'unittest-cacc'
+CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
+CONFIG_STORE_LOCATION = '/opt/OpenvStorage/config/framework.json'
 """
 Shared strings
 """
