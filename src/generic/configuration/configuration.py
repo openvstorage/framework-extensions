@@ -26,6 +26,7 @@ from random import randint
 from subprocess import check_output
 from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
+from ovs_extensions.constants.config import CACC_LOCATION
 # Import for backwards compatibility/easier access
 from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
 from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException  # New exception, not mapping
@@ -54,7 +55,7 @@ class Configuration(object):
     """
 
     BASE_KEY = '/ovs/framework'
-    CACC_LOCATION = None
+    CACC_LOCATION = CACC_LOCATION
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _clients = {}
