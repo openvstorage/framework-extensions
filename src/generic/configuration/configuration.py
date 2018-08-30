@@ -55,7 +55,7 @@ class Configuration(object):
     """
 
     BASE_KEY = '/ovs/framework'
-    CACC_LOCATION = None
+    CACC_LOCATION = CACC_LOCATION
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _clients = {}
@@ -415,7 +415,7 @@ class Configuration(object):
             store = cls.get_store_info()
         if store == 'arakoon':
             from ovs_extensions.generic.configuration.clients.arakoon import ArakoonConfiguration
-            instance = ArakoonConfiguration(cacc_location=CACC_LOCATION)
+            instance = ArakoonConfiguration(cacc_location=cls.CACC_LOCATION)
         elif store == 'unittest':
             from ovs_extensions.generic.configuration.clients.mock_keyvalue import ConfigurationMockKeyValue
             instance = ConfigurationMockKeyValue()
