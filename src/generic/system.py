@@ -182,3 +182,13 @@ class System(object):
         if amount == 0:
             return free_ports
         raise ValueError('Unable to find the requested amount of free ports')
+
+    @staticmethod
+    def get_component_identifier():
+        # type: () -> str
+        """
+        Retrieve the identifier of the component
+        :return: The ID of the component
+        :rtype: str
+        """
+        raise NotImplementedError('The generic implmentation has no record of which component it is used in')

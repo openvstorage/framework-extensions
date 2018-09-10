@@ -275,10 +275,11 @@ class ConfigurationBaseKeyValue(ConfigurationClientBase):
         :return: None
         :rtype: NoneType
         """
+        key = self._clean_key(key)
         return self._client.assert_value(key, value, transaction=transaction)
 
     def assert_exists(self, key, transaction=None):
-        # type: (str, str) -> None
+        # type: (str, Any) -> None
         """
         Asserts that a key exists
         :param key: Key to assert for
@@ -288,6 +289,7 @@ class ConfigurationBaseKeyValue(ConfigurationClientBase):
         :return: None
         :rtype: NoneType
         """
+        key = self._clean_key(key)
         return self._client.assert_exists(key, transaction=transaction)
 
     def begin_transaction(self):
