@@ -24,9 +24,10 @@ import time
 import collections
 from random import randint
 from subprocess import check_output
-from ovs_extensions.log.logger import Logger
+from ovs_extensions.constants.config import CACC_LOCATION, COMPONENTS_KEY
+from ovs_extensions.generic.system import System
 from ovs_extensions.packages.packagefactory import PackageFactory
-from ovs_extensions.constants.config import CACC_LOCATION
+from ovs_extensions.log.logger import Logger
 # Import for backwards compatibility/easier access
 from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
 from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException  # New exception, not mapping
@@ -121,7 +122,7 @@ class Configuration(object):
 
     @classmethod
     def get(cls, key, raw=False, **kwargs):
-        # type: (str, bool, **kwargs) -> any
+        # type: (str, bool, **any) -> any
         """
         Get value from the configuration store
         :param key: Key to get
@@ -150,7 +151,7 @@ class Configuration(object):
 
     @classmethod
     def _get(cls, key, raw=False, **kwargs):
-        # type: (str, bool, **kwargs) -> Union[dict, None]
+        # type: (str, bool, **any) -> Union[dict, None]
         data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
@@ -160,7 +161,7 @@ class Configuration(object):
 
     @classmethod
     def set(cls, key, value, raw=False, transaction=None):
-        # type: (str, any, raw, str) -> None
+        # type: (str, any, bool, str) -> None
         """
         Set value in the configuration store
         :param key: Key to store
@@ -249,7 +250,7 @@ class Configuration(object):
 
     @classmethod
     def _delete(cls, key, recursive, transaction=None):
-        # type: (str, bool) -> None
+        # type: (str, bool, str) -> None
         return cls._passthrough(method='delete',
                                 key=key,
                                 recursive=recursive,
@@ -378,7 +379,7 @@ class Configuration(object):
 
     @classmethod
     def _passthrough(cls, method, *args, **kwargs):
-        # type: (str, *args, **kwargs) -> any
+        # type: (str, *any, **any) -> any
         if os.environ.get('RUNNING_UNITTESTS') == 'True':
             store = 'unittest'
         else:
@@ -509,3 +510,60 @@ class Configuration(object):
                 time.sleep(randint(0, 25) / 100.0)
                 cls._logger.info('Executing the passed function again')
         return return_value
+
+    @classmethod
+    def register_usage(cls, component_identifier):
+        # type: (str) -> List[str]
+        """
+        Registers that the component is using configuration management
+        When sharing the same configuration management for multiple processes, these registrations can be used to determine
+        if the configuration access can be wiped on the node
+        :param component_identifier: Identifier of the component
+        :type component_identifier: str
+        :return: The currently registered users
+        :rtype: List[str]
+        """
+        registration_key = cls.get_registration_key()
+
+        def _register_user_callback():
+            registered_applications = cls.get(registration_key, default=None)
+            new_registered_applications = (registered_applications or []) + [component_identifier]
+            return [(registration_key, new_registered_applications, registered_applications)]
+        return cls.safely_store(_register_user_callback, 20)[0][1]
+
+    @classmethod
+    def get_registration_key(cls):
+        # type: () -> str
+        """
+        Generate the key to register the component under
+        :return: The registration key
+        :rtype: str
+        """
+        return COMPONENTS_KEY.format(System.get_my_machine_id())
+
+    @classmethod
+    def unregister_usage(cls, component_identifier):
+        # type: (str) -> List[str]
+        """
+        Registers that the component is using configuration management
+        When sharing the same configuration management for multiple processes, these registrations can be used to determine
+        if the configuration access can be wiped on the node
+        :param component_identifier: Identifier of the component
+        :type component_identifier: str
+        :return: The currently registered users
+        :rtype: List[str]
+        """
+        registration_key = cls.get_registration_key()
+
+        def _unregister_user_callback():
+            registered_applications = cls.get(registration_key, default=None)  # type: List[str]
+            if not registered_applications:
+                # No more entries. Save an empty list
+                new_registered_applications = []
+            else:
+                new_registered_applications = registered_applications[:]
+                if component_identifier in registered_applications:
+                    new_registered_applications.remove(component_identifier)
+            return [(registration_key, new_registered_applications, registered_applications)]
+
+        return cls.safely_store(_unregister_user_callback, 20)[0][1]
