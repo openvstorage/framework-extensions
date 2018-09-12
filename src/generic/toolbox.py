@@ -301,3 +301,17 @@ class ExtensionsToolbox(object):
             if key not in copy_dict1:
                 copy_dict1[key] = value
         return copy_dict1
+
+    @staticmethod
+    def filter_dict_for_none(my_dict):
+        my_dict_copy = my_dict.copy()
+        for key, value in my_dict.iteritems():
+            if isinstance(value, dict):
+                my_dict_copy[key] = ExtensionsToolbox.filter_dict_for_none(value)
+                if my_dict_copy[key] == {}:
+                    my_dict_copy.pop(key)
+                continue
+            if value is None:
+                my_dict_copy.pop(key)
+
+        return my_dict_copy
