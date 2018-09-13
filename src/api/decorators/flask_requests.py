@@ -21,7 +21,8 @@ API decorators
 import json
 import time
 import subprocess
-from flask import Response
+from flask import Response, request
+from functools import wraps
 from ovs_extensions.api.exceptions import HttpBadRequestException
 from ovs_extensions.dal.base import ObjectNotFoundException
 
@@ -33,6 +34,40 @@ class HTTPRequestFlaskDecorators(object):
     app = None
     logger = None
     version = None
+
+    @classmethod
+    def provide_request_data(cls, f):
+        # type: (callable) -> callable
+        """
+        This decorator feeds in the request data in the function with the 'request_data' keyword
+        Used for backwards compatibility (transition to application JSON heading with client/server)
+        - Attempts to read JSON contents
+        :return: The wrapped function
+        :rtype: callable
+        """
+        @wraps(f)
+        def wrap(*args, **kwargs):
+            # type: (*any, **any) -> any
+            """
+            Wrapper function
+            :return: Output of the wrapped function
+            :rtype: any
+            """
+            request_data = request.get_json()
+            if request_data is None:
+                # Try the old route. All keys are potentially JSON serialized within the form (it was a mess)
+                request_data = {}
+                for key, value in request.form.iteritems():
+                    try:
+                        value = json.loads(value)
+                    except ValueError:
+                        # Not a valid JSON, could be string (who can tell at this point...)
+                        pass
+                    request_data[key] = value
+            if 'request_data' in kwargs:
+                raise ValueError('request_data is a reserved argument for the decorator')
+            return f(*args, request_data=request_data, **kwargs)
+        return wrap
 
     @classmethod
     def get(cls, route, authenticate=True):
