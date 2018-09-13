@@ -282,13 +282,13 @@ class PyrakoonClient(object):
     @locked()
     @handle_arakoon_errors(is_read_only=False)
     def delete_prefix(self, prefix, transaction=None):
-        # type: (str) -> None
+        # type: (str, Optional[str]) -> None
         """
         Removes a given prefix from the store
         :param prefix: Prefix of the key
         :type prefix: str
         :param transaction: Transaction to apply the update too
-        :type transaction: id
+        :type transaction: str
         :return None
         ;:rtype: NoneType
         """
@@ -368,9 +368,8 @@ class PyrakoonClient(object):
         return key
 
     @locked()
-    @handle_arakoon_errors(is_read_only=False, max_duration=1)
     def apply_transaction(self, transaction, delete=True):
-        # type: (str) -> None
+        # type: (str, Optional[bool]) -> None
         """
         Applies a transaction
         :param transaction: Identifier of the transaction
@@ -381,8 +380,21 @@ class PyrakoonClient(object):
         :return: None
         :rtype: NoneType
         """
+        @handle_arakoon_errors(is_read_only=False, max_duration=1)
+        def apply_transaction(pyrakoon_client):
+            # type: (PyrakoonClient) -> None
+            """
+            Decorated inner function. Used to shadow the name of the outer function so the decorator provides
+            useful logging
+            :param pyrakoon_client: The pyrakoon client to use. (Captured by the decorator. Cannot use self of outer scope)
+            :type pyrakoon_client: PyrakoonClient
+            :return: None
+            :rtype: NoneType
+            """
+            pyrakoon_client._client.sequence(pyrakoon_client._sequences[transaction])
+
         try:
-            return self._client.sequence(self._sequences[transaction])
+            return apply_transaction(self)
         finally:
             if delete:
                 self.delete_transaction(transaction)
@@ -451,17 +463,6 @@ class PyrakoonClient(object):
         :return: None
         :rtype: NoneType
         """
-        # Apply transaction will retry on itself when connection failures happened
-        # This callback function will retry on failures when the request was already sent
-        # The callback aspect is required to re-evaluate the transaction
-        @handle_arakoon_errors(is_read_only=False, max_duration=1, override_retry=True)
-        def apply_callback_transaction(self):
-            _ = self  # Self is added for the decorator
-            # This inner function will execute the callback again on retry
-            transaction = transaction_callback()
-
-            self.apply_transaction(transaction)
-
         def default_retry_wait(retry):
             _ = retry
             time.sleep(random.randint(0, 25) / 100.0)
@@ -472,7 +473,8 @@ class PyrakoonClient(object):
         while success is False:
             tries += 1
             try:
-                return apply_callback_transaction(self)
+                transaction = transaction_callback()  # type: str
+                return self.apply_transaction(transaction)
             except ArakoonAssertionFailed as ex:
                 self._logger.warning('Asserting failed. Retrying {0} more times'.format(max_retries - tries))
                 last_exception = ex
