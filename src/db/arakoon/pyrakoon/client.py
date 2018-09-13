@@ -281,7 +281,7 @@ class PyrakoonClient(object):
     @locked()
     @handle_arakoon_errors(is_read_only=False)
     def delete_prefix(self, prefix, transaction=None):
-        # type: (str, str) -> None
+        # type: (str, Optional[str]) -> None
         """
         Removes a given prefix from the store
         :param prefix: Prefix of the key
@@ -368,7 +368,7 @@ class PyrakoonClient(object):
 
     @locked()
     def apply_transaction(self, transaction, delete=True):
-        # type: (str, bool) -> None
+        # type: (str, Optional[bool]) -> None
         """
         Applies a transaction
         :param transaction: Identifier of the transaction
@@ -390,9 +390,6 @@ class PyrakoonClient(object):
             :return: None
             :rtype: NoneType
             """
-            import os
-            if os.path.exists('/tmp/raise_apply'):
-                raise ArakoonSockSendError()
             pyrakoon_client._client.sequence(pyrakoon_client._sequences[transaction])
 
         try:
