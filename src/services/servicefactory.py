@@ -194,7 +194,7 @@ class ServiceFactory(object):
                 continue
             pkg_name = version.strip().split('=')[0]
             running_version = version.strip().split('=')[1]
-            if (package_name or pkg_name == package_name) and running_version:
+            if (package_name is None or pkg_name == package_name) and running_version:
                 if LooseVersion(running_version) < binary_versions[pkg_name]:
                     return {'installed': running_version,
                             'candidate': str(binary_versions[pkg_name])}
