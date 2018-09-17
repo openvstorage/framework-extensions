@@ -512,18 +512,20 @@ class Configuration(object):
         return return_value
 
     @classmethod
-    def register_usage(cls, component_identifier):
-        # type: (str) -> List[str]
+    def register_usage(cls, component_identifier, registration_key=None):
+        # type: (str, str) -> List[str]
         """
         Registers that the component is using configuration management
         When sharing the same configuration management for multiple processes, these registrations can be used to determine
         if the configuration access can be wiped on the node
         :param component_identifier: Identifier of the component
         :type component_identifier: str
+        :param registration_key: Key to register the component under
+        :type registration_key: str
         :return: The currently registered users
         :rtype: List[str]
         """
-        registration_key = cls.get_registration_key()
+        registration_key = registration_key or cls.get_registration_key()
 
         def _register_user_callback():
             registered_applications = cls.get(registration_key, default=None)
@@ -539,7 +541,18 @@ class Configuration(object):
         :return: The registration key
         :rtype: str
         """
-        return COMPONENTS_KEY.format(System.get_my_machine_id())
+        return cls.generate_registration_key(System.get_my_machine_id())
+
+    @classmethod
+    def generate_registration_key(cls, identifier):
+        # type: (str) -> str
+        """
+        Generate a registration key with a given identifier
+        :param identifier: Identifier for the config key
+        :type identifier: str
+        :return:
+        """
+        return COMPONENTS_KEY.format(identifier)
 
     @classmethod
     def unregister_usage(cls, component_identifier):
