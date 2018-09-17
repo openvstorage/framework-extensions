@@ -28,6 +28,100 @@ from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.log.logger import Logger
 
 
+class PartedEntry(object):
+    """
+    Represent an entry that parted print output returns
+    """
+    def __init__(self, number, start, end, size, type=None, file_system=None, flags=None):
+        # type: (int, int, int, int, Optional[str], Optional[str], Optional[str]) -> None
+        """
+        Initialize a parted entry
+        :param number: Number of the partition
+        :type number: int
+        :param start: Start offset of the partition (bytes)
+        :type start: int
+        :param end: End offset of the partition (bytes)
+        :type end: int
+        :param size: Size of the partition (bytes)
+        :type size: int
+        :param type: Type of the partition
+        :type type: str
+        :param file_system: Filesystem present on the partition
+        :type file_system: str
+        :param flags: Flags of the partition
+        :type flags: str
+        """
+        self.number = number
+        self.start = start
+        self.end = end
+        self.size = size
+        self.type = type
+        self.file_system = file_system
+        self.flags = flags
+
+    @classmethod
+    def parse_partitions(cls, disk_name, client):
+        # type: (str, SSHClient) -> List[PartedEntry]
+        """
+        Parse the partition information from parted for a disk
+        :param disk_name: Name of the disk
+        :type disk_name: str
+        :param client: SSHClient to use
+        :type client: SSHClient
+        :return: List of PartedEntry
+        :rtype: List[PartedEntry]
+        """
+        parted_cmd = ['parted', '-s', disk_name, 'unit', 'B', 'print']
+        try:
+            parted_output = client.run(parted_cmd)  # type: str
+        except Exception:
+            DiskTools.logger.exception('Unable to retrieve the parted information for disk {0}'.format(disk_name))
+            return []
+        entries = []
+        at_partitions = False
+        for line in parted_output.splitlines():
+            if line.startswith('Number'):
+                at_partitions = True
+                continue  # Go to next
+            # Filter empty lines
+            if not line or not at_partitions:
+                continue
+            # Start processing the partition lines
+            entries.append(cls(*cls.clean_partition_line(line)))
+        return entries
+
+    @classmethod
+    def clean_partition_line(cls, partition_line):
+        # type: (str) -> List[any]
+        """
+        Cleans a partition line and returns usable types
+        Coverts (bytes) numbers to integers
+        :param partition_line: Line of partition
+        :type partition_line: str
+        :return: List with all cleaned entries
+        :rtype List[any]
+        """
+        def add_numeric(string):
+            # Will raise ValueError if it isn't numeric
+            try:
+                parsed_value = int(string)
+                cleaned_line.append(parsed_value)
+                return parsed_value
+            except ValueError:
+                pass
+
+        cleaned_line = []
+        for entry in partition_line.split():
+            if add_numeric(entry) is not None:
+                # Numeric entry
+                continue
+            if entry.endswith('B') and add_numeric(entry.rsplit('B')[0]) is not None:
+                # Was a byte string
+                continue
+            cleaned_line.append(entry)
+        return cleaned_line
+
+
 class LSBLKEntry(object):
     """
     Represent an entry that LSBLK json output returns
@@ -535,42 +629,54 @@ class DiskTools(object):
         :return: List of Disks
         :rtype: List[Disk]
         """
-        configuration = {}
+        def get_friendly_path(device_name):
+            return '/dev/{0}'.format(device_name)
+
+        parted_entries_by_device = {}
+        disk_mapping = {}
         parsed_devices = []
         for device_entry in entries:  # type: LSBLKEntry
             if device_entry.type == LSBLKEntry.EntryTypes.ROM:
                 continue
 
             is_device = cls.is_device(device_entry.kname, ssh_client)
-            friendly_path = '/dev/{0}'.format(device_entry.kname)
+            friendly_path = get_friendly_path(device_entry.kname)
             system_aliases = sorted(name_alias_mapping.get(friendly_path, [friendly_path]))
             device_is_also_partition = False
             device_state = 'OK'
             if is_device:
                 disk = Disk.from_lsblk_entry(device_entry, system_aliases)
-                configuration[device_entry.kname] = disk
+                disk_mapping[device_entry.kname] = disk
                 device_state = disk.state
                 # LVM, RAID1, ... have the tendency to be a device with a partition on it, but the partition is not reported by 'lsblk'
                 device_is_also_partition = bool(device_entry.mountpoint)
-                parsed_devices.append({'name': disk.name, 'state': device_state})
+                parsed_devices.append(disk)
             if not is_device or device_is_also_partition:
                 current_device_name = None
                 current_device_state = None
-                if device_is_also_partition is True:
+                if device_is_also_partition:
                     offset = 0
                     current_device_name = device_entry.kname
                     current_device_state = device_state
                 else:
                     offset = 0
                     # Check from which block device the partition is from
-                    # @todo might be more sane to go back until the disk is found since lsblk outputs them in order
-                    for device_info in reversed(parsed_devices):
+                    for device in reversed(parsed_devices):  # type: Disk
                         try:
-                            current_device_name = device_info['name']
-                            current_device_state = device_info['state']
+                            current_device_name = device.name
+                            current_device_state = device.state
                             # Will throw exception if the partition is not part of that device
                             starting_block = cls.get_starting_block(current_device_name, device_entry.kname, ssh_client)
-                            offset = starting_block * device_entry.log_sec
+                            # The device was found. Let's try the parted output
+                            if device not in parted_entries_by_device:
+                                parted_entries_by_device[device] = PartedEntry.parse_partitions(get_friendly_path(device.name), ssh_client)
+                            parted_entries = parted_entries_by_device[device]
+                            if parted_entries:
+                                for parted_entry in parted_entries_by_device[device]:  # type: PartedEntry
+                                    if device_entry.kname.endswith(str(parted_entry.number)):
+                                        offset = parted_entry.start
+                            else:
+                                offset = starting_block * device_entry.log_sec
                             break
                         except Exception:
                             pass
@@ -584,11 +690,11 @@ class DiskTools(object):
                                       filesystem=device_entry.fstype,
                                       mountpoint=device_entry.mountpoint)
                 if device_entry.mountpoint and device_entry.fstype != LSBLKEntry.FSTypes.SWAP:
-                    if not cls.mountpoint_usable(device_entry.mountpoint):
+                    if not cls.mountpoint_usable(device_entry.mountpoint, ssh_client):
                         partition.state = 'FAILURE'
-                associated_disk = configuration[current_device_name]  # type: Disk
+                associated_disk = disk_mapping[current_device_name]  # type: Disk
                 associated_disk.add_partition_model(partition)
-        return configuration.values()
+        return disk_mapping.values()
 
     @classmethod
     def is_device(cls, device_name, ssh_client):
