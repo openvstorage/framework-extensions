@@ -398,7 +398,16 @@ class Systemd(object):
                     service_name = service_name.replace('.service', '')
                     if service_state == 'active':
                         service_pid = check_output('systemctl show {0} --property=MainPID'.format(service_name), shell=True).strip().split('=')[1]
-                        running_services[service_name] = (service_state, service_pid)
+                        service_name_botched = service_name[4:]
+                        service_version = '<unknown>'
+                        try:
+                            fn = '/opt/OpenvStorage/run/%s.version' % service_name_botched
+                            with open(fn,'r') as f:
+                                service_version = f.readlines()[0].strip()
+                        except:
+                            pass
+
+                        running_services[service_name] = (service_state, service_pid, service_version)
                     else:
                         non_running_services[service_name] = service_state
 
@@ -409,7 +418,10 @@ class Systemd(object):
                 output = ['Running processes',
                           '=================\n']
                 for service_name in sorted(running_services, key=lambda service: ExtensionsToolbox.advanced_sort(service, '_')):
-                    output.append('{0} {1} {2}  {3}'.format(service_name, ' ' * (longest_service_name - len(service_name)), running_services[service_name][0], running_services[service_name][1]))
+                    s = running_services[service_name]
+                    pid_formatted = '{:>10}'.format(s[1])
+                    version = s[2]
+                    output.append('{0} {1} {2}  {3} {4}'.format(service_name, ' ' * (longest_service_name - len(service_name)), s[0], pid_formatted, version))
 
                 output.extend(['\n\nNon-running processes',
                                '=====================\n'])
@@ -425,6 +437,7 @@ class Systemd(object):
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
+
 
     def register_service(self, node_name, service_metadata):
         # type: (str, Dict[str, Union[str, int]]) -> None
