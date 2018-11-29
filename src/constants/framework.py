@@ -19,6 +19,11 @@ Shared strings
 
 import os
 
+FRAMEWORK_BASE = '/ovs/framework/'
+
+### Remote config
+REMOTE_CONFIG_BACKEND = 'ovs/framework/remote_config/{0}'
+
 ### NBD related config paths
-NBD = '/ovs/framework/nbdnodes'
+NBD = os.path.join(FRAMEWORK_BASE, 'nbdnodes')
 NBD_ID = os.path.join(NBD, '{0}')
