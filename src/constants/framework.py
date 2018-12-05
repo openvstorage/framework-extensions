@@ -22,7 +22,8 @@ import os
 FRAMEWORK_BASE = '/ovs/framework/'
 
 ### Remote config
-REMOTE_CONFIG_BACKEND = 'ovs/framework/remote_config/{0}'
+REMOTE_CONFIG_BACKEND = 'ovs/framework/remote_configs/alba_backends/{0}/abm_config'
+REMOTE_CONFIG_BACKEND_INI = 'ovs/framework/remote_configs/alba_backends/{0}/abm_config/ini'
 
 ### NBD related config paths
 NBD = os.path.join(FRAMEWORK_BASE, 'nbdnodes')
