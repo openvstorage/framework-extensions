@@ -126,14 +126,16 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         # type: (str) -> str
         """
         Extract a key from a path.
-        Only used during testing as of now
         :param path: Path to extract the key from
         :type path: str
         :return: The extracted key
         :rtype: str
         """
         # Only available in unittests
-        raise RuntimeError('Only available during unittests')
+        path = path.split('?', 1)[0]  # Peel off cacc_ini
+        path = path.split('//', 1)[1]  # Peel off arakoon://
+        path = path.split('/', 1)[1]  # peel off cluster id
+        return path
 
 
 class ArakoonConfigurationLock(object):
