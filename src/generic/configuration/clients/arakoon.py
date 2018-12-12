@@ -17,6 +17,7 @@
 """
 Generic module for managing configuration in Arakoon
 """
+import re
 import uuid
 import time
 import ujson
@@ -132,10 +133,12 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         :rtype: str
         """
         # Only available in unittests
-        path = path.split('?', 1)[0]  # Peel off cacc_ini
-        path = path.split('//', 1)[1]  # Peel off arakoon://
-        path = path.split('/', 1)[1]  # peel off cluster id
-        return path
+        r = re.compile("arakoon://(?:\w*/)"  # Arakoon prefix + cluster id
+                       "(.*?)"  # Captured group
+                       "\?ini.*")  # Cacc ini
+        match = r.match(path)
+        return match.group(1)
+
 
 
 class ArakoonConfigurationLock(object):
