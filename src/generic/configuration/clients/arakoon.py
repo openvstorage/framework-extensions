@@ -17,6 +17,7 @@
 """
 Generic module for managing configuration in Arakoon
 """
+import re
 import uuid
 import time
 import ujson
@@ -126,14 +127,18 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         # type: (str) -> str
         """
         Extract a key from a path.
-        Only used during testing as of now
         :param path: Path to extract the key from
         :type path: str
         :return: The extracted key
         :rtype: str
         """
         # Only available in unittests
-        raise RuntimeError('Only available during unittests')
+        r = re.compile("arakoon://(?:\w*/)"  # Arakoon prefix + cluster id
+                       "(.*?)"  # Captured group
+                       "\?ini=.*")  # Cacc ini
+        match = r.match(path)
+        return match.group(1)
+
 
 
 class ArakoonConfigurationLock(object):
