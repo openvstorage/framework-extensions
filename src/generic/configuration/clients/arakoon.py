@@ -135,7 +135,7 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         # Only available in unittests
         r = re.compile("arakoon://(?:\w*/)"  # Arakoon prefix + cluster id
                        "(.*?)"  # Captured group
-                       "\?ini.*")  # Cacc ini
+                       "\?ini=.*")  # Cacc ini
         match = r.match(path)
         return match.group(1)
 
