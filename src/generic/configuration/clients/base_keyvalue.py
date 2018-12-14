@@ -178,8 +178,6 @@ class ConfigurationBaseKeyValue(ConfigurationClientBase):
         """
         key = self._clean_key(key)
         if recursive is True:
-            if transaction is not None:
-                raise NotImplementedError('Deleting recursively within a transaction is not possible')
             self._client.delete_prefix(key, transaction=transaction)
         else:
             self._client.delete(key, transaction=transaction)
