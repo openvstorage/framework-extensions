@@ -24,12 +24,14 @@ class VolatileFactory(object):
     """
     The VolatileFactory will generate certain default clients.
     """
+    store = None
+
     @classmethod
     def get_client(cls, client_type=None):
         """
         Returns a volatile storage client
         """
-        if not hasattr(cls, 'store') or cls.store is None:
+        if cls.store is None:
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
             if client_type is None:

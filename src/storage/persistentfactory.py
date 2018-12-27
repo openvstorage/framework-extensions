@@ -24,6 +24,7 @@ class PersistentFactory(object):
     """
     The PersistentFactory will generate certain default clients.
     """
+    store = None
 
     @classmethod
     def get_client(cls, client_type=None):
@@ -31,7 +32,7 @@ class PersistentFactory(object):
         Returns a persistent storage client
         :param client_type: Type of store client
         """
-        if not hasattr(cls, 'store') or cls.store is None:
+        if cls.store is None:
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
 
