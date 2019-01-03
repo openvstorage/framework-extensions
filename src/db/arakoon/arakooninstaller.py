@@ -24,6 +24,8 @@ import os
 import json
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
+from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
@@ -81,9 +83,9 @@ class ArakoonClusterConfig(object):
     """
     contains cluster config parameters
     """
-    CONFIG_ROOT = '/ovs/arakoon'
-    CONFIG_KEY = CONFIG_ROOT + '/{0}/config'
-    CONFIG_FILE = '/opt/OpenvStorage/config/arakoon_{0}.ini'
+    CONFIG_ROOT = ARAKOON_BASE
+    CONFIG_KEY = ARAKOON_CONFIG
+    CONFIG_FILE = CONFIG_ARAKOON_LOCATION
 
     def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None, configuration=None):
         """

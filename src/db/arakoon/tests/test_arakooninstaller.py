@@ -24,6 +24,7 @@ import unittest
 from threading import Thread
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.tests.helpers import DalHelper
+from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
 from ovs.extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig, ArakoonInstaller
 from ovs.extensions.generic.configuration import Configuration, NotFoundException
 from ovs_extensions.log.logger import Logger
@@ -133,7 +134,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
             config = ArakoonClusterConfig(cluster_id=cluster_name, source_ip=ip)
             actual = client.file_read(filename=config.internal_config_path)
         else:
-            actual = Configuration.get(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name), raw=True)
+            actual = Configuration.get(ARAKOON_CONFIG.format(cluster_name))
         self.assertEqual(first=actual,
                          second=expected_config)
         self.assertEqual(first=arakoon_client.get(ArakoonInstaller.INTERNAL_CONFIG_KEY),
@@ -379,7 +380,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'},
                                               {'storagerouter': storagerouter_3, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name), raw=True))
+        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -546,7 +547,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'},
                                               {'storagerouter': storagerouter_3, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name), raw=True))
+        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -656,7 +657,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
         self._validate_services(name=service_name,
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name), raw=True))
+        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -770,7 +771,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
         self._validate_services(name=service_name,
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name), raw=True))
+        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 

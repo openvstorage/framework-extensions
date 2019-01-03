@@ -1,4 +1,4 @@
-# Copyright (C) 2018 iNuron NV
+# Copyright (C) 2019 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -15,14 +15,11 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Shared strings
+Shared arakoon constants module
 """
+import os
 
-ARAKOON_NAME = 'cacc'
-ARAKOON_NAME_UNITTEST = 'unittest-cacc'
 
-CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
-CONFIG_STORE_LOCATION = '/opt/OpenvStorage/config/framework.json'
-CONFIG_ARAKOON_LOCATION = '/opt/OpenvStorage/config/arakoon_{0}.ini'
-
-COMPONENTS_KEY = '/ovs/machines/{0}/components'  # Format will be the machine ID
+ARAKOON_BASE = '/ovs/arakoon'
+ARAKOON_CONFIG = os.path.join(ARAKOON_BASE, '/{0}/config.raw')
+ARAKOON_ABM_CONFIG= os.path.join(ARAKOON_BASE, '/{0}-abm/config')
