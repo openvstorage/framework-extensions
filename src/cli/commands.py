@@ -28,6 +28,39 @@ class OVSHelpFormatter(click.HelpFormatter):
     def __init__(self, indent_increment=2, width=float('inf'), max_width=float('inf')):
         super(OVSHelpFormatter, self).__init__(indent_increment=indent_increment, width=width, max_width=max_width)
 
+    @staticmethod
+    def get_formatted_row(command, command_chain=''):
+        # type: (click.Command, str) -> Tuple[str, str]
+        """
+        :param command: Command to generate row for
+        :param command_chain: FUll path to the command (if relevant)
+        :return: Tuple representing two columns of the row
+        :rtype: Tuple[str, str]
+        """
+        additional_info = ''
+        if not command_chain:
+            command_chain = command.name
+        command_chain = '{0} {1}'.format(command_chain.strip(), command.name)
+        if isinstance(command, OVSCommand):
+            additional_info = command.command_parameter_help
+        return '- {0} {1}'.format(command_chain, additional_info), command.help
+
+    @staticmethod
+    def get_formatted_section_header(command):
+        # type: (click.Command) -> str
+        """
+        Format a section header for the command
+        :param command: Command to format a header for
+        :type command: click.Command
+        :return: The section header
+        :rtype: str
+        """
+        if isinstance(command, OVSCommand) and command.section_header:
+            name = command.section_header
+        else:
+            name = command.name
+        return '* {0} options'.format(name.title())
+
 
 class OVSBaseGroup(click.Group):
 
@@ -48,24 +81,21 @@ class OVSBaseGroup(click.Group):
         :return: The section name, all command rows
         """
         rows = []
-        if command_chain.endswith(' '):
-            command_chain = command_chain.rsplit(' ')[0]
-        if command_chain.startswith(' '):
-            command_chain = command_chain.split(' ')[-1]
-        command_chain = '{0} {1}'.format(command_chain, self.name)
+        command_chain = command_chain.strip()
         commands = self.commands.values()
         if self.callback:
             commands = [self] + commands
         for command in commands:  # type: Union[click.Command, OVSCommand]
-            additional_info = ''
-            if isinstance(command, OVSCommand):
-                additional_info = command.command_parameter_help
-            if command == self:
-                command_path = command_chain
+            if isinstance(command, OVSBaseGroup) and command != self:
+                # Does recursion and adds it under the parent section
+                sub_section_header, sub_rows = command.get_format_commands(command_chain)
+                rows.extend(sub_rows)
+                continue
             else:
-                command_path = '{0} {1}'.format(command_chain, command.name)
-            rows.append(('- {0} {1}'.format(command_path, additional_info), command.help))
-        return '* {0} options'.format(self.name.title()), rows
+                command_chain = '{0} {1}'.format(command_chain, self.name)
+            rows.append(OVSHelpFormatter.get_formatted_row(command, command_chain))
+        section_header = OVSHelpFormatter.get_formatted_section_header(self)
+        return section_header, rows
 
 
 class OVSCLI(OVSBaseGroup):
@@ -142,34 +172,36 @@ class OVSCLI(OVSBaseGroup):
         Extra format methods for multi methods that adds all the commands after the options.
         Overruled to add Addon commands as a separate list and to give the full overview as before
         """
-        groups = []
-        command_rows = []
-        addon_rows = []
+        commands = []
+        addon_commands = []
         for subcommand in self.list_commands(ctx):
             cmd = self.get_command(ctx, subcommand)
             # What is this, the tool lied about a command. Ignore it
             if cmd is None:
                 continue
-
-            help = cmd.short_help or ''
-            if isinstance(cmd, OVSBaseGroup):
-                groups.append(cmd)
-            elif isinstance(cmd, AddonCommand):
-                addon_rows.append((subcommand, help))
+            if isinstance(cmd, AddonCommand):
+                addon_commands.append(cmd)
             else:
-                # Default click command
-                command_rows.append((subcommand, help))
+                commands.append(cmd)
 
-        for row_section, row_group_list in [('Commands', [command_rows, groups]), ('Addons', [addon_rows, []])]:
-            rows, group_list = row_group_list
-            if rows or group_list:
-                with formatter.section(row_section):
-                    if group_list:
-                        # Only goes one deep. Intended
-                        for group in group_list:  # type: OVSBaseGroup
-                            section, command_rows = group.get_format_commands(command_chain=self.name)
+        for command_section, command_list in [('Commands', commands), ('Addons', addon_commands)]:
+            if command_list:
+                with formatter.section(command_section):
+                    rows = []
+                    for cmd in command_list:
+                        help = cmd.short_help or ''
+                        if isinstance(cmd, OVSBaseGroup):
+                            section, command_rows = cmd.get_format_commands(command_chain=self.name)
                             with formatter.section(section):
                                 formatter.write_dl(command_rows)
+                        elif isinstance(cmd, OVSCommand):
+                            if cmd.section_header:
+                                with formatter.section(OVSHelpFormatter.get_formatted_section_header(cmd)):
+                                    formatter.write_dl([OVSHelpFormatter.get_formatted_row(cmd, command_chain=self.name)])
+                            else:
+                                rows.append((cmd.name, help))
+                        else:
+                            rows.append((cmd.name, help))
                     if rows:
                         formatter.write_dl(rows)
 
@@ -194,12 +226,13 @@ class OVSGroup(OVSBaseGroup):
 
 class OVSCommand(click.Command):
 
-    def __init__(self, name, command_parameter_help='', *args, **kwargs):
+    def __init__(self, name, command_parameter_help='', section_header='', *args, **kwargs):
         """
         :param name: Name of the command
         :param command_parameter_help: Extra help to print when displaying the commands in a list
         """
         self.command_parameter_help = command_parameter_help
+        self.section_header = section_header
         super(OVSCommand, self).__init__(name, *args, **kwargs)
 
 

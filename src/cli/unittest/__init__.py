@@ -29,7 +29,7 @@ def clear_stores():
     ServiceFactory.manager = None
 
 
-@click.command('unittest', help='Run all or a part of the OVS unittest suite', cls=OVSCommand)
+@click.command('unittest', help='Run all or a part of the OVS unittest suite', section_header='Unittest', cls=OVSCommand)
 @click.argument('action', required=False, default=None, type=click.STRING)
 @click.option('--averages', is_flag=True, default=False)
 def unittest_command(action, averages):
