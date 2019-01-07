@@ -90,10 +90,8 @@ class OVSBaseGroup(click.Group):
                 # Does recursion and adds it under the parent section
                 sub_section_header, sub_rows = command.get_format_commands(command_chain)
                 rows.extend(sub_rows)
-                continue
             else:
-                command_chain = '{0} {1}'.format(command_chain, self.name)
-            rows.append(OVSHelpFormatter.get_formatted_row(command, command_chain))
+                rows.append(OVSHelpFormatter.get_formatted_row(command, '{0} {1}'.format(command_chain, self.name)))
         section_header = OVSHelpFormatter.get_formatted_section_header(self)
         return section_header, rows
 
