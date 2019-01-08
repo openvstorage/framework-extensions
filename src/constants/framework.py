@@ -24,8 +24,14 @@ FRAMEWORK_BASE = '/ovs/framework/'
 ### Remote config
 REMOTE_CONFIG_BACKEND_BASE = 'ovs/framework/used_configs/alba_backends/'
 REMOTE_CONFIG_BACKEND_CONFIG = os.path.join(REMOTE_CONFIG_BACKEND_BASE, '{0}/abm_config')
-REMOTE_CONFIG_BACKEND_INI = '{0}.raw'.format(REMOTE_CONFIG_BACKEND_CONFIG)  # ovs/framework/remote_configs/alba_backends/{abe_guid}/abm_config.ini
+REMOTE_CONFIG_BACKEND_INI = '{0}.ini'.format(REMOTE_CONFIG_BACKEND_CONFIG)  # ovs/framework/remote_configs/alba_backends/{abe_guid}/abm_config.ini
 
 ### NBD related config paths
 NBD = os.path.join(FRAMEWORK_BASE, 'nbdnodes')
 NBD_ID = os.path.join(NBD, '{0}')
+
+
+### SCRUBBER related config paths
+
+SCRUB_KEY = '/ovs/framework/jobs/scrub'  # Parent key for all scrub related jobs
+SCRUB_JOB = '{0}/{{0}}/job_info'.format(SCRUB_KEY)              # '/ovs/framework/jobs/scrub/{0}/job_info

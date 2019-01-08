@@ -155,7 +155,7 @@ class Configuration(object):
         data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
-        if key.endswith('.raw'):
+        if key.endswith('.raw') or key.endswith('.ini'):
             return data
         return json.loads(data)
 
@@ -192,9 +192,9 @@ class Configuration(object):
 
     @classmethod
     def _set(cls, key, value, transaction=None):
-        # type: (str, any, str) -> None
+        # type: (str, any, Optional[str]) -> None
         data = value
-        if not key.endswith('.raw'):
+        if not key.endswith('.raw') and not key.endswith('.ini'):
             data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,

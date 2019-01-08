@@ -23,6 +23,6 @@ ARAKOON_NAME_UNITTEST = 'unittest-cacc'
 
 CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.raw'
 CONFIG_STORE_LOCATION = '/opt/OpenvStorage/config/framework.json'
-CONFIG_ARAKOON_LOCATION = '/opt/OpenvStorage/config/arakoon_{0}.raw'
+CONFIG_ARAKOON_LOCATION = '/opt/OpenvStorage/config/arakoon_{0}.ini'
 
 COMPONENTS_KEY = '/ovs/machines/{0}/components'  # Format will be the machine ID
