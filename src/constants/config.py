@@ -21,8 +21,9 @@ Shared strings
 ARAKOON_NAME = 'cacc'
 ARAKOON_NAME_UNITTEST = 'unittest-cacc'
 
-CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.raw'
+CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
 CONFIG_STORE_LOCATION = '/opt/OpenvStorage/config/framework.json'
 CONFIG_ARAKOON_LOCATION = '/opt/OpenvStorage/config/arakoon_{0}.ini'
+CONFIG_ARAKOON_CACC_LOCATION = '/opt/OpenvStorage/config/arakoon_cacc.ini'
 
 COMPONENTS_KEY = '/ovs/machines/{0}/components'  # Format will be the machine ID

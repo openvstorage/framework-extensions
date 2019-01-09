@@ -17,6 +17,7 @@
 """
 Dummy persistent module
 """
+from ovs_extensions.constants.config import CACC_LOCATION
 from ovs_extensions.generic.configuration.clients.base_keyvalue import ConfigurationBaseKeyValue
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.storage.persistent.dummystore import DummyPersistentStore
@@ -97,4 +98,4 @@ class ConfigurationMockKeyValue(ConfigurationBaseKeyValue):
         :return: Configuration path
         :rtype: str
         """
-        return 'file://opt/OpenvStorage/config/framework.json?key={0}'.format(key)
+        return 'file://{0}?key={1}'.format(CACC_LOCATION, key)

@@ -111,7 +111,6 @@ class ArakoonClusterConfig(object):
         else:
             self.internal_config_path = ArakoonClusterConfig.CONFIG_FILE.format(cluster_id)
             self.external_config_path = self.internal_config_path
-
         if load_config is True:
             self.read_config(ip=self.source_ip)
 
@@ -909,6 +908,7 @@ class ArakoonInstaller(object):
 
         self._logger.debug('Catching up new node {0} for cluster {1}'.format(new_ip, self.cluster_name))
         node_name = [node.name for node in self.config.nodes if node.ip == new_ip][0]
+
         client.run(['arakoon', '--node', node_name, '-config', self.config.external_config_path, '-catchup-only'])
         self._logger.debug('Catching up new node {0} for cluster {1} completed'.format(new_ip, self.cluster_name))
 
