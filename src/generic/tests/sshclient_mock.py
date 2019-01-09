@@ -88,7 +88,6 @@ class MockedSSHClient(object):
         MockedSSHClient._run_recordings[client.ip].append(command)
         if command in MockedSSHClient._run_returns.get(client.ip, {}):
             MockedSSHClient._logger.debug('Emulating return value')
-            print
             return MockedSSHClient._run_returns[client.ip][command]
         return client.original_function(client, original_command, *args, **kwargs)
 

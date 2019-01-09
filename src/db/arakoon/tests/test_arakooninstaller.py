@@ -25,6 +25,7 @@ from threading import Thread
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.tests.helpers import DalHelper
 from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
+from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs.extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig, ArakoonInstaller
 from ovs.extensions.generic.configuration import Configuration, NotFoundException
 from ovs_extensions.log.logger import Logger
@@ -380,7 +381,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'},
                                               {'storagerouter': storagerouter_3, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
+        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name)))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -547,7 +548,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'},
                                               {'storagerouter': storagerouter_3, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
+        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name)))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -657,7 +658,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
         self._validate_services(name=service_name,
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
+        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name)))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -771,7 +772,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
         self._validate_services(name=service_name,
                                 service_info=[{'storagerouter': storagerouter_1, 'status': 'missing'},
                                               {'storagerouter': storagerouter_2, 'status': 'missing'}])
-        self.assertFalse(expr=Configuration.exists('{0}.raw'.format(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name))))
+        self.assertFalse(expr=Configuration.exists(ArakoonClusterConfig.CONFIG_KEY.format(cluster_name)))
         with self.assertRaises(NotFoundException):
             ArakoonInstaller.build_client(ArakoonClusterConfig(cluster_id=cluster_name))
 
@@ -1207,7 +1208,7 @@ tlog_dir = {base_dir}/arakoon/{cluster_name}/tlogs
                                               {'storagerouter': storagerouter_2, 'status': 'missing'},
                                               {'storagerouter': storagerouter_3, 'status': 'missing'}])
         client = SSHClient(endpoint=storagerouter_2.ip)
-        self.assertFalse(expr=client.file_exists('/opt/OpenvStorage/config/arakoon_{0}.ini'.format(cluster_name)))
+        self.assertFalse(expr=client.file_exists(CONFIG_ARAKOON_LOCATION.format(cluster_name)))
 
     def test_get_unused_arakoon_metadata_and_claim(self):
         """
