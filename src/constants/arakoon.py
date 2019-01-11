@@ -21,6 +21,6 @@ import os
 
 
 ARAKOON_BASE = '/ovs/arakoon'
-ARAKOON_CONFIG = os.path.join(ARAKOON_BASE, '{0}/config.raw')
-ARAKOON_ABM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-abm/config.raw')
-ARAKOON_NSM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-nsm/config.raw')
+ARAKOON_CONFIG = os.path.join(ARAKOON_BASE, '{0}/config.ini')
+ARAKOON_ABM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-abm/config.ini')
+ARAKOON_NSM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-nsm/config.ini')
