@@ -19,7 +19,7 @@ Shared strings
 
 import os
 
-FRAMEWORK_BASE = os.path.join('/ovs', 'framework')
+FRAMEWORK_BASE = os.path.join(os.path.sep, 'ovs', 'framework')
 
 ### Remote config
 REMOTE_CONFIG_BACKEND_BASE = os.path.join(FRAMEWORK_BASE, 'used_configs', 'alba_backends')          # /ovs/framework/used_configs/alba_backends

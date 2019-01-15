@@ -22,5 +22,6 @@ Shared file extensions constants module
 PY = '.py'
 RAW = '.raw'
 INI = '.ini'
+JSON = '.json'
 
 RAW_FILES = (RAW, INI)

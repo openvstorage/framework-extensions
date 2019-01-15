@@ -1,6 +1,6 @@
 import os
 
-VPOOL_BASE_PATH = os.path.join('/ovs', 'vpools', '{0}')
+VPOOL_BASE_PATH = os.path.join(os.path.sep, 'ovs', 'vpools', '{0}')
 
 # MDS RELATED
 MDS_CONFIG_PATH = os.path.join(VPOOL_BASE_PATH, 'mds_config')           # ovs/vpools/{0}/mds_config

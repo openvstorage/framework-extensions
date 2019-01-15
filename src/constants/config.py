@@ -23,9 +23,9 @@ import os
 ARAKOON_NAME = 'cacc'
 ARAKOON_NAME_UNITTEST = 'unittest-cacc'
 
-OVS_CONFIG = os.path.join('/opt', 'OpenvStorage', 'config')                                 # /opt/OpenvStorage/config
+OVS_CONFIG = os.path.join(os.path.sep, 'opt', 'OpenvStorage', 'config')                                 # /opt/OpenvStorage/config
 CACC_LOCATION = os.path.join(OVS_CONFIG, 'arakoon_cacc.ini')                                # /opt/OpenvStorage/config/arakoon_cacc.ini
 CONFIG_STORE_LOCATION = os.path.join(OVS_CONFIG, 'framework.json')                          # /opt/OpenvStorage/config/framework.json
 CONFIG_ARAKOON_LOCATION = os.path.join(OVS_CONFIG, 'arakoon_{0}.ini')                       # /opt/OpenvStorage/config/arakoon_{0}.ini
 
-COMPONENTS_KEY = os.path.join('/ovs', 'machines', '{0}', 'components')                      # /ovs/machines/{0}/components
+COMPONENTS_KEY = os.path.join(os.path.sep, 'ovs', 'machines', '{0}', 'components')                      # /ovs/machines/{0}/components

@@ -19,7 +19,7 @@ Constants involved in config management
 
 import os
 
-CONFIG_ISCSI = os.path.join('/ovs', 'iscsi')
+CONFIG_ISCSI = os.path.join(os.path.sep, 'ovs', 'iscsi')
 
 CONFIG_LOGGING = os.path.join(CONFIG_ISCSI, 'logging')                          #/ovs/iscsi/logging
 

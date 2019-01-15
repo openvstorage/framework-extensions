@@ -20,7 +20,7 @@ Shared arakoon constants module
 import os
 
 
-ARAKOON_BASE = os.path.join('/ovs', 'arakoon')                                      # /ovs/arakoon
+ARAKOON_BASE = os.path.join(os.path.sep, 'ovs', 'arakoon')                          # /ovs/arakoon
 ARAKOON_CONFIG = os.path.join(ARAKOON_BASE, '{0}', 'config.ini')                    # /ovs/arakoon/{0}/config.ini
 ARAKOON_ABM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-abm', 'config.ini')            # /ovs/arakoon/{0}-abm/config.ini
 ARAKOON_NSM_CONFIG = os.path.join(ARAKOON_BASE, '{0}-nsm', 'config.ini')            # /ovs/arakoon/{0}-nsm/config.ini
