@@ -21,6 +21,7 @@ import os
 import sys
 import json
 import time
+import logging
 import collections
 from random import randint
 from subprocess import check_output
@@ -28,7 +29,6 @@ from ovs_extensions.constants.config import CACC_LOCATION, COMPONENTS_KEY
 from ovs_extensions.constants.file_extensions import RAW_FILES
 from ovs_extensions.generic.system import System
 from ovs_extensions.packages.packagefactory import PackageFactory
-from ovs_extensions.log.logger import Logger
 # Import for backwards compatibility/easier access
 from ovs_extensions.generic.configuration.exceptions import ConfigurationNotFoundException as NotFoundException
 from ovs_extensions.generic.configuration.exceptions import ConfigurationAssertionException  # New exception, not mapping
@@ -61,7 +61,7 @@ class Configuration(object):
     EDITION_KEY = '{0}/edition'.format(BASE_KEY)
 
     _clients = {}
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self):
         # type: () -> None

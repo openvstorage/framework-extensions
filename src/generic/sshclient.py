@@ -126,7 +126,7 @@ class SSHClient(object):
     IP_REGEX = re.compile('^(((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$')
     REFERENCE_ATTR = 'ovs_ref_counter'
 
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
     _raise_exceptions = {}  # Used by unit tests
     client_cache = {}
 
@@ -183,7 +183,6 @@ class SSHClient(object):
                     raise raise_info['exception']
 
         if not self.is_local:
-            logging.getLogger('paramiko').setLevel(logging.WARNING)
             key = None
             create_new = True
             if cached is True:

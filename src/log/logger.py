@@ -25,6 +25,12 @@ import time
 import socket
 import logging
 import itertools
+from ..constants.logging import EXTENSIONS_LOGGER_NAME
+
+# Format is the name of the logger
+LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+# Testing purposes
+LOG_FORMAT_NO_NAME = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
 
 
 class LogFormatter(logging.Formatter):
@@ -146,7 +152,7 @@ class Logger(logging.Logger):
                                                     port=target_params['port']))
 
         handler.setLevel(getattr(logging, log_level))
-        handler.setFormatter(LogFormatter('%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'.format(self._full_name)))
+        handler.setFormatter(LogFormatter(LOG_FORMAT.format(self._full_name)))
         Logger._cache[self._full_name] = handler
         return handler
 
@@ -271,3 +277,64 @@ class Logger(logging.Logger):
                 print msg
 
         super(Logger, self)._log(level, msg, args, exc_info=exc_info, extra=extra)
+
+
+class LogConfigurator(object):
+    """
+    Configure the logger of the extenions
+    """
+
+    @staticmethod
+    def get_extensions_logger():
+        """
+        Get the logger of the extensions
+        All other loggers inherit from this logger
+        """
+        return logging.getLogger(EXTENSIONS_LOGGER_NAME)
+
+    @staticmethod
+    def get_urllib3_logger():
+        """
+        Get the logger of the HTTP client used within the extensions
+        """
+        return logging.getLogger('urllib3')
+
+    @staticmethod
+    def get_paramiko_logger():
+        """
+        Get the logger of the paramiko library
+        """
+        return logging.getLogger('paramiko')
+
+    @classmethod
+    def set_library_logger_levels(cls):
+        """
+        Sets the library loggers to the appropriate levels
+        """
+        loggers = [cls.get_urllib3_logger(), cls.get_paramiko_logger()]
+        for logger in loggers:
+            logger.setLevel(logging.WARNING)
+
+    @staticmethod
+    def get_recommended_dict_config():
+        """
+        Get the recommend logging config for the extensions
+        """
+        # The logging.fileConfig and logging.dictConfig disables existing loggers by default.
+        # So, settings will not be applied to your logger if it was configured before setting the config.
+        # 'disable_existing_loggers' resolves the issue
+
+        return {'version': 1,
+                'disable_existing_loggers': False,
+                'formatters': {
+                    'standard': {'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'},
+                    'ovs': {'()': LogFormatter.__module__ + '.' + LogFormatter.__name__,
+                            'format': LOG_FORMAT_NO_NAME}
+                },
+                'handlers': {'default': {'level': 'INFO',
+                                         'class': 'logging.StreamHandler',
+                                         'formatter': 'ovs'}},
+                'loggers': {EXTENSIONS_LOGGER_NAME: {'handlers': ['default'],
+                                                     'level': 'INFO',
+                                                     'propagate': True}}
+                }

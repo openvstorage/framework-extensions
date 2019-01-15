@@ -17,7 +17,7 @@
 """
 Dummy persistent module
 """
-from ovs_extensions.log.logger import Logger
+import logging
 
 
 class ConfigurationClientBase(object):
@@ -28,7 +28,7 @@ class ConfigurationClientBase(object):
     All inheriting classes must overrule lock, get_configuration_path, extract_key_from_path, get, set, dir_exists, list, delete, rename
     """
 
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, *args, **kwargs):
         _ = args, kwargs

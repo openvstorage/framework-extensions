@@ -22,9 +22,9 @@ import uuid
 import time
 import ujson
 import urllib
+import logging
 from ConfigParser import RawConfigParser
 from ovs_extensions.generic.configuration.clients.base_keyvalue import ConfigurationBaseKeyValue
-from ovs_extensions.log.logger import Logger
 from ovs_extensions.generic.configuration import NoLockAvailableException
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient, ArakoonAssertionFailed, ArakoonNotFound
 
@@ -35,7 +35,7 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
     """
 
     def __init__(self, cacc_location, *args, **kwargs):
-        # type: (str) -> None
+        # type: (str, *any, **any) -> None
         self.cacc_location = cacc_location
         # Build a client
         super(ArakoonConfiguration, self).__init__(self.get_client(), *args, **kwargs)
@@ -140,7 +140,6 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         return match.group(1)
 
 
-
 class ArakoonConfigurationLock(object):
     """
     Lock implementation around Arakoon
@@ -149,7 +148,7 @@ class ArakoonConfigurationLock(object):
     LOCK_LOCATION = '/ovs/locks/{0}'
     EXPIRATION_KEY = 'expires'
 
-    _logger = Logger('arakoon_configuration_lock')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, cacc_location, name, wait=None, expiration=60):
         # type: (str, str, float, float) -> None

@@ -20,17 +20,17 @@ Debian Package module
 
 import os
 import re
+import logging
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.log.logger import Logger
 
 
 class DebianPackage(object):
     """
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
     def __init__(self, package_info):

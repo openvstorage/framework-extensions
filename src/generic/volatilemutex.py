@@ -19,7 +19,7 @@ Volatile mutex module
 """
 
 import time
-from ovs_extensions.log.logger import Logger
+import logging
 
 
 class NoLockAvailableException(Exception):
@@ -43,7 +43,7 @@ class volatile_mutex(object):
         self.name = name
         self._wait = wait
         self._start = 0
-        self._logger = Logger('extensions')  # Instantiated by classes inheriting this class
+        self._logger = logging.getLogger(__name__)  # Overruled by classes inheriting
         self._has_lock = False
         self._volatile = self._get_volatile_client()
 

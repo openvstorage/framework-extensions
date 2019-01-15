@@ -18,8 +18,7 @@
 FS tab module
 """
 import re
-from ovs_extensions.log.logger import Logger
-
+import logging
 
 
 class Fstab(object):
@@ -30,7 +29,7 @@ class Fstab(object):
         """
         Init
         """
-        self._logger = Logger('extensions')
+        self._logger = logging.getLogger(__name__)
         self.fstab_file = '/etc/fstab'
 
     def _slurp(self):

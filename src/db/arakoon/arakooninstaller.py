@@ -22,6 +22,7 @@ ArakoonInstaller class
 
 import os
 import json
+import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
@@ -30,7 +31,6 @@ from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
 from ovs_extensions.packages.packagefactory import PackageFactory
-from ovs_extensions.log.logger import Logger
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
 
@@ -1149,4 +1149,4 @@ class ArakoonInstaller(object):
 
     @classmethod
     def _get_logger_instance(cls):
-        return Logger('extensions-db')
+        return logging.getLogger(__name__)

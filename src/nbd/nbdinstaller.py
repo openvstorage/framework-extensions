@@ -19,16 +19,16 @@
 """
 Module for iSCSI Manager SetupController
 """
+import logging
 import argparse
 from subprocess import check_output
-from ovs_extensions.log.logger import Logger
 
 
 class NBDInstaller:
     """
     Command line NBD installer
     """
-    _logger = Logger('extensions-nbd')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self):
         pass
