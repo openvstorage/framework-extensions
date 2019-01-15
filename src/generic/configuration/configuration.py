@@ -25,6 +25,7 @@ import collections
 from random import randint
 from subprocess import check_output
 from ovs_extensions.constants.config import CACC_LOCATION, COMPONENTS_KEY
+from ovs_extensions.constants.file_extensions import RAW_FILES
 from ovs_extensions.generic.system import System
 from ovs_extensions.packages.packagefactory import PackageFactory
 from ovs_extensions.log.logger import Logger
@@ -155,7 +156,7 @@ class Configuration(object):
         data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
-        if key.endswith('.raw') or key.endswith('.ini'):
+        if key.endswith(RAW_FILES):
             return data
         return json.loads(data)
 
@@ -194,7 +195,7 @@ class Configuration(object):
     def _set(cls, key, value, transaction=None):
         # type: (str, any, Optional[str]) -> None
         data = value
-        if not key.endswith('.raw') and not key.endswith('.ini'):
+        if not key.endswith(RAW_FILES):
             data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,

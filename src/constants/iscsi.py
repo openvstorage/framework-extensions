@@ -19,13 +19,13 @@ Constants involved in config management
 
 import os
 
-CONFIG_ISCSI = '/ovs/iscsi'
+CONFIG_ISCSI = os.path.join('/ovs', 'iscsi')
 
 CONFIG_LOGGING = os.path.join(CONFIG_ISCSI, 'logging')                          #/ovs/iscsi/logging
 
 CONFIG_ISCSI_NODE = os.path.join(CONFIG_ISCSI, 'iscsinodes')                    #/ovs/iscsi/iscsinodes
 CONFIG_ISCSI_NODE_ID = os.path.join(CONFIG_ISCSI_NODE, '{0}')                   #/ovs/iscsi/iscsinodes/<node_id>
-CONFIG_ISCSI_NODE_CONFIG = os.path.join(CONFIG_ISCSI_NODE_ID, 'config/main')    #/ovs/iscsi/iscsinodes/<node_id>/config/main
+CONFIG_ISCSI_NODE_CONFIG = os.path.join(CONFIG_ISCSI_NODE_ID, 'config', 'main') #/ovs/iscsi/iscsinodes/<node_id>/config/main
 
 CONFIG_ISCSI_SERVICE_KEY = os.path.join(CONFIG_ISCSI_NODE_ID, '{1}')            #/ovs/iscsi/iscsinodes/<node_id>/services/<key>
 
@@ -35,4 +35,4 @@ CONFIG_TARGET_ID = os.path.join(CONFIG_TARGET, '{1}')                           
 CONFIG_TARGET_VDISK = os.path.join(CONFIG_TARGET_ID, 'vdisk')                   #/ovs/iscsi/iscsinodes/<node_id>/target/<target_id>/vdisk
 CONFIG_TARGET_VDISK_ID = os.path.join(CONFIG_TARGET_VDISK, '{2}')               #/ovs/iscsi/iscsinodes/<node_id>/target/<target_id>/vdisk/<vd_guid>
 
-CONFIG_TARGET_MAIN = os.path.join(CONFIG_ISCSI_NODE_ID, 'target/config/main')   #/ovs/iscsi/iscsinodes/<node_id>/target/config/main
+CONFIG_TARGET_MAIN = os.path.join(CONFIG_ISCSI_NODE_ID, 'target', 'config', 'main')   #/ovs/iscsi/iscsinodes/<node_id>/target/config/main
