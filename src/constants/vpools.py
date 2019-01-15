@@ -1,6 +1,6 @@
 import os
 
-VPOOL_BASE_PATH = '/ovs/vpools/{0}'
+VPOOL_BASE_PATH = os.path.join(os.path.sep, 'ovs', 'vpools', '{0}')
 
 # MDS RELATED
 MDS_CONFIG_PATH = os.path.join(VPOOL_BASE_PATH, 'mds_config')           # ovs/vpools/{0}/mds_config
@@ -9,7 +9,7 @@ MDS_CONFIG_PATH = os.path.join(VPOOL_BASE_PATH, 'mds_config')           # ovs/vp
 PROXY_BASE_PATH = os.path.join(VPOOL_BASE_PATH, 'proxies')              # ovs/vpools/{0}/proxies
 PROXY_PATH = os.path.join(PROXY_BASE_PATH, '{1}')                       # ovs/vpools/{0}/proxies/{1}
 PROXY_CONFIG_PATH = os.path.join(PROXY_PATH, 'config')                  # ovs/vpools/{0}/proxies/{1}/config
-PROXY_CONFIG_ABM = os.path.join(PROXY_CONFIG_PATH, 'abm')                # ovs/vpools/{0}/proxies/{1}/config/abm
+PROXY_CONFIG_ABM = os.path.join(PROXY_CONFIG_PATH, 'abm.ini')           # ovs/vpools/{0}/proxies/{1}/config/abm.ini
 PROXY_CONFIG_MAIN = os.path.join(PROXY_CONFIG_PATH, 'main')             # ovs/vpools/{0}/proxies/{1}/config/main
 
 SCRUB_BASE_PATH = os.path.join(PROXY_BASE_PATH, 'scrub')                # ovs/vpools/{0}/proxies/scrub

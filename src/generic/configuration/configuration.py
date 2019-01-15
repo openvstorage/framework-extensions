@@ -25,6 +25,7 @@ import collections
 from random import randint
 from subprocess import check_output
 from ovs_extensions.constants.config import CACC_LOCATION, COMPONENTS_KEY
+from ovs_extensions.constants.file_extensions import RAW_FILES
 from ovs_extensions.generic.system import System
 from ovs_extensions.packages.packagefactory import PackageFactory
 from ovs_extensions.log.logger import Logger
@@ -134,7 +135,7 @@ class Configuration(object):
         default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
-            data = cls._get(key_entries[0], raw=raw, **kwargs)
+            data = cls._get(key_entries[0], **kwargs)
             if len(key_entries) == 1:
                 return data
             try:
@@ -150,12 +151,12 @@ class Configuration(object):
             raise
 
     @classmethod
-    def _get(cls, key, raw=False, **kwargs):
-        # type: (str, bool, **any) -> Union[dict, None]
+    def _get(cls, key, **kwargs):
+        # type: (str, **any) -> Union[dict, None]
         data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
-        if raw is True:
+        if key.endswith(RAW_FILES):
             return data
         return json.loads(data)
 
@@ -173,10 +174,10 @@ class Configuration(object):
         key_entries = key.split('|')
         set_data = value
         if len(key_entries) == 1:
-            cls._set(key_entries[0], set_data, raw=raw, transaction=transaction)
+            cls._set(key_entries[0], set_data, transaction=transaction)
             return
         try:
-            data = cls._get(key_entries[0], raw=raw)
+            data = cls._get(key_entries[0])
         except NotFoundException:
             data = {}
         temp_config = data
@@ -188,13 +189,13 @@ class Configuration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = set_data
-        cls._set(key_entries[0], data, raw=raw, transaction=transaction)
+        cls._set(key_entries[0], data, transaction=transaction)
 
     @classmethod
-    def _set(cls, key, value, raw=False, transaction=None):
-        # type: (str, any, bool, str) -> None
+    def _set(cls, key, value, transaction=None):
+        # type: (str, any, Optional[str]) -> None
         data = value
-        if raw is False:
+        if not key.endswith(RAW_FILES):
             data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,

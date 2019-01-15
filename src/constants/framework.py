@@ -19,13 +19,19 @@ Shared strings
 
 import os
 
-FRAMEWORK_BASE = '/ovs/framework/'
+FRAMEWORK_BASE = os.path.join(os.path.sep, 'ovs', 'framework')
 
 ### Remote config
-REMOTE_CONFIG_BACKEND_BASE = 'ovs/framework/used_configs/alba_backends/'
-REMOTE_CONFIG_BACKEND_CONFIG = os.path.join(REMOTE_CONFIG_BACKEND_BASE, '{0}/abm_config')
-REMOTE_CONFIG_BACKEND_INI = os.path.join(REMOTE_CONFIG_BACKEND_CONFIG, 'ini')  # ovs/framework/remote_configs/alba_backends/{abe_guid}/abm_config/ini
+REMOTE_CONFIG_BACKEND_BASE = os.path.join(FRAMEWORK_BASE, 'used_configs', 'alba_backends')          # /ovs/framework/used_configs/alba_backends
+REMOTE_CONFIG_BACKEND_CONFIG = os.path.join(REMOTE_CONFIG_BACKEND_BASE, '{0}', 'abm_config')        # /ovs/framework/used_configs/alba_backends/{0}/abm_config
+REMOTE_CONFIG_BACKEND_INI = os.path.join(REMOTE_CONFIG_BACKEND_BASE, '{0}', 'abm_config.ini')       # /ovs/framework/used_configs/alba_backends/{0}/abm_config.ini
 
 ### NBD related config paths
-NBD = os.path.join(FRAMEWORK_BASE, 'nbdnodes')
-NBD_ID = os.path.join(NBD, '{0}')
+NBD = os.path.join(FRAMEWORK_BASE, 'nbdnodes')                                                      # /ovs/framework/nbdnodes
+NBD_ID = os.path.join(NBD, '{0}')                                                                   # /ovs/framework/nbdnodes/{0}
+
+
+### SCRUBBER related config paths
+
+SCRUB_KEY = os.path.join(FRAMEWORK_BASE, 'jobs', 'scrub')                                           # /ovs/framework/jobs/scrub
+SCRUB_JOB = os.path.join(SCRUB_KEY, '{0}', 'job_info')                                              # /ovs/framework/jobs/scrub/{0}/job_info

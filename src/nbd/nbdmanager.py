@@ -107,7 +107,7 @@ class NBDManager(object):
                            'nbd_path': nbd_path}
         if block_size > NBDManager.MINIMAL_BLOCK_SIZE:
             config_settings['libovsvoldrv_request_split_size'] = block_size
-        self._configuration.set(key=config_path, value=yaml.dump(config_settings, default_flow_style=False), raw=True)
+        self._configuration.set(key='{0}.raw'.format(config_path), value=yaml.dump(config_settings, default_flow_style=False))
 
         # Add service
         opt_config_path = self.OPT_CONFIG_PATH.format(nbd_number)
@@ -175,7 +175,7 @@ class NBDManager(object):
         :return: volume name
         """
         nbd_service_path = self._get_service_file_path(nbd_path)
-        content = self._configuration.get(nbd_service_path, raw=True)
+        content = self._configuration.get('{0}.raw'.format(nbd_service_path))
         content = yaml.load(content)
         vol_name = content.get('volume_uri').rsplit('/')[-1]
         return vol_name

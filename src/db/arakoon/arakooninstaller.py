@@ -24,6 +24,8 @@ import os
 import json
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
+from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
@@ -81,9 +83,9 @@ class ArakoonClusterConfig(object):
     """
     contains cluster config parameters
     """
-    CONFIG_ROOT = '/ovs/arakoon'
-    CONFIG_KEY = CONFIG_ROOT + '/{0}/config'
-    CONFIG_FILE = '/opt/OpenvStorage/config/arakoon_{0}.ini'
+    CONFIG_ROOT = ARAKOON_BASE
+    CONFIG_KEY = ARAKOON_CONFIG
+    CONFIG_FILE = CONFIG_ARAKOON_LOCATION
 
     def __init__(self, cluster_id, load_config=True, source_ip=None, plugins=None, configuration=None):
         """
@@ -109,7 +111,6 @@ class ArakoonClusterConfig(object):
         else:
             self.internal_config_path = ArakoonClusterConfig.CONFIG_FILE.format(cluster_id)
             self.external_config_path = self.internal_config_path
-
         if load_config is True:
             self.read_config(ip=self.source_ip)
 
@@ -907,6 +908,7 @@ class ArakoonInstaller(object):
 
         self._logger.debug('Catching up new node {0} for cluster {1}'.format(new_ip, self.cluster_name))
         node_name = [node.name for node in self.config.nodes if node.ip == new_ip][0]
+
         client.run(['arakoon', '--node', node_name, '-config', self.config.external_config_path, '-catchup-only'])
         self._logger.debug('Catching up new node {0} for cluster {1} completed'.format(new_ip, self.cluster_name))
 

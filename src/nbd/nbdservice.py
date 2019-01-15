@@ -45,7 +45,7 @@ class NBDService(object):
             os.remove(nbd_config_file_path)
         except OSError:
             pass
-        content = configuration.get('/ovs/framework/nbdnodes/{0}/{1}/config'.format(node_id, nbdx), raw=True)
+        content = configuration.get('/ovs/framework/nbdnodes/{0}/{1}/config.raw'.format(node_id, nbdx))
         content_dict = yaml.load(content)
         with open(nbd_config_file_path, 'w') as nbd_config_file:
             nbd_config_file.write(yaml.dump(content_dict, default_flow_style=False))
