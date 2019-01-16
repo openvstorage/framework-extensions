@@ -91,7 +91,11 @@ class OVSBaseGroup(click.Group):
                 sub_section_header, sub_rows = command.get_format_commands(command_chain)
                 rows.extend(sub_rows)
             else:
-                rows.append(OVSHelpFormatter.get_formatted_row(command, '{0} {1}'.format(command_chain, self.name)))
+                if command == self:
+                    chain = command_chain
+                else:
+                    chain = '{0} {1}'.format(command_chain, self.name)
+                rows.append(OVSHelpFormatter.get_formatted_row(command, chain))
         section_header = OVSHelpFormatter.get_formatted_section_header(self)
         return section_header, rows
 
@@ -186,6 +190,7 @@ class OVSCLI(OVSBaseGroup):
             if command_list:
                 with formatter.section(command_section):
                     rows = []
+                    headers_commands = {}
                     for cmd in command_list:
                         help = cmd.short_help or ''
                         if isinstance(cmd, OVSBaseGroup):
@@ -194,12 +199,17 @@ class OVSCLI(OVSBaseGroup):
                                 formatter.write_dl(command_rows)
                         elif isinstance(cmd, OVSCommand):
                             if cmd.section_header:
-                                with formatter.section(OVSHelpFormatter.get_formatted_section_header(cmd)):
-                                    formatter.write_dl([OVSHelpFormatter.get_formatted_row(cmd, command_chain=self.name)])
+                                if cmd.section_header in headers_commands:
+                                    headers_commands[cmd.section_header].append(cmd)
+                                else:
+                                    headers_commands[cmd.section_header] = [cmd]
                             else:
                                 rows.append((cmd.name, help))
                         else:
                             rows.append((cmd.name, help))
+                    for header, commands in headers_commands.iteritems():
+                        with formatter.section(OVSHelpFormatter.get_formatted_section_header(commands[0])):
+                            formatter.write_dl([OVSHelpFormatter.get_formatted_row(i, command_chain=self.name) for i in commands])
                     if rows:
                         formatter.write_dl(rows)
 
