@@ -94,10 +94,11 @@ class Base(object):
         """ Generates a new foreign relation on an object. """
         setattr(self.__class__, key, property(lambda s: s._get_foreign_relation(relation_info)))
 
-    def _get_foreign_relation(self, relation_info):
+    def _get_foreign_relation(self, relation_info, ensure_table=True):
         """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
-        remote_class._ensure_table()
+        if ensure_table:
+            remote_class._ensure_table()
         entries = []
         with self.connector() as connection:
             cursor = connection.cursor()
