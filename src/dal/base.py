@@ -43,7 +43,7 @@ class Base(object):
     _relations = []
     _properties = []
 
-    def __init__(self, identifier=None, locked=True):
+    def __init__(self, identifier=None, ensure_table=True):
         """
         Initializes a new object. If no identifier is passed in, a new one is created.
         :param identifier: Optional identifier (primary key)
@@ -52,30 +52,26 @@ class Base(object):
         :type locked: bool
         """
         self.id = identifier
-        try:
-            if locked is True:
-                self.lock().acquire()
+        if ensure_table:
             self._ensure_table()
-            with self.connector() as connection:
-                if identifier is not None:
-                    cursor = connection.cursor()
-                    cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
-                    row = cursor.fetchone()
-                    if row is None:
-                        raise ObjectNotFoundException()
-                    for prop in self._properties:
-                        setattr(self, prop.name, Base._deserialize(prop.property_type, row[prop.name]))
-                    for relation in self._relations:
-                        setattr(self, '_{0}'.format(relation[0]), {'id': row['_{0}_id'.format(relation[0])],
-                                                                   'object': None})
-                else:
-                    for prop in self._properties:
-                        setattr(self, prop.name, None)
-                    for relation in self._relations:
-                        setattr(self, '_{0}'.format(relation[0]), {'id': None,
-                                                                   'object': None})
-        finally:
-            self.lock().release()
+        with self.connector() as connection:
+            if identifier is not None:
+                cursor = connection.cursor()
+                cursor.execute('SELECT * FROM {0} WHERE id=?'.format(self._table), [self.id])
+                row = cursor.fetchone()
+                if row is None:
+                    raise ObjectNotFoundException()
+                for prop in self._properties:
+                    setattr(self, prop.name, Base._deserialize(prop.property_type, row[prop.name]))
+                for relation in self._relations:
+                    setattr(self, '_{0}'.format(relation[0]), {'id': row['_{0}_id'.format(relation[0])],
+                                                               'object': None})
+            else:
+                for prop in self._properties:
+                    setattr(self, prop.name, None)
+                for relation in self._relations:
+                    setattr(self, '_{0}'.format(relation[0]), {'id': None,
+                                                               'object': None})
         for relation in self._relations:
             self._add_relation(relation)
         for key, relation_info in RelationMapper.load_foreign_relations(self.__class__).iteritems():
@@ -86,14 +82,9 @@ class Base(object):
     @classmethod
     def connector(cls):
         """ Creates and returns a new connection to SQLite. """
-        connection = sqlite3.connect('{0}/main.db'.format(cls.DATABASE_FOLDER))
+        connection = sqlite3.connect('{0}/main.db'.format(cls.DATABASE_FOLDER), timeout=60.0)
         connection.row_factory = sqlite3.Row
         return connection
-
-    @classmethod
-    def lock(cls):
-        """ Returns a file lock context manager """
-        return file_mutex('{0}/main.lock'.format(cls.DATABASE_FOLDER))
 
     def _add_dynamic(self, key):
         """ Generates a new dynamic value on an object. """
@@ -159,7 +150,7 @@ class Base(object):
             field_names = ', '.join([prop.name for prop in self._properties] +
                                     ['_{0}_id'.format(relation[0]) for relation in self._relations])
             prop_statement = ', '.join('?' for _ in self._properties + self._relations)
-            with self.lock(), self.connector() as connection:
+            with self.connector() as connection:
                 cursor = connection.cursor()
                 cursor.execute('INSERT INTO {0}({1}) VALUES ({2})'.format(self._table, field_names, prop_statement),
                                prop_values)
@@ -167,7 +158,7 @@ class Base(object):
         else:
             prop_statement = ', '.join(['{0}=?'.format(prop.name) for prop in self._properties] +
                                        ['_{0}_id=?'.format(relation[0]) for relation in self._relations])
-            with self.lock(), self.connector() as connection:
+            with self.connector() as connection:
                 connection.execute('UPDATE {0} SET {1} WHERE id=? LIMIT 1'.format(self._table, prop_statement),
                                    prop_values + [self.id])
 
@@ -176,7 +167,7 @@ class Base(object):
         Deletes the current object from the SQLite database.
         :return: None
         """
-        with self.lock(), self.connector() as connection:
+        with self.connector() as connection:
             connection.execute('DELETE FROM {0} WHERE id=? LIMIT 1'.format(self._table), [self.id])
 
     @staticmethod
@@ -234,11 +225,10 @@ class Base(object):
                     current_properties.append(row['name'])
 
             # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints
-            for prop in cls._properties:
-                if prop.name not in current_properties:
-                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
-                                                                                   prop.name,
-                                                                                   Base._get_prop_type(prop.property_type)))
+            for prop in [i for i in cls._properties if i.name not in current_properties]:
+                connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
+                                                                               prop.name,
+                                                                               Base._get_prop_type(prop.property_type)))
 
             for rel_name in relation_list:
                 if rel_name not in current_relations:

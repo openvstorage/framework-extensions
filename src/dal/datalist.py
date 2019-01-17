@@ -49,15 +49,14 @@ class DataList(object):
         entries = []
         if parameters is None:
             parameters = []
-        with object_type.lock():
-            object_type._ensure_table()
+        object_type._ensure_table()
         query = query.format(table=object_type._table)
         for relation in object_type._relations:
             query = query.replace('{0}_id'.format(relation[0]),
                                   '_{0}_id'.format(relation[0]))
-        with object_type.lock(), object_type.connector() as connection:
+        with object_type.connector() as connection:
             cursor = connection.cursor()
             result = cursor.execute(query, parameters)
             for row in result.fetchall():
-                entries.append(object_type(row[0], locked=False))
+                entries.append(object_type(row[0]))
         return entries
