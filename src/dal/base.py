@@ -97,15 +97,14 @@ class Base(object):
     def _get_foreign_relation(self, relation_info, ensure_table=True):
         """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
-        if ensure_table:
-            remote_class._ensure_table()
+        remote_class._ensure_table()
         entries = []
         with self.connector() as connection:
             cursor = connection.cursor()
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
             for row in cursor.fetchall():
-                entries.append(remote_class(row['id']))
+                entries.append(remote_class(row['id'], ensure_table=False))
         return entries
 
     def _add_relation(self, relation):
