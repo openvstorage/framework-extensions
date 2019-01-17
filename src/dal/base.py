@@ -101,7 +101,7 @@ class Base(object):
         """ Generates a new foreign relation on an object. """
         setattr(self.__class__, key, property(lambda s: s._get_foreign_relation(relation_info)))
 
-    def _get_foreign_relation(self, relation_info, ensure_table=True):
+    def _get_foreign_relation(self, relation_info):
         """ Getter logic for a foreign relation. """
         remote_class = relation_info['class']
         remote_class._ensure_table()
@@ -111,7 +111,7 @@ class Base(object):
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
             for row in cursor.fetchall():
-                entries.append(remote_class(row['id'], ensure_table=ensure_table))
+                entries.append(remote_class(row['id'], ensure_table=False))
         return entries
 
     def _add_relation(self, relation):
