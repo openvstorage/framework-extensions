@@ -33,6 +33,13 @@ class ObjectNotFoundException(Exception):
 class Base(object):
     """
     Base object that is inherited by all DAL objects. It contains base logic like save, delete, ...
+    Note: 1. The lock by filemutex was removed at some point, because we learned that sqlite locks natively.
+         This way, building a lock above this, can only cause trouble (and it did). For this reason, the lock was
+         removed and replaced by a bump of the timeout time of an SQLite call.
+      2. The `ensure_table` function is called at some points in the DAL query. This function does -what's in a name-,
+         ensures that the table for given requested object exists in the database, before continuing and performing
+         other actions. Be sure to not unnecessarily call this function however, as it may result in unnecessary DB calls,
+         causing needless stress.
     """
     NAME = None
     SOURCE_FOLDER = None
@@ -48,8 +55,8 @@ class Base(object):
         Initializes a new object. If no identifier is passed in, a new one is created.
         :param identifier: Optional identifier (primary key)
         :type identifier: int
-        :param locked: Indicates whether the constructor should lock the DB
-        :type locked: bool
+        :param ensure_table: Indicates whether the constructor should make sure that the table exists. Check class description for more info
+        :type ensure_table: bool
         """
         self.id = identifier
         if ensure_table:
@@ -104,7 +111,7 @@ class Base(object):
             cursor.execute('SELECT id FROM {0} WHERE _{1}_id=?'.format(remote_class._table, relation_info['key']),
                            [self.id])
             for row in cursor.fetchall():
-                entries.append(remote_class(row['id'], ensure_table=False))
+                entries.append(remote_class(row['id'], ensure_table=ensure_table))
         return entries
 
     def _add_relation(self, relation):
@@ -225,10 +232,11 @@ class Base(object):
                     current_properties.append(row['name'])
 
             # ALTER TABLE does not allow to add columns with UNIQUE or NOT NULL constraints
-            for prop in [i for i in cls._properties if i.name not in current_properties]:
-                connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
-                                                                               prop.name,
-                                                                               Base._get_prop_type(prop.property_type)))
+            for prop in cls._properties:
+                if prop.name not in current_properties:
+                    connection.execute('ALTER TABLE {0} ADD COLUMN {1} {2}'.format(cls._table,
+                                                                                   prop.name,
+                                                                                   Base._get_prop_type(prop.property_type)))
 
             for rel_name in relation_list:
                 if rel_name not in current_relations:

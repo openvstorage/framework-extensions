@@ -58,5 +58,5 @@ class DataList(object):
             cursor = connection.cursor()
             result = cursor.execute(query, parameters)
             for row in result.fetchall():
-                entries.append(object_type(row[0], ensure_table=True))
+                entries.append(object_type(row[0], ensure_table=False))
         return entries
