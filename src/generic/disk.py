@@ -26,7 +26,6 @@ import logging
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.log.logger import Logger
 
 
 class PartedEntry(object):

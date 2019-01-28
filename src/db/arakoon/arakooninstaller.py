@@ -30,6 +30,7 @@ from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
+from ovs_extensions.log.logger import Logger
 from ovs_extensions.packages.packagefactory import PackageFactory
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
@@ -1014,7 +1015,7 @@ class ArakoonInstaller(object):
         :return: The sink path
         :rtype: str
         """
-        return self._logger.get_sink_path('arakoon-server_{0}'.format(self.cluster_name))
+        return Logger.get_sink_path('arakoon-server_{0}'.format(self.cluster_name))
 
     def get_crash_log_sink_path(self):
         """
@@ -1022,7 +1023,9 @@ class ArakoonInstaller(object):
         :return: The sink path
         :rtype: str
         """
-        return self._logger.get_sink_path('arakoon-server-crash_{0}'.format(self.cluster_name))
+        # @todo is this safe? Subclassed loggers can no longer change the sync path
+        # This method can be overwritten itself though....
+        return Logger.get_sink_path('arakoon-server-crash_{0}'.format(self.cluster_name))
 
     ################
     # HELPER METHODS

@@ -23,3 +23,5 @@ EXTENSIONS_LOGGER_NAME = 'ovs_extensions'
 LOG_FORMAT_OLD = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
 
 LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(name)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+
+LOG_FORMAT_UNITTEST = '%(levelname)s - %(message)s'

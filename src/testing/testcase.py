@@ -22,20 +22,31 @@ The LogTestCase backports the assertLogs from python 3.4
 import logging
 import unittest
 import collections
-from ..log.logger import LOG_FORMAT
+from ..constants.logging import LOG_FORMAT_UNITTEST
 
-_LoggingWatcher = collections.namedtuple("_LoggingWatcher", ["records", "output"])
+# Create a tuple with 'records' and 'output' as fields. This guarantees immutability
+_LoggingWatcherBase = collections.namedtuple("_LoggingWatcher", ["records", "output"])
 
 
-class _BaseTestCaseContext(object):
+class _LoggingWatcher(_LoggingWatcherBase):
+    """
+    Extends the named tuple
+    """
 
-    def __init__(self, test_case):
-        self.msg = None
-        self.test_case = test_case
-
-    def _raise_failure(self, standard_message):
-        msg = self.test_case._formatMessage(self.msg, standard_message)
-        raise self.test_case.failureException(msg)
+    def get_message_severity_map(self):
+        # type: () -> Dict[str, str]
+        """
+        Return the message - severity map
+        All messages are keys, the value is the severity
+        Created in order to not do too much changes in the unittests
+        - The dict returned is the same as the old unittest logger dict
+        :return: Dict with stripped messages as keys, stringified logging level as value
+        :rtype: Dict[str, str]
+        """
+        message_severity_map = {}
+        for record in self.records:  # type: logging.LogRecord
+            message_severity_map[record.msg.strip()] = record.levelname
+        return message_severity_map
 
 
 class _CapturingHandler(logging.Handler):
@@ -44,16 +55,52 @@ class _CapturingHandler(logging.Handler):
     """
 
     def __init__(self):
+        # type: () -> None
+        """
+        Initialize a capturing handler. This handler adds every record into the watcher
+        """
         logging.Handler.__init__(self)
         self.watcher = _LoggingWatcher([], [])
 
     def flush(self):
+        # type: () -> None
+        """
+        Ensure all logging output has been flushed.
+        No need to implement with the capturing handler
+        """
         pass
 
     def emit(self, record):
+        # type: (logging.LogRecord) -> None
+        """
+        Do whatever it takes to actually log the specified logging record
+        :param record: Record to log
+        :return: None
+        """
         self.watcher.records.append(record)
         msg = self.format(record)
         self.watcher.output.append(msg)
+
+
+class _BaseTestCaseContext(object):
+
+    def __init__(self, test_case):
+        # type: (unittest.TestCase) -> None
+        """
+        Instantiate the TestCaseContext
+        :param test_case: TestCase to work with
+        """
+        self.msg = None
+        self.test_case = test_case
+
+    def _raise_failure(self, message):
+        # type: (str) -> None
+        """
+        Raise a failure message
+        :param message: Message to raise
+        """
+        msg = self.test_case._formatMessage(self.msg, message)
+        raise self.test_case.failureException(msg)
 
 
 class _AssertLogsContext(_BaseTestCaseContext):
@@ -61,34 +108,68 @@ class _AssertLogsContext(_BaseTestCaseContext):
     A context manager used to implement TestCase.assertLogs().
     """
 
-    def __init__(self, test_case, logger_name, level):
+    def __init__(self, test_case, logger_name=None, level=None, add_stream_handler=False):
+        # type: (unittest.TestCase, Union[str, logging.Logger], str, bool) -> None
+        """
+        Initialize the AssertLogsContext
+        :param test_case: TestCase to assert for
+        :type test_case: unittest.TestCase
+        :param logger_name: Logger instance or logger name to use
+        :type logger_name: Union[str, logging.Logger]
+        :param level: Logging level to use
+        :type level: str
+        :param add_stream_handler: Add an additional stream handler.
+        Useful for debugging
+        :type add_stream_handler: bool
+        """
         _BaseTestCaseContext.__init__(self, test_case)
+
         self.logger_name = logger_name
         if level:
             self.level = logging._levelNames.get(level, level)
         else:
             self.level = logging.INFO
         self.msg = None
+        self.add_stream_handler = add_stream_handler
 
     def __enter__(self):
+        # type: () -> _LoggingWatcher
+        """
+        Enter the context manager
+        This will configure the logging to use a capture handler.
+        All records captured are then yielded through _LoggingWatcher
+        """
         if isinstance(self.logger_name, logging.Logger):
+            # Set both the local logger and the self.logger to the logger instance
             logger = self.logger = self.logger_name
         else:
             logger = self.logger = logging.getLogger(self.logger_name)
-        log_format = LOG_FORMAT.format(self.logger_name)
-        formatter = logging.Formatter(log_format)
+        formatter = logging.Formatter(LOG_FORMAT_UNITTEST)
         handler = _CapturingHandler()
         handler.setFormatter(formatter)
+
+        handlers = [handler]
+        if self.add_stream_handler:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            handlers.append(stream_handler)
+
         self.watcher = handler.watcher
         self.old_handlers = logger.handlers[:]
         self.old_level = logger.level
         self.old_propagate = logger.propagate
-        logger.handlers = [handler]
+
+        logger.handlers = handlers
         logger.setLevel(self.level)
         logger.propagate = False
         return handler.watcher
 
     def __exit__(self, exc_type, exc_value, tb):
+        # type: (any, any, any) -> bool
+        """
+        Exit the context manager
+        Disables all the logging handlers previously added
+        """
         self.logger.handlers = self.old_handlers
         self.logger.propagate = self.old_propagate
         self.logger.setLevel(self.old_level)
@@ -101,7 +182,8 @@ class _AssertLogsContext(_BaseTestCaseContext):
 
 class LogTestCase(unittest.TestCase):
 
-    def assertLogs(self, logger=None, level=None):
+    def assertLogs(self, logger=None, level=None, add_stream_handler=False):
+        # type: (Union[str, logging.Logger], str, bool) -> _AssertLogsContext
         """
         Fail unless a log message of level *level* or higher is emitted
         on *logger_name* or its children.  If omitted, *level* defaults to
@@ -121,5 +203,14 @@ class LogTestCase(unittest.TestCase):
                 logging.getLogger('foo.bar').error('second message')
             self.assertEqual(cm.output, ['INFO:foo:first message',
                                          'ERROR:foo.bar:second message'])
+        :param logger: Logger instance or logger name to use
+        :type logger: Union[str, logging.Logger]
+        :param level: Logging level to use
+        :type level: str
+        :param add_stream_handler: Add an additional stream handler.
+        Useful for debugging
+        :type add_stream_handler: bool
+        :return: Return the assertLogsContext
+        :rtype: _AssertLogsContext
         """
-        return _AssertLogsContext(self, logger, level)
+        return _AssertLogsContext(self, logger, level, add_stream_handler)
