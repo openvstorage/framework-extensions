@@ -25,7 +25,7 @@ import socket
 import logging
 import itertools
 import logging.config
-from ..constants.logging import EXTENSIONS_LOGGER_NAME, LOG_FORMAT_NO_NAME
+from ..constants.logging import EXTENSIONS_LOGGER_NAME, LOG_FORMAT
 
 
 class LogFormatter(logging.Formatter):
@@ -69,7 +69,7 @@ class LogFormatter(logging.Formatter):
 
 
 OVS_FORMATTER_CONFIG = {'()': LogFormatter.__module__ + '.' + LogFormatter.__name__,
-                        'format': LOG_FORMAT_NO_NAME}
+                        'format': LOG_FORMAT}
 
 DEFAULT_LOG_CONFIG = {'version': 1,
                       'disable_existing_loggers': False,
@@ -84,6 +84,7 @@ DEFAULT_LOG_CONFIG = {'version': 1,
                                                            'level': 'INFO',
                                                            'propagate': True},
                                   'urllib3': {'level': 'WARNING'},
+                                  'requests': {'level': 'WARNING'},
                                   'paramiko': {'level': 'WARNING'}}
                       }
 

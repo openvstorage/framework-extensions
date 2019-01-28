@@ -28,15 +28,25 @@ import json
 import select
 import socket
 import logging
+import paramiko
 import tempfile
 import warnings
 import unicodedata
+import subprocess
+from paramiko import AuthenticationException
 from threading import RLock
 from functools import wraps
-from subprocess import CalledProcessError, PIPE, Popen
+from subprocess import CalledProcessError, PIPE, Popen, check_output
 from ovs_extensions.generic.remote import remote
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
-from ovs_extensions.log.logger import Logger
+
+
+if not hasattr(select, 'poll'):
+    subprocess._has_poll = False  # Damn 'monkey patching'
+# Disable paramiko warning
+warnings.filterwarnings(action='ignore',
+                        message='.*CTR mode needs counter parameter.*',
+                        category=FutureWarning)
 
 
 def connected():
@@ -150,7 +160,6 @@ class SSHClient(object):
         :param timeout: An optional timeout (in seconds) for the TCP connect
         :type timeout: float
         """
-        from subprocess import check_output
         if isinstance(endpoint, basestring):
             ip = endpoint
             if not re.findall(SSHClient.IP_REGEX, ip):
@@ -192,7 +201,6 @@ class SSHClient(object):
                     self._client = SSHClient.client_cache[key]
 
             if create_new is True:
-                import paramiko
                 client = paramiko.SSHClient()
                 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 if cached is True:
@@ -246,12 +254,8 @@ class SSHClient(object):
         if self.is_local is True:
             return
 
-        from paramiko import AuthenticationException
         try:
             try:
-                warnings.filterwarnings(action='ignore',
-                                        message='.*CTR mode needs counter parameter.*',
-                                        category=FutureWarning)
                 self._client.connect(self.ip, username=self.username, password=self.password, timeout=self.timeout)
             except:
                 try:
@@ -358,9 +362,6 @@ class SSHClient(object):
             stderr = None
             try:
                 try:
-                    if not hasattr(select, 'poll'):
-                        import subprocess
-                        subprocess._has_poll = False  # Damn 'monkey patching'
                     if timeout is not None:
                         command = "'timeout' '{0}' {1}".format(timeout, command)
                     channel = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)

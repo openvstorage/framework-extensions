@@ -20,6 +20,5 @@ EXTENSIONS_LOGGER_NAME = 'ovs_extensions'
 
 # Formatting
 # Format is the name of the logger
-LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
-# Testing purposes
-LOG_FORMAT_NO_NAME = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+# LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(name)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
