@@ -24,7 +24,7 @@ import sys
 import copy
 import logging
 from ..log import LogFormatter
-from ..constants.logging import LOG_FORMAT
+from ..constants.logging import LOG_FORMAT_OLD
 
 
 class Logger(logging.Logger):
@@ -110,7 +110,7 @@ class Logger(logging.Logger):
                                                     port=target_params['port']))
 
         handler.setLevel(getattr(logging, log_level))
-        handler.setFormatter(LogFormatter(LOG_FORMAT.format(self._full_name)))
+        handler.setFormatter(LogFormatter(LOG_FORMAT_OLD.format(self._full_name)))
         Logger._cache[self._full_name] = handler
         return handler
 

@@ -19,6 +19,7 @@ CORE_LOGGER_NAME = 'ovs'
 EXTENSIONS_LOGGER_NAME = 'ovs_extensions'
 
 # Formatting
-# Format is the name of the logger
-# LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+# Format is the name of the logger - still used for backwards compatibility (things importing the logger
+LOG_FORMAT_OLD = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
+
 LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(name)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
