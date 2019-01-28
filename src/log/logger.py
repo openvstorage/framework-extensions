@@ -16,57 +16,14 @@
 
 """
 Contains the Logger module
+WARNING: the use of this logger is deprecated in favor of using python default logging
 """
 
 import os
 import sys
 import copy
-import time
-import socket
 import logging
-import itertools
-from ..constants.logging import EXTENSIONS_LOGGER_NAME
-
-# Format is the name of the logger
-LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
-# Testing purposes
-LOG_FORMAT_NO_NAME = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(filename)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
-
-
-class LogFormatter(logging.Formatter):
-    """
-    Formatter for the logger
-    """
-    def formatTime(self, record, datefmt=None):
-        """
-        Overrides the default formatter to include UTC offset. Is only called for when the formatter has %(asctime)s in it
-        :param record: Record to format
-        :type record: logging.LogRecord
-        :param datefmt: Date format to apply to the record. If omitted, ISO8601 is used
-        :type datefmt: str
-        :return: The formatted timestamp
-        :rtype: str
-        """
-        _ = datefmt
-        ct = self.converter(record.created)
-        tz = time.altzone if time.daylight and ct.tm_isdst > 0 else time.timezone
-        offset = '{0}{1:0>2}{2:0>2}'.format('-' if tz > 0 else '+', abs(tz) // 3600, abs(tz // 60) % 60)
-        base_time = time.strftime('%Y-%m-%d %H:%M:%S', ct)
-        return '{0} {1:03.0f}00 {2}'.format(base_time, record.msecs, offset)
-
-    def format(self, record):
-        """
-        Format a LogRecord
-        :param record: Record to format
-        :type record: logging.LogRecord
-        :return: Formatted record
-        :rtype: str
-        """
-        if 'hostname' not in record.__dict__:
-            record.hostname = socket.gethostname()
-        if 'sequence' not in record.__dict__:
-            record.sequence = Logger.counter.next()
-        return super(LogFormatter, self).format(record)
+from ..constants.logging import LOG_FORMAT
 
 
 class Logger(logging.Logger):
@@ -76,6 +33,8 @@ class Logger(logging.Logger):
     WARNING: This log handler might be highly unreliable if not used correctly. It can log to redis, but if Redis is
     not working as expected, it will result in lost log messages. If you want reliable logging, do not use Redis at all
     or log to files and have a separate process forward them to Redis (so logs can be re-send if Redis is unavailable)
+
+    WARNING: the use of this logger is deprecated in favor of using python default logging
     """
     TARGET_TYPE_FILE = 'file'
     TARGET_TYPE_REDIS = 'redis'
@@ -89,8 +48,6 @@ class Logger(logging.Logger):
                   30: 'WARNING',
                   40: 'ERROR',
                   50: 'CRITICAL'}
-
-    counter = itertools.count()
 
     _logs = {}  # Used by unittests
     _cache = {}
@@ -277,64 +234,3 @@ class Logger(logging.Logger):
                 print msg
 
         super(Logger, self)._log(level, msg, args, exc_info=exc_info, extra=extra)
-
-
-class LogConfigurator(object):
-    """
-    Configure the logger of the extenions
-    """
-
-    @staticmethod
-    def get_extensions_logger():
-        """
-        Get the logger of the extensions
-        All other loggers inherit from this logger
-        """
-        return logging.getLogger(EXTENSIONS_LOGGER_NAME)
-
-    @staticmethod
-    def get_urllib3_logger():
-        """
-        Get the logger of the HTTP client used within the extensions
-        """
-        return logging.getLogger('urllib3')
-
-    @staticmethod
-    def get_paramiko_logger():
-        """
-        Get the logger of the paramiko library
-        """
-        return logging.getLogger('paramiko')
-
-    @classmethod
-    def set_library_logger_levels(cls):
-        """
-        Sets the library loggers to the appropriate levels
-        """
-        loggers = [cls.get_urllib3_logger(), cls.get_paramiko_logger()]
-        for logger in loggers:
-            logger.setLevel(logging.WARNING)
-
-    @staticmethod
-    def get_recommended_dict_config():
-        """
-        Get the recommend logging config for the extensions
-        """
-        # The logging.fileConfig and logging.dictConfig disables existing loggers by default.
-        # So, settings will not be applied to your logger if it was configured before setting the config.
-        # 'disable_existing_loggers' resolves the issue
-
-        return {'version': 1,
-                'disable_existing_loggers': False,
-                'formatters': {
-                    'standard': {'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'},
-                    'ovs': {'()': LogFormatter.__module__ + '.' + LogFormatter.__name__,
-                            'format': LOG_FORMAT_NO_NAME}
-                },
-                'handlers': {'default': {'level': 'INFO',
-                                         'class': 'logging.StreamHandler',
-                                         'formatter': 'ovs'}},
-                'loggers': {EXTENSIONS_LOGGER_NAME: {'handlers': ['default'],
-                                                     'level': 'INFO',
-                                                     'propagate': True}}
-                }
