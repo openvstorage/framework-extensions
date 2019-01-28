@@ -23,6 +23,7 @@ import os
 import sys
 import copy
 import logging
+from ..log import LogFormatter
 from ..constants.logging import LOG_FORMAT
 
 

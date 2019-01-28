@@ -68,6 +68,26 @@ class LogFormatter(logging.Formatter):
         return super(LogFormatter, self).format(record)
 
 
+OVS_FORMATTER_CONFIG = {'()': LogFormatter.__module__ + '.' + LogFormatter.__name__,
+                        'format': LOG_FORMAT_NO_NAME}
+
+DEFAULT_LOG_CONFIG = {'version': 1,
+                      'disable_existing_loggers': False,
+                      'formatters': {
+                          'standard': {'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'},
+                          'ovs': OVS_FORMATTER_CONFIG
+                      },
+                      'handlers': {'default': {'level': 'INFO',
+                                               'class': 'logging.StreamHandler',
+                                               'formatter': 'ovs'}},
+                      'loggers': {EXTENSIONS_LOGGER_NAME: {'handlers': ['default'],
+                                                           'level': 'INFO',
+                                                           'propagate': True},
+                                  'urllib3': {'level': 'WARNING'},
+                                  'paramiko': {'level': 'WARNING'}}
+                      }
+
+
 def get_extensions_logger():
     """
     Get the logger of the extensions
@@ -76,63 +96,8 @@ def get_extensions_logger():
     return logging.getLogger(EXTENSIONS_LOGGER_NAME)
 
 
-def get_urllib3_logger():
-    """
-    Get the logger of the HTTP client used within the extensions
-    """
-    return logging.getLogger('urllib3')
-
-
-def get_paramiko_logger():
-    """
-    Get the logger of the paramiko library
-    """
-    return logging.getLogger('paramiko')
-
-
-def set_library_logger_levels():
-    """
-    Sets the library loggers to the appropriate levels
-    """
-    loggers = [get_urllib3_logger(), get_paramiko_logger()]
-    for logger in loggers:
-        logger.setLevel(logging.WARNING)
-
-
-def get_recommended_dict_config():
-    """
-    Get the recommend logging config for the extensions
-    """
-    # The logging.fileConfig and logging.dictConfig disables existing loggers by default.
-    # So, settings will not be applied to your logger if it was configured before setting the config.
-    # 'disable_existing_loggers' resolves the issue
-
-    return {'version': 1,
-            'disable_existing_loggers': False,
-            'formatters': {
-                'standard': {'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'},
-                'ovs': get_ovs_formatter_config()
-            },
-            'handlers': {'default': {'level': 'INFO',
-                                     'class': 'logging.StreamHandler',
-                                     'formatter': 'ovs'}},
-            'loggers': {EXTENSIONS_LOGGER_NAME: {'handlers': ['default'],
-                                                 'level': 'INFO',
-                                                 'propagate': True}}
-            }
-
-
-def get_ovs_formatter_config():
-    """
-    Retrieve the logging configuration for the ovs formatter
-    """
-    return {'()': LogFormatter.__module__ + '.' + LogFormatter.__name__,
-            'format': LOG_FORMAT_NO_NAME}
-
-
 def configure_logger_with_recommended_settings():
     """
     Configure the extensions logger with the recommended config
     """
-    logging.config.dictConfig(get_recommended_dict_config())
-    set_library_logger_levels()
+    logging.config.dictConfig(DEFAULT_LOG_CONFIG)
