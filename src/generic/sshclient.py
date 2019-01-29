@@ -55,32 +55,29 @@ def connected():
     Makes sure a call is executed against a connected client if required
     """
 
-    def wrap(outer_function):
+    def wrapper(f):
         """
         Wrapper function
-        :param outer_function: Function to wrap
+        :param f: Function to wrap
         """
-
+        @wraps(f)
         def inner_function(self, *args, **kwargs):
             """
             Wrapped function
             :param self
             """
             try:
-                if self._client is not None and not self.is_connected():
+                if self._client and not self.is_connected():
                     self._connect()
-                return outer_function(self, *args, **kwargs)
+                return f(self, *args, **kwargs)
             except AttributeError as ex:
                 if "'NoneType' object has no attribute 'open_session'" in str(ex):
                     self._connect()  # Reconnect
-                    return outer_function(self, *args, **kwargs)
+                    return f(self, *args, **kwargs)
                 raise
-
-        inner_function.__name__ = outer_function.__name__
-        inner_function.__module__ = outer_function.__module__
         return inner_function
 
-    return wrap
+    return wrapper
 
 
 def mocked(mock_function):
@@ -91,14 +88,17 @@ def mocked(mock_function):
         """
         Wrapper function
         """
-        if is_unittest_mode():
-            @wraps(f)
-            def mock_wrapper(client, *args, **kwargs):
-                """ Wrapper to be able to add the original function to the wrapped function """
+        @wraps(f)
+        def inner_function(client, *args, **kwargs):
+            # type: (SSHClient, *any, **any) -> any
+            """
+            Wrapper to be able to add the original function to the wrapped function
+            """
+            if client._mocked:
                 client.original_function = f
                 return mock_function(client, *args, **kwargs)
-            return mock_wrapper
-        return f
+            return f(client, *args, **kwargs)
+        return inner_function
     return wrapper
 
 
@@ -138,10 +138,13 @@ class SSHClient(object):
     REFERENCE_ATTR = 'ovs_ref_counter'
 
     _logger = logging.getLogger(__name__)
+
     _raise_exceptions = {}  # Used by unit tests
+    _mocked = is_unittest_mode()  # Only evaluated ONCE. Use enable/disable mocking functions
     client_cache = {}
 
     def __init__(self, endpoint, username='ovs', password=None, cached=True, timeout=None):
+        # type: (str, str, str, bool, float) -> None
         """
         Initializes an SSHClient
         Please note that the underlying (cached) Paramiko instance is not thread safe!
@@ -170,14 +173,14 @@ class SSHClient(object):
 
         self.ip = ip
         self._client = None
-        self.local_ips = [lip.strip() for lip in check_output("ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1", shell=True).strip().splitlines()]
+        self.local_ips = self.get_local_ip_addresses()
         self.is_local = self.ip in self.local_ips
         self.password = password
         self.timeout = timeout
         self._unittest_mode = is_unittest_mode()
         self._client_lock = RLock()
 
-        current_user = check_output('whoami', shell=True).strip()
+        current_user = self.get_current_user()
         if username is None:
             self.username = current_user
         else:
@@ -185,7 +188,7 @@ class SSHClient(object):
             if username != current_user:
                 self.is_local = False  # If specified user differs from current executing user, we always use the paramiko SSHClient
 
-        if self._unittest_mode is True:
+        if is_unittest_mode():
             self.is_local = True
             if self.ip in self._raise_exceptions:
                 raise_info = self._raise_exceptions[self.ip]
@@ -195,26 +198,63 @@ class SSHClient(object):
         if not self.is_local:
             key = None
             create_new = True
-            if cached is True:
+            if cached:
                 key = '{0}@{1}'.format(self.ip, self.username)
                 if key in SSHClient.client_cache:
                     create_new = False
                     self._client = SSHClient.client_cache[key]
 
-            if create_new is True:
+            if create_new:
                 client = paramiko.SSHClient()
                 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                if cached is True:
+                if cached:
                     SSHClient.client_cache[key] = client
                 self._client = client
 
-        if self._client is not None:
+        if self._client:
             # Increment the ref counter to avoid closing the connection
             if not hasattr(self._client, self.REFERENCE_ATTR):
                 setattr(self._client, self.REFERENCE_ATTR, 0)
             self._client.ovs_ref_counter += 1  # GIL will be locking this
 
         self._connect()
+
+    @classmethod
+    def enable_mock(cls):
+        # type: () -> None
+        """
+        Enable the sshclient to only use mocked calls
+        """
+        cls._mocked = True
+
+    @classmethod
+    def disable_mock(cls):
+        # type: () -> None
+        """
+        Disable the sshclient mocking
+        """
+        cls._mocked = False
+
+    @staticmethod
+    def get_local_ip_addresses():
+        # type: () -> List[str]
+        """
+        Retrieve the local ip addresses
+        :return: List with all ip adresses
+        :rtype: List[str]
+        """
+        command = "ip a | grep 'inet ' | sed 's/\s\s*/ /g' | cut -d ' ' -f 3 | cut -d '/' -f 1"
+        return [lip.strip() for lip in check_output(command, shell=True).strip().splitlines()]
+
+    @staticmethod
+    def get_current_user():
+        # type: () -> str
+        """
+        Retrieve the current user
+        :return: The name of the current user
+        :rtype: str
+        """
+        return check_output('whoami', shell=True).strip()
 
     def __del__(self):
         """
@@ -252,7 +292,7 @@ class SSHClient(object):
         :raises: socket.error: When unable to connect but for different reasons than UnableToConnectException
         :raises: NotAuthenticatedException: When authentication has failed
         """
-        if self.is_local is True:
+        if self.is_local:
             return
 
         try:
@@ -283,7 +323,7 @@ class SSHClient(object):
         :return: None
         :rtype: NoneType
         """
-        if self.is_local is True:
+        if self.is_local:
             return
         with self._client_lock:
             # Check if it is safe to disconnect
@@ -359,7 +399,7 @@ class SSHClient(object):
         if isinstance(command, list):
             command = ' '.join([self.shell_safe(str(entry)) for entry in command])
         original_command = command
-        if self.is_local is True:
+        if self.is_local:
             stderr = None
             try:
                 try:
@@ -374,23 +414,23 @@ class SSHClient(object):
                 exit_code = channel.returncode
                 if exit_code == 124:
                     raise CalledProcessTimeout(exit_code, original_command, 'Timeout during command')
-                if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
+                if exit_code != 0 and not allow_nonzero:  # Raise same error as check_output
                     raise CalledProcessError(exit_code, original_command, stdout)
-                if debug is True:
+                if debug:
                     self._logger.debug('stdout: {0}'.format(stdout))
                     self._logger.debug('stderr: {0}'.format(stderr))
                 return_value = [stdout]
                 # Order matters for backwards compatibility
-                if return_stderr is True:
+                if return_stderr:
                     return_value.append(stderr)
-                if return_exit_code is True:
+                if return_exit_code:
                     return_value.append(exit_code)
                 # Backwards compatibility
                 if len(return_value) == 1:
                     return return_value[0]
                 return tuple(return_value)
             except CalledProcessError as cpe:
-                if suppress_logging is False:
+                if not suppress_logging:
                     self._logger.error('Command "{0}" failed with output "{1}"{2}'.format(
                         original_command, cpe.output, '' if stderr is None else ' and error "{0}"'.format(stderr)
                     ))
@@ -403,15 +443,15 @@ class SSHClient(object):
                 exit_code = stdout.channel.recv_exit_status()
             except socket.timeout:
                 raise CalledProcessTimeout(124, original_command, 'Timeout during command')
-            if exit_code != 0 and allow_nonzero is False:  # Raise same error as check_output
-                if suppress_logging is False:
+            if exit_code != 0 and not allow_nonzero:  # Raise same error as check_output
+                if not suppress_logging:
                     self._logger.error('Command "{0}" failed with output "{1}" and error "{2}"'.format(command, output, error))
                 raise CalledProcessError(exit_code, command, output)
             return_value = [output]
             # Order matters for backwards compatibility
-            if return_stderr is True:
+            if return_stderr:
                 return_value.append(error)
-            if return_exit_code is True:
+            if return_exit_code:
                 return_value.append(exit_code)
             # Backwards compatibility
             if len(return_value) == 1:
@@ -427,7 +467,7 @@ class SSHClient(object):
         if isinstance(directories, basestring):
             directories = [directories]
         for directory in directories:
-            if self.is_local is True:
+            if self.is_local:
                 if not os.path.exists(directory):
                     os.makedirs(directory)
             else:
@@ -435,20 +475,23 @@ class SSHClient(object):
 
     @mocked(MockedSSHClient.dir_delete)
     def dir_delete(self, directories, follow_symlinks=False):
+        # type: (Union[str, List[str]], bool) -> None
         """
         Remove a directory (or multiple directories) from the remote filesystem recursively
         :param directories: Single directory or list of directories to delete
+        :type directories: Union[str, List[str]]
         :param follow_symlinks: Boolean to indicate if symlinks should be followed and thus be deleted too
+        :type follow_symlinks: bool
         """
         if isinstance(directories, basestring):
             directories = [directories]
         for directory in directories:
             real_path = self.file_read_link(directory)
-            if real_path and follow_symlinks is True:
+            if real_path and follow_symlinks:
                 self.file_unlink(directory.rstrip('/'))
                 self.dir_delete(real_path)
             else:
-                if self.is_local is True:
+                if self.is_local:
                     if os.path.exists(directory):
                         for dirpath, dirnames, filenames in os.walk(directory, topdown=False, followlinks=follow_symlinks):
                             for filename in filenames:
@@ -462,11 +505,14 @@ class SSHClient(object):
 
     @mocked(MockedSSHClient.dir_exists)
     def dir_exists(self, directory):
+        # type: (str) -> bool
         """
         Checks if a directory exists on a remote host
         :param directory: Directory to check for existence
+        :type directory: str
+        :rtype: bool
         """
-        if self.is_local is True:
+        if self.is_local:
             return os.path.isdir(directory)
         else:
             command = """import os, json
@@ -475,6 +521,7 @@ print json.dumps(os.path.isdir('{0}'))""".format(directory)
 
     @mocked(MockedSSHClient.dir_chmod)
     def dir_chmod(self, directories, mode, recursive=False):
+        # type: (Union[str, List[str]], any, bool) -> None
         """
         Chmod a or multiple directories
         :param directories: Directories to chmod
@@ -488,20 +535,21 @@ print json.dumps(os.path.isdir('{0}'))""".format(directory)
         if isinstance(directories, basestring):
             directories = [directories]
         for directory in directories:
-            if self.is_local is True:
+            if self.is_local:
                 os.chmod(directory, mode)
-                if recursive is True:
+                if recursive:
                     for root, dirs, _ in os.walk(directory):
                         for sub_dir in dirs:
                             os.chmod('/'.join([root, sub_dir]), mode)
             else:
                 command = ['chmod', oct(mode), directory]
-                if recursive is True:
+                if recursive:
                     command.insert(1, '-R')
                 self.run(command)
 
     @mocked(MockedSSHClient.dir_chown)
     def dir_chown(self, directories, user, group, recursive=False):
+        # type: (Union[str, List[str]], str, str, bool) -> None
         """
         Chown a or multiple directories
         :param directories: Directories to chown
@@ -510,8 +558,6 @@ print json.dumps(os.path.isdir('{0}'))""".format(directory)
         :param recursive: Chown the directories recursively or not
         :return: None
         """
-        if self._unittest_mode is True:
-            return
 
         all_users = [user_info[0] for user_info in pwd.getpwall()]
         all_groups = [group_info[0] for group_info in grp.getgrall()]
@@ -526,15 +572,15 @@ print json.dumps(os.path.isdir('{0}'))""".format(directory)
         if isinstance(directories, basestring):
             directories = [directories]
         for directory in directories:
-            if self.is_local is True:
+            if self.is_local:
                 os.chown(directory, uid, gid)
-                if recursive is True:
+                if recursive:
                     for root, dirs, _ in os.walk(directory):
                         for sub_dir in dirs:
                             os.chown('/'.join([root, sub_dir]), uid, gid)
             else:
                 command = ['chown', '{0}:{1}'.format(user, group), directory]
-                if recursive is True:
+                if recursive:
                     command.insert(1, '-R')
                 self.run(command)
 
@@ -544,7 +590,7 @@ print json.dumps(os.path.isdir('{0}'))""".format(directory)
         List contents of a directory on a remote host
         :param directory: Directory to list
         """
-        if self.is_local is True:
+        if self.is_local:
             return os.listdir(directory)
         else:
             command = """import os, json
@@ -558,7 +604,7 @@ print json.dumps(os.listdir('{0}'))""".format(directory)
         :param links: Dictionary containing the absolute path of the files and their link which needs to be created
         :return: None
         """
-        if self.is_local is True:
+        if self.is_local:
             for link_name, source in links.iteritems():
                 os.symlink(source, link_name)
         else:
@@ -578,7 +624,7 @@ print json.dumps(os.listdir('{0}'))""".format(directory)
             if not filename.startswith('/'):
                 raise ValueError('Absolute path required for filename {0}'.format(filename))
 
-            if self.is_local is True:
+            if self.is_local:
                 if not self.dir_exists(directory=os.path.dirname(filename)):
                     self.dir_create(os.path.dirname(filename))
                 if not os.path.exists(filename):
@@ -597,7 +643,7 @@ print json.dumps(os.listdir('{0}'))""".format(directory)
         if isinstance(filenames, basestring):
             filenames = [filenames]
         for filename in filenames:
-            if self.is_local is True:
+            if self.is_local:
                 if '*' in filename:
                     for fn in glob.glob(filename):
                         os.remove(fn)
@@ -621,7 +667,7 @@ print json.dumps(glob.glob('{0}'))""".format(filename)
         :param path: Path of the file to unlink
         :return: None
         """
-        if self.is_local is True:
+        if self.is_local:
             if os.path.islink(path):
                 os.unlink(path)
         else:
@@ -635,7 +681,7 @@ print json.dumps(glob.glob('{0}'))""".format(filename)
         :return: None
         """
         path = path.rstrip('/')
-        if self.is_local is True:
+        if self.is_local:
             if os.path.islink(path):
                 return os.path.realpath(path)
         else:
@@ -653,7 +699,7 @@ if os.path.islink('{0}'):
         Load a file from the remote end
         :param filename: File to read
         """
-        if self.is_local is True:
+        if self.is_local:
             with open(filename, 'r') as the_file:
                 return the_file.read()
         else:
@@ -668,7 +714,7 @@ if os.path.islink('{0}'):
         :param contents: Contents to write to the file
         """
         temp_filename = '{0}~'.format(filename)
-        if self.is_local is True:
+        if self.is_local:
             if os.path.isfile(filename):
                 # Use .run([cp -pf ...]) here, to make sure owner and other rights are preserved
                 self.run(['cp', '-pf', filename, temp_filename])
@@ -703,7 +749,7 @@ if os.path.islink('{0}'):
         :param local_filename: Name of the file locally
         """
         temp_remote_filename = '{0}~'.format(remote_filename)
-        if self.is_local is True:
+        if self.is_local:
             self.run(['cp', '-f', local_filename, temp_remote_filename])
             self.run(['mv', '-f', temp_remote_filename, remote_filename])
         else:
@@ -718,7 +764,7 @@ if os.path.islink('{0}'):
         Checks if a file exists on a remote host
         :param filename: File to check for existence
         """
-        if self.is_local is True:
+        if self.is_local:
             return os.path.isfile(filename)
         else:
             command = """import os, json
@@ -743,9 +789,6 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
         :param group: Group to set
         :return: None
         """
-        if self._unittest_mode is True:
-            return
-
         all_users = [user_info[0] for user_info in pwd.getpwall()]
         all_groups = [group_info[0] for group_info in grp.getgrall()]
 
@@ -759,9 +802,9 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
         if isinstance(filenames, basestring):
             filenames = [filenames]
         for filename in filenames:
-            if self.file_exists(filename=filename) is False:
+            if not self.file_exists(filename=filename):
                 continue
-            if self.is_local is True:
+            if self.is_local:
                 os.chown(filename, uid, gid)
             else:
                 self.run(['chown', '{0}:{1}'.format(user, group), filename])
@@ -778,24 +821,24 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
         :return: List of files in directory
         """
         all_files = []
-        if self.is_local is True:
+        if self.is_local:
             for root, dirs, files in os.walk(directory):
                 for file_name in files:
-                    if abs_path is True:
+                    if abs_path:
                         all_files.append('/'.join([root, file_name]))
                     else:
                         all_files.append(file_name)
-                if recursive is False:
+                if not recursive:
                     break
         else:
             with remote(self.ip, [os], 'root') as rem:
                 for root, dirs, files in rem.os.walk(directory):
                     for file_name in files:
-                        if abs_path is True:
+                        if abs_path:
                             all_files.append('/'.join([root, file_name]))
                         else:
                             all_files.append(file_name)
-                    if recursive is False:
+                    if not recursive:
                         break
         return all_files
 
@@ -833,7 +876,7 @@ print json.dumps(os.path.isfile('{0}'))""".format(filename)
         if not self.dir_exists(directory=target_dir):
             self.dir_create(directories=target_dir)
 
-        if self.is_local is True:
+        if self.is_local:
             return os.rename(source_file_name, destination_file_name)
         else:
             command = """import os, json
@@ -848,7 +891,7 @@ print json.dumps(os.rename('{0}', '{1}'))""".format(source_file_name, destinatio
         :param file_path: File path to check for existence
         :type file_path: str
         """
-        if self.is_local is True:
+        if self.is_local:
             return os.path.exists(file_path)
         else:
             command = """import os, json
@@ -864,7 +907,7 @@ print json.dumps(os.path.exists('{0}'))""".format(file_path)
         :rtype: bool
         """
         path = path.rstrip('/')
-        if self.is_local is True:
+        if self.is_local:
             return os.path.ismount(path)
 
         command = """import os, json

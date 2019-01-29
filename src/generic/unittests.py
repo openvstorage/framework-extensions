@@ -26,14 +26,25 @@ import sys
 import time
 import inspect
 import unittest
+from ..testing.mocking import mock_all, disable_mock
 
 
 def set_unittest_mode():
+    # type: () -> None
+    """
+    Configure everything to run in unittest mode
+    """
     os.environ['RUNNING_UNITTESTS'] = 'True'
+    mock_all()
 
 
 def disable_unittest_mode():
+    # type: () -> None
+    """
+    Configure everything to run the real deal
+    """
     os.environ.pop('RUNNING_UNITTESTS', None)
+    disable_mock()
 
 
 class UnitTest(object):
