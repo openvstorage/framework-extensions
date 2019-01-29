@@ -17,8 +17,7 @@
 """
 Generic volatile factory.
 """
-import os
-
+from ovs_extensions.constants import is_unittest_mode
 
 class VolatileFactory(object):
     """
@@ -32,7 +31,7 @@ class VolatileFactory(object):
         Returns a volatile storage client
         """
         if cls.store is None:
-            if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            if is_unittest_mode():
                 client_type = 'dummy'
             if client_type is None:
                 client_type = cls._get_client_type()

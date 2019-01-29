@@ -23,6 +23,7 @@ import time
 import logging
 from distutils.version import LooseVersion
 from subprocess import check_output
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.services.interfaces.systemd import Systemd
 from ovs_extensions.services.interfaces.upstart import Upstart
 from ovs_extensions.services.mockups.systemd import SystemdMock
@@ -65,7 +66,7 @@ class ServiceFactory(object):
         """
         if not hasattr(cls, 'manager') or cls.manager is None:
             implementation_class = None
-            if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            if is_unittest_mode():
                 implementation_class = SystemdMock
             else:
                 service_type = cls.get_service_type()

@@ -24,6 +24,7 @@ import sys
 import copy
 import logging
 from ..log import LogFormatter
+from ..constants import is_unittest_mode
 from ..constants.logging import LOG_FORMAT_OLD
 
 
@@ -66,7 +67,7 @@ class Logger(logging.Logger):
         """
         super(Logger, self).__init__(name.split('-')[0])
         self._full_name = name
-        self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
+        self._unittest_mode = is_unittest_mode()
 
         if name in Logger._cache:
             handler = Logger._cache[name]

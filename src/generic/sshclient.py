@@ -37,6 +37,7 @@ from paramiko import AuthenticationException
 from threading import RLock
 from functools import wraps
 from subprocess import CalledProcessError, PIPE, Popen, check_output
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.generic.remote import remote
 from ovs_extensions.generic.tests.sshclient_mock import MockedSSHClient
 
@@ -90,7 +91,7 @@ def mocked(mock_function):
         """
         Wrapper function
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             @wraps(f)
             def mock_wrapper(client, *args, **kwargs):
                 """ Wrapper to be able to add the original function to the wrapped function """
@@ -173,7 +174,7 @@ class SSHClient(object):
         self.is_local = self.ip in self.local_ips
         self.password = password
         self.timeout = timeout
-        self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
+        self._unittest_mode = is_unittest_mode()
         self._client_lock = RLock()
 
         current_user = check_output('whoami', shell=True).strip()

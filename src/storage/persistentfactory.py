@@ -17,7 +17,8 @@
 """
 Generic persistent factory.
 """
-import os
+
+from ovs_extensions.constants import is_unittest_mode
 
 
 class PersistentFactory(object):
@@ -33,7 +34,7 @@ class PersistentFactory(object):
         :param client_type: Type of store client
         """
         if cls.store is None:
-            if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            if is_unittest_mode():
                 client_type = 'dummy'
 
             if client_type is None:

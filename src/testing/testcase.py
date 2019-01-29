@@ -180,7 +180,7 @@ class _AssertLogsContext(_BaseTestCaseContext):
             self._raise_failure("No logs of level {} or higher triggered on {}".format(logging.getLevelName(self.level), self.logger.name))
 
 
-class LogTestCase(unittest.TestCase):
+class LogTestCaseNoHandlers(unittest.TestCase):
 
     def assertLogs(self, logger=None, level=None, add_stream_handler=False):
         # type: (Union[str, logging.Logger], str, bool) -> _AssertLogsContext
@@ -214,3 +214,21 @@ class LogTestCase(unittest.TestCase):
         :rtype: _AssertLogsContext
         """
         return _AssertLogsContext(self, logger, level, add_stream_handler)
+
+
+class LogTestCase(LogTestCaseNoHandlers):
+
+    def setUp(self):
+        """
+        Setup and add nullHandler by default
+        """
+        super(LogTestCase, self).setUp()
+        root_logger = logging.getLogger()
+        root_logger.addHandler(logging.NullHandler())
+
+    def tearDown(self):
+        """
+        Remove the nullHandler
+        """
+        root_logger = logging.getLogger()
+        root_logger.removeHandler(root_logger.handlers[0])

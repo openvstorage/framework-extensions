@@ -25,6 +25,7 @@ import json
 import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
 from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
@@ -608,7 +609,7 @@ class ArakoonInstaller(object):
         :return: None
         :rtype: NoneType
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             return
 
         logger = cls._get_logger_instance()
@@ -989,7 +990,7 @@ class ArakoonInstaller(object):
         :return: The newly generated PyrakoonClient
         :rtype: PyrakoonClient
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             return MockPyrakoonClient(config.cluster_id, None)
 
         from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
