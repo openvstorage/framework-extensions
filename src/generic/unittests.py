@@ -20,6 +20,7 @@ Limitations:
     Only test-classes inheriting from unittest.TestCase can be executed
     Only test-modules which are in a directory called 'tests' can be executed
 """
+from __future__ import absolute_import
 
 import os
 import sys
