@@ -13,6 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+import os
 
 # Logger names
 CORE_LOGGER_NAME = 'ovs'
@@ -25,3 +26,17 @@ LOG_FORMAT_OLD = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - {0}/%(fi
 LOG_FORMAT = '%(asctime)s - %(hostname)s - %(process)s/%(thread)d - %(name)s - %(funcName)s - %(sequence)s - %(levelname)s - %(message)s'
 
 LOG_FORMAT_UNITTEST = '%(levelname)s - %(message)s'
+
+# Target types
+TARGET_TYPE_FILE = 'file'
+TARGET_TYPE_REDIS = 'redis'
+TARGET_TYPE_CONSOLE = 'console'
+TARGET_TYPES = [TARGET_TYPE_FILE, TARGET_TYPE_REDIS, TARGET_TYPE_CONSOLE]
+
+LOG_PATH = os.path.join(os.path.sep, 'var', 'log', 'ovs')
+LOG_LEVELS = {0: 'NOTSET',
+              10: 'DEBUG',
+              20: 'INFO',
+              30: 'WARNING',
+              40: 'ERROR',
+              50: 'CRITICAL'}

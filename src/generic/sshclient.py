@@ -27,6 +27,7 @@ import glob
 import json
 import select
 import socket
+import getpass
 import logging
 import paramiko
 import tempfile
@@ -254,7 +255,8 @@ class SSHClient(object):
         :return: The name of the current user
         :rtype: str
         """
-        return check_output('whoami', shell=True).strip()
+        # Reads the user-related environment variables
+        return getpass.getuser()
 
     def __del__(self):
         """

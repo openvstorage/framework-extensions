@@ -25,7 +25,7 @@ import copy
 import logging
 from ..log import LogFormatter
 from ..constants import is_unittest_mode
-from ..constants.logging import LOG_FORMAT_OLD
+from ..constants.logging import LOG_FORMAT_OLD, TARGET_TYPE_FILE, TARGET_TYPE_CONSOLE, TARGET_TYPE_REDIS, TARGET_TYPES, LOG_PATH, LOG_LEVELS
 
 
 class Logger(logging.Logger):
@@ -38,19 +38,6 @@ class Logger(logging.Logger):
 
     WARNING: the use of this logger is deprecated in favor of using python default logging
     """
-    TARGET_TYPE_FILE = 'file'
-    TARGET_TYPE_REDIS = 'redis'
-    TARGET_TYPE_CONSOLE = 'console'
-    TARGET_TYPES = [TARGET_TYPE_FILE, TARGET_TYPE_REDIS, TARGET_TYPE_CONSOLE]
-
-    LOG_PATH = '/var/log/ovs'
-    LOG_LEVELS = {0: 'NOTSET',
-                  10: 'DEBUG',
-                  20: 'INFO',
-                  30: 'WARNING',
-                  40: 'ERROR',
-                  50: 'CRITICAL'}
-
     _logs = {}  # Used by unittests
     _cache = {}
 
@@ -99,9 +86,9 @@ class Logger(logging.Logger):
         target_type = target_params['type']
 
         # Create handler
-        if target_type == Logger.TARGET_TYPE_FILE:
+        if target_type == TARGET_TYPE_FILE:
             handler = logging.FileHandler(target_params['filename'])
-        elif target_type == Logger.TARGET_TYPE_CONSOLE:
+        elif target_type == TARGET_TYPE_CONSOLE:
             handler = logging.StreamHandler(sys.stdout)
         else:
             from redis import Redis
@@ -123,12 +110,12 @@ class Logger(logging.Logger):
         :return: Path on filesystem to log to
         :rtype: str
         """
-        if cls.LOG_PATH is None:
+        if LOG_PATH is None:
             raise ValueError('LOG_PATH is not specified')
 
-        log_filename = '{0}/{1}.log'.format(cls.LOG_PATH, source)
-        if not os.path.exists(cls.LOG_PATH):
-            os.mkdir(cls.LOG_PATH, 0777)
+        log_filename = '{0}/{1}.log'.format(LOG_PATH, source)
+        if not os.path.exists(LOG_PATH):
+            os.mkdir(LOG_PATH, 0777)
         if not os.path.exists(log_filename):
             open(log_filename, 'a').close()
             os.chmod(log_filename, 0o666)
@@ -146,11 +133,11 @@ class Logger(logging.Logger):
         :rtype: str
         """
         target_params = cls._load_target_parameters(source=source, forced_target_type=forced_target_type, allow_override=False)
-        if target_params['type'] == cls.TARGET_TYPE_CONSOLE:
+        if target_params['type'] == TARGET_TYPE_CONSOLE:
             return 'console:'
-        elif target_params['type'] == cls.TARGET_TYPE_FILE:
+        elif target_params['type'] == TARGET_TYPE_FILE:
             return target_params['filename']
-        elif target_params['type'] == cls.TARGET_TYPE_REDIS:
+        elif target_params['type'] == TARGET_TYPE_REDIS:
             return 'redis://{0}:{1}{2}'.format(target_params['host'], target_params['port'], target_params['queue'])
         else:
             raise ValueError('Invalid target type specified')
@@ -193,31 +180,31 @@ class Logger(logging.Logger):
         log_info = cls.get_logging_info()
         log_level = log_info.get('level', 'debug').upper()
         if allow_override is True:
-            target_type = forced_target_type or os.environ.get('OVS_LOGTYPE_OVERRIDE') or log_info.get('type') or cls.TARGET_TYPE_CONSOLE
+            target_type = forced_target_type or os.environ.get('OVS_LOGTYPE_OVERRIDE') or log_info.get('type') or TARGET_TYPE_CONSOLE
         else:
-            target_type = forced_target_type or log_info.get('type') or cls.TARGET_TYPE_CONSOLE
+            target_type = forced_target_type or log_info.get('type') or TARGET_TYPE_CONSOLE
 
-        if target_type not in cls.TARGET_TYPES:
+        if target_type not in TARGET_TYPES:
             raise ValueError('Invalid target type specified: {0}'.format(target_type))
-        if log_level not in cls.LOG_LEVELS.values():
+        if log_level not in LOG_LEVELS.values():
             raise ValueError('Invalid log level specified: {0}'.format(log_level))
 
-        if target_type == cls.TARGET_TYPE_FILE:
-            return {'type': cls.TARGET_TYPE_FILE,
+        if target_type == TARGET_TYPE_FILE:
+            return {'type': TARGET_TYPE_FILE,
                     'level': log_level,
                     'filename': cls.load_path(source)}
 
-        if target_type == cls.TARGET_TYPE_REDIS:
+        if target_type == TARGET_TYPE_REDIS:
             queue = log_info.get('queue', '/ovs/logging')
             if '{0}' in queue:
                 queue = queue.format(source)
-            return {'type': cls.TARGET_TYPE_REDIS,
+            return {'type': TARGET_TYPE_REDIS,
                     'level': log_level,
                     'queue': '/{0}'.format(queue.lstrip('/')),
                     'host': log_info.get('host', 'localhost'),
                     'port': log_info.get('port', 6379)}
 
-        return {'type': cls.TARGET_TYPE_CONSOLE,
+        return {'type': TARGET_TYPE_CONSOLE,
                 'level': log_level}
 
     def _log(self, level, msg, args, exc_info=None, extra=None):
@@ -227,7 +214,7 @@ class Logger(logging.Logger):
         if self._unittest_mode is True:
             if self.name not in Logger._logs:
                 Logger._logs[self.name] = {}
-            Logger._logs[self.name][msg.strip()] = Logger.LOG_LEVELS[level]
+            Logger._logs[self.name][msg.strip()] = LOG_LEVELS[level]
 
         if self.extra_log_params or extra:
             total_extra = copy.deepcopy(self.extra_log_params or {})
