@@ -30,7 +30,7 @@ import unittest
 from ..testing.mocking import mock_all, disable_mock
 
 
-def set_unittest_mode():
+def enable_unittest_mode():
     # type: () -> None
     """
     Configure everything to run in unittest mode
@@ -109,7 +109,7 @@ class UnitTest(object):
         :return: None
         :rtype: NoneType
         """
-        set_unittest_mode()
+        enable_unittest_mode()
         if directories is None:
             directories = self.ovs_path
         if isinstance(directories, str):
