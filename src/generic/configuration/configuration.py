@@ -174,7 +174,7 @@ class Configuration(object):
         key_entries = key.split('|')
         set_data = value
         if len(key_entries) == 1:
-            cls._set(key_entries[0], set_data, transaction=transaction)
+            cls._set(key_entries[0], set_data, raw, transaction=transaction)
             return
         try:
             data = cls._get(key_entries[0])
@@ -195,7 +195,7 @@ class Configuration(object):
     def _set(cls, key, value, raw=False, transaction=None):
         # type: (str, any, Optional[str]) -> None
         data = value
-        if not key.endswith(RAW_FILES) or raw:
+        if not any([key.endswith(RAW_FILES), raw]):
             data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,
