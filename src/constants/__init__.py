@@ -13,3 +13,19 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+
+import os
+
+
+def is_unittest_mode():
+    # type: () -> bool
+    """
+    Check if the code should in unittest mode
+    :return: True if its running in unittest mode
+    :rtype: bool
+    """
+    return os.environ.get('RUNNING_UNITTESTS') == 'True'
+
+
+def is_running_on_travis():
+    return os.environ.get('TRAVIS') == 'true'

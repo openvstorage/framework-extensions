@@ -21,6 +21,7 @@ Generic system module, executing statements on local node
 import os
 import re
 from subprocess import check_output
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.generic.sshclient import SSHClient
 
 
@@ -142,7 +143,7 @@ class System(object):
         :return: Sorted incrementing list of the requested amount of free ports
         :rtype: list
         """
-        unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
+        unittest_mode = is_unittest_mode()
         requested_range = []
         for port_range in selected_range:
             if isinstance(port_range, list):
@@ -158,13 +159,13 @@ class System(object):
             exclude = []
         exclude_list = list(exclude)
 
-        if unittest_mode is True:
+        if unittest_mode:
             ports_in_use = []
         else:
             ports_in_use = cls.ports_in_use(client)
         exclude_list += ports_in_use
 
-        if unittest_mode is True:
+        if unittest_mode:
             start_end = [0, 0]
         else:
             cmd = 'cat /proc/sys/net/ipv4/ip_local_port_range'

@@ -22,6 +22,7 @@ import sys
 from plumbum import SshMachine
 from rpyc.utils.zerodeploy import DeployedServer
 from subprocess import check_output
+from ovs_extensions.constants import is_unittest_mode
 
 
 class remote(object):
@@ -57,7 +58,7 @@ class remote(object):
         self.servers = []
         self.modules = modules
         self._remote_modules = {}
-        self._unittest_mode = os.environ.get('RUNNING_UNITTESTS') == 'True'
+        self._unittest_mode = is_unittest_mode()
         if self._unittest_mode is False:
             ssh_opts = []
             if strict_host_key_checking is False:

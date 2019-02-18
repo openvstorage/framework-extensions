@@ -19,17 +19,17 @@ Rpm Package module
 """
 
 import time
+import logging
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.log.logger import Logger
 
 
 class RpmPackage(object):
     """
     Contains all logic related to RPM packages (used in e.g. CentOS)
     """
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, package_info):
         self.package_info = package_info

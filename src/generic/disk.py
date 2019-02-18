@@ -22,10 +22,10 @@ import re
 import json
 import time
 import uuid
+import logging
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.log.logger import Logger
 
 
 class PartedEntry(object):
@@ -351,7 +351,7 @@ class DiskTools(object):
     """
     This class contains various helper methods wrt Disk maintenance
     """
-    logger = Logger('ovs_extensions')  # Instantiated by classes inheriting from this 1
+    logger = logging.getLogger(__name__)  # Instantiated by classes inheriting from this 1
 
     def __init__(self):
         raise Exception('Cannot instantiate, completely static class')

@@ -19,6 +19,7 @@ NBD controller module
 import os
 import apt
 import yaml
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.constants.framework import NBD_ID
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.system import System
@@ -72,7 +73,7 @@ class NBDManager(object):
         """
 
         # Unittests
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             node_id = 'unittest_guid'
         else:
             node_id = System.get_my_machine_id().strip()
@@ -132,7 +133,7 @@ class NBDManager(object):
         :param node_path: path on the node where devices can be found
         :return: nbdX
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             nbd_number = 'nbd_unittest_number'
         else:
             if self._configuration.dir_exists(node_path):

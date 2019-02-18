@@ -30,9 +30,6 @@ from ovs_extensions.api.exceptions import HttpForbiddenException as ForbiddenExc
 # noinspection PyUnresolvedReferences
 from ovs_extensions.api.exceptions import HttpNotFoundException as NotFoundException  # Backwards compatibility
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
-from ovs_extensions.log.logger import Logger
-
-logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
 class BaseClient(object):
@@ -45,7 +42,7 @@ class BaseClient(object):
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
 
-    _logger = Logger('api')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, ip, port, credentials=None, verify=False, version='*', raw_response=False, cache_store=None):
         """

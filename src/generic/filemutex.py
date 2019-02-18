@@ -21,7 +21,7 @@ import os
 import stat
 import time
 import fcntl
-from ovs_extensions.log.logger import Logger
+import logging
 
 
 class NoLockAvailableException(Exception):
@@ -44,7 +44,7 @@ class file_mutex(object):
         self.name = name
         self._has_lock = False
         self._start = 0
-        self._logger = Logger('extensions')
+        self._logger = logging.getLogger(__name__)
         self._handle = open(self.key(), 'w')
         self._wait = wait
         try:

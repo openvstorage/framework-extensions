@@ -19,15 +19,15 @@ Mocked SSHClient Module
 
 import re
 import copy
+import logging
 from subprocess import CalledProcessError
-from ovs_extensions.log.logger import Logger
 
 
 class MockedSSHClient(object):
     """
     Class
     """
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
     _file_system = {}
     _run_returns = {}
     _run_recordings = {}

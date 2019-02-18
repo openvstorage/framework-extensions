@@ -23,13 +23,13 @@ import uuid
 import time
 import ujson
 import random
+import logging
 from functools import wraps
 from threading import RLock, current_thread
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
     ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
-from ovs_extensions.log.logger import Logger
 
 
 def locked():
@@ -123,7 +123,7 @@ class PyrakoonClient(object):
     Arakoon client wrapper:
     - Easier sequence management
     """
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, cluster, nodes, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):
         # type: (str, Dict[str, Tuple[str, int]], int, int, int) -> None
@@ -491,7 +491,7 @@ class PyrakoonLock(object):
     LOCK_LOCATION = '/ovs/locks/{0}'
     EXPIRATION_KEY = 'expires'
 
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, client, name, wait=None, expiration=60):
         # type: (PyrakoonClient, str, float, float) -> None

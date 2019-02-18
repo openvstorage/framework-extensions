@@ -20,12 +20,32 @@ Limitations:
     Only test-classes inheriting from unittest.TestCase can be executed
     Only test-modules which are in a directory called 'tests' can be executed
 """
+from __future__ import absolute_import
 
 import os
 import sys
 import time
 import inspect
 import unittest
+from ..testing.mocking import mock_all, disable_mock
+
+
+def enable_unittest_mode():
+    # type: () -> None
+    """
+    Configure everything to run in unittest mode
+    """
+    os.environ['RUNNING_UNITTESTS'] = 'True'
+    mock_all()
+
+
+def disable_unittest_mode():
+    # type: () -> None
+    """
+    Configure everything to run the real deal
+    """
+    os.environ.pop('RUNNING_UNITTESTS', None)
+    disable_mock()
 
 
 class UnitTest(object):
@@ -89,7 +109,7 @@ class UnitTest(object):
         :return: None
         :rtype: NoneType
         """
-        os.environ['RUNNING_UNITTESTS'] = 'True'
+        enable_unittest_mode()
         if directories is None:
             directories = self.ovs_path
         if isinstance(directories, str):
@@ -100,44 +120,45 @@ class UnitTest(object):
         self._test_info = {}
         self._failed_test_classes = {}
         for directory in directories:
-            if os.path.exists(directory):
-                directory = directory.rstrip('/')
-                for root, dirs, files in os.walk(directory):
-                    for manager_path in ['{0}/ci'.format(self.ovs_path)]:  # Skip autotests
-                        if root.startswith(manager_path):
+            if not os.path.exists(directory):
+                continue
+            directory = directory.rstrip('/')
+            for root, dirs, files in os.walk(directory):
+                for manager_path in ['{0}/ci'.format(self.ovs_path)]:  # Skip autotests
+                    if root.startswith(manager_path):
+                        continue
+                if not root.endswith('tests'):
+                    continue
+                for filename in files:
+                    if not filename.endswith('.py') or filename == '__init__.py':
+                        continue
+                    name = filename.replace('.py', '')
+                    filepath = os.path.join(root, filename)
+                    try:
+                        mod = inspect.imp.load_source(name, filepath)
+                    except Exception as ex:
+                        if silent_invalid_modules is False:
+                            print 'Test file {0} could not be loaded. Error: {1}'.format(filepath, ex)
+                        self._invalid_test_modules.append(filepath)
+                        continue
+                    filepath = filepath.replace('.py', '')
+                    for member_name, member in inspect.getmembers(mod, predicate=lambda o: inspect.isclass(o) and unittest.TestCase in inspect.getmro(o)):
+                        if member.__module__ != name:
+                            # Inspecting an imported class in the module
                             continue
-                    if root.endswith('tests'):
-                        for filename in files:
-                            if not filename.endswith('.py') or filename == '__init__.py':
-                                continue
-                            name = filename.replace('.py', '')
-                            filepath = os.path.join(root, filename)
-                            try:
-                                mod = inspect.imp.load_source(name, filepath)
-                            except Exception as ex:
-                                if silent_invalid_modules is False:
-                                    print 'Test file {0} could not be loaded. Error: {1}'.format(filepath, ex)
-                                self._invalid_test_modules.append(filepath)
-                                continue
-                            filepath = filepath.replace('.py', '')
-                            for member in inspect.getmembers(mod, predicate=inspect.isclass):
-                                if member[1].__module__ == name and 'TestCase' in [base.__name__ for base in member[1].__bases__]:
-                                    class_name = member[0]
-                                    class_cl = member[1]
-                                    full_class_path = '{0}.{1}'.format(filepath, class_name)
+                        full_class_path = '{0}.{1}'.format(filepath, member_name)
+                        if filepath not in self._test_info:
+                            self._test_info[filepath] = {'tests': unittest.TestLoader().loadTestsFromModule(mod),
+                                                         'use_case': 'test-module'}
 
-                                    if filepath not in self._test_info:
-                                        self._test_info[filepath] = {'tests': unittest.TestLoader().loadTestsFromModule(mod),
-                                                                         'use_case': 'test-module'}
+                        if full_class_path not in self._test_info:
+                            self._test_info[full_class_path] = {'tests': unittest.TestLoader().loadTestsFromTestCase(member),
+                                                                'use_case': 'test-class'}
 
-                                    if full_class_path not in self._test_info:
-                                        self._test_info[full_class_path] = {'tests': unittest.TestLoader().loadTestsFromTestCase(class_cl),
-                                                                                'use_case': 'test-class'}
-
-                                    for test_case in unittest.TestLoader().getTestCaseNames(class_cl):
-                                        full_test_path = '{0}.{1}:{2}'.format(filepath, class_name, test_case)
-                                        self._test_info[full_test_path] = {'tests': unittest.TestLoader().loadTestsFromName(test_case, class_cl),
-                                                                               'use_case': 'test-case'}
+                        for test_case in unittest.TestLoader().getTestCaseNames(member):
+                            full_test_path = '{0}.{1}:{2}'.format(filepath, member_name, test_case)
+                            self._test_info[full_test_path] = {'tests': unittest.TestLoader().loadTestsFromName(test_case, member),
+                                                               'use_case': 'test-case'}
 
     def list_cases_for_file(self, file_path):
         # type: (str) -> List[str]
@@ -302,6 +323,6 @@ class UnitTest(object):
                         test_results.insert(index, new_line)
 
         print '\n\n\n{0}'.format('\n'.join(test_results))
-        os.environ['RUNNING_UNITTESTS'] = 'False'
+        disable_unittest_mode()
         success = total_tests == total_success and len(failed_modules) == 0
         sys.exit(0 if success else 1)

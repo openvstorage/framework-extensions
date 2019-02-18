@@ -14,28 +14,14 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+from __future__ import absolute_import
+
 import click
 from ..commands import OVSCommand
 
 
-def clear_stores():
-    from ovs_extensions.storage.volatilefactory import VolatileFactory
-    from ovs_extensions.storage.persistentfactory import PersistentFactory
-    from ovs_extensions.services.servicefactory import ServiceFactory
-
-    # Clear the stores. It will force to recompute
-    VolatileFactory.store = None
-    PersistentFactory.store = None
-    ServiceFactory.manager = None
-
-
-@click.command('unittest', help='Run all or a part of the OVS unittest suite', section_header='Unittest', cls=OVSCommand)
-@click.argument('action', required=False, default=None, type=click.STRING)
-@click.option('--averages', is_flag=True, default=False)
-def unittest_command(action, averages):
+def unittest_command_unwrapped(action, averages):
     from ovs_extensions.generic.unittests import UnitTest
-
-    clear_stores()
 
     ut = UnitTest('ovs')
     if not action:
@@ -50,3 +36,10 @@ def unittest_command(action, averages):
         else:
             filename = action
         ut.run_tests(filename, add_averages=averages)
+
+
+@click.command('unittest', help='Run all or a part of the OVS unittest suite', section_header='Unittest', cls=OVSCommand)
+@click.argument('action', required=False, default=None, type=click.STRING)
+@click.option('--averages', is_flag=True, default=False)
+def unittest_command(action, averages):
+    return unittest_command_unwrapped(action, averages)

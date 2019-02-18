@@ -20,9 +20,10 @@ Service Factory module
 
 import os
 import time
+import logging
 from distutils.version import LooseVersion
 from subprocess import check_output
-from ovs_extensions.log.logger import Logger
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.services.interfaces.systemd import Systemd
 from ovs_extensions.services.interfaces.upstart import Upstart
 from ovs_extensions.services.mockups.systemd import SystemdMock
@@ -42,7 +43,7 @@ class ServiceFactory(object):
                             'services_stop_start': {10: [], 20: []},   # Lowest get stopped first and started last
                             'services_post_update': {10: [], 20: []}}  # Lowest get restarted first
 
-    _logger = Logger('extensions-service_factory')
+    _logger = logging.getLogger(__name__)
 
     @classmethod
     def get_service_type(cls):
@@ -65,7 +66,7 @@ class ServiceFactory(object):
         """
         if not hasattr(cls, 'manager') or cls.manager is None:
             implementation_class = None
-            if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            if is_unittest_mode():
                 implementation_class = SystemdMock
             else:
                 service_type = cls.get_service_type()
@@ -96,7 +97,7 @@ class ServiceFactory(object):
 
     @classmethod
     def _get_logger_instance(cls):
-         return Logger('extensions-services')
+        return logging.getLogger(__name__)
 
     @classmethod
     def change_service_state(cls, client, name, state, logger=None):

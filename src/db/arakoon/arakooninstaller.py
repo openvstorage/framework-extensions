@@ -22,15 +22,17 @@ ArakoonInstaller class
 
 import os
 import json
+import logging
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
+from ovs_extensions.constants import is_unittest_mode
 from ovs_extensions.constants.arakoon import ARAKOON_BASE, ARAKOON_CONFIG
 from ovs_extensions.constants.config import CONFIG_ARAKOON_LOCATION
 from ovs_extensions.db.arakoon.tests.client import MockPyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNoMaster, ArakoonNotFound
 from ovs_extensions.generic.sshclient import CalledProcessError, SSHClient
-from ovs_extensions.packages.packagefactory import PackageFactory
 from ovs_extensions.log.logger import Logger
+from ovs_extensions.packages.packagefactory import PackageFactory
 
 ARAKOON_CLUSTER_TYPES = ['ABM', 'FWK', 'NSM', 'SD', 'CFG']
 
@@ -607,7 +609,7 @@ class ArakoonInstaller(object):
         :return: None
         :rtype: NoneType
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             return
 
         logger = cls._get_logger_instance()
@@ -988,7 +990,7 @@ class ArakoonInstaller(object):
         :return: The newly generated PyrakoonClient
         :rtype: PyrakoonClient
         """
-        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+        if is_unittest_mode():
             return MockPyrakoonClient(config.cluster_id, None)
 
         from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
@@ -1014,7 +1016,7 @@ class ArakoonInstaller(object):
         :return: The sink path
         :rtype: str
         """
-        return self._logger.get_sink_path('arakoon-server_{0}'.format(self.cluster_name))
+        return Logger.get_sink_path('arakoon-server_{0}'.format(self.cluster_name))
 
     def get_crash_log_sink_path(self):
         """
@@ -1022,7 +1024,9 @@ class ArakoonInstaller(object):
         :return: The sink path
         :rtype: str
         """
-        return self._logger.get_sink_path('arakoon-server-crash_{0}'.format(self.cluster_name))
+        # @todo is this safe? Subclassed loggers can no longer change the sync path
+        # This method can be overwritten itself though....
+        return Logger.get_sink_path('arakoon-server-crash_{0}'.format(self.cluster_name))
 
     ################
     # HELPER METHODS
@@ -1149,4 +1153,4 @@ class ArakoonInstaller(object):
 
     @classmethod
     def _get_logger_instance(cls):
-        return Logger('extensions-db')
+        return logging.getLogger(__name__)
