@@ -136,7 +136,7 @@ class Configuration(object):
         default_value = kwargs.pop('default', None)
         try:
             key_entries = key.split('|')
-            data = cls._get(key_entries[0], **kwargs)
+            data = cls._get(key_entries[0], raw=raw, **kwargs)
             if len(key_entries) == 1:
                 return data
             try:
@@ -147,17 +147,17 @@ class Configuration(object):
             except KeyError as ex:
                 raise NotFoundException(ex.message)
         except NotFoundException:
-            if default_specified is True:
+            if default_specified:
                 return default_value
             raise
 
     @classmethod
-    def _get(cls, key, **kwargs):
-        # type: (str, **any) -> Union[dict, None]
+    def _get(cls, key, raw=False, **kwargs):
+        # type: (str, Optional[bool] **any) -> Union[dict, None]
         data = cls._passthrough(method='get',
                                 key=key,
                                 **kwargs)
-        if key.endswith(RAW_FILES):
+        if key.endswith(RAW_FILES) or raw:
             return data
         return json.loads(data)
 
@@ -175,7 +175,7 @@ class Configuration(object):
         key_entries = key.split('|')
         set_data = value
         if len(key_entries) == 1:
-            cls._set(key_entries[0], set_data, transaction=transaction)
+            cls._set(key_entries[0], set_data, raw, transaction=transaction)
             return
         try:
             data = cls._get(key_entries[0])
@@ -190,13 +190,13 @@ class Configuration(object):
                 temp_config[entry] = {}
                 temp_config = temp_config[entry]
         temp_config[entries[-1]] = set_data
-        cls._set(key_entries[0], data, transaction=transaction)
+        cls._set(key_entries[0], data, raw, transaction=transaction)
 
     @classmethod
-    def _set(cls, key, value, transaction=None):
+    def _set(cls, key, value, raw=False, transaction=None):
         # type: (str, any, Optional[str]) -> None
         data = value
-        if not key.endswith(RAW_FILES):
+        if not any([key.endswith(RAW_FILES), raw]):
             data = cls._dump_data(data)
         return cls._passthrough(method='set',
                                 key=key,
