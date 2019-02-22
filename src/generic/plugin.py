@@ -28,14 +28,14 @@ class PluginController():
     @classmethod
     def get_hybrids(cls):
         for c in cls._fetch_classes(OVS_DAL_HYBRIDS): #todo ander pad
-            if 'Base' not in c.__name__:
+            if 'Base' not in c[1].__name__:
                 raise NotImplementedError  #todo plugin namen moeten ergens meekomen
 
 
     @classmethod
     def _fetch_classes(cls, path):
         # type: (None) -> Dict[str, Module]
-        hybrids = {}
+        classes = []
         major_mod = importlib.import_module(path)
         for filename in os.listdir(major_mod.__path__[0]):
             if os.path.isfile('/'.join([path, filename])) and filename.endswith('.py') and filename != '__init__.py':
@@ -43,7 +43,7 @@ class PluginController():
                 mod = importlib.import_module(name)
                 for member in inspect.getmembers(mod, predicate=inspect.isclass):
                     if member[1].__module__ == name:
-                        hybrids[name] = member
+                        classes.append(member)
 
     @classmethod
     def module_to_filepath(cls, path):
