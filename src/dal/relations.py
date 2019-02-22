@@ -17,10 +17,8 @@
 """
 RelationMapper module
 """
-import os
-import imp
-import inspect
-
+from ovs_extensions.generic.plugin import PluginController
+from ovs.lib.plugin import PluginController
 
 class RelationMapper(object):
     """
@@ -40,37 +38,30 @@ class RelationMapper(object):
         if relation_key in RelationMapper.cache:
             return RelationMapper.cache[relation_key]
         relation_info = {}
-        path = '/'.join([object_type.SOURCE_FOLDER, 'dal', 'objects'])
-        for filename in os.listdir(path):
-            if os.path.isfile('/'.join([path, filename])) and filename.endswith('.py'):
-                name = filename.replace('.py', '')
-                mod = imp.load_source(name, '/'.join([path, filename]))
-                for member in inspect.getmembers(mod, predicate=inspect.isclass):
-                    if member[1].__module__ == name:
-                        current_class = member[1]
-                        if 'Base' not in current_class.__name__:
-                            object_class = None
-                            base_class_found = False
-                            # __mro__ for dal.base.Base extended classes should look something like this:
-                            #     [ <class 'setting.Setting'>,
-                            #       <class 'source.dal.asdbase.ASDBase'>,
-                            #       <class 'ovs_extensions.dal.base.Base'>,
-                            #       < type 'object'> ]
-                            for this_class in current_class.__mro__:
-                                if object_class is None:
-                                    object_class = this_class  # The class we need is always the top class in __mro__
-                                if 'Base' == this_class.__name__:  # Make sure we're inspecting classes which inherit from 'Base' class
-                                    base_class_found = True
-                                    break
-                            if base_class_found is True:
-                                # noinspection PyProtectedMember
-                                for relation in object_class._relations:
-                                    if relation[1] is None:
-                                        remote_class = object_class
-                                    else:
-                                        remote_class = relation[1]
-                                    if remote_class.__name__ == object_type.__name__:
-                                        relation_info[relation[2]] = {'class': object_class,
-                                                                      'key': relation[0]}
+        classes = PluginController.get_hybrids()  # todo fix hoe objects meegeven voor source.dal
+        for current_class in classes.values():
+                object_class = None
+                base_class_found = False
+                # __mro__ for dal.base.Base extended classes should look something like this:
+                #     [ <class 'setting.Setting'>,
+                #       <class 'source.dal.asdbase.ASDBase'>,
+                #       <class 'ovs_extensions.dal.base.Base'>,
+                #       < type 'object'> ]
+                for this_class in current_class.__mro__:
+                    if object_class is None:
+                        object_class = this_class  # The class we need is always the top class in __mro__
+                    if 'Base' == this_class.__name__:  # Make sure we're inspecting classes which inherit from 'Base' class
+                        base_class_found = True
+                        break
+                if base_class_found is True:
+                    # noinspection PyProtectedMember
+                    for relation in object_class._relations:
+                        if relation[1] is None:
+                            remote_class = object_class
+                        else:
+                            remote_class = relation[1]
+                        if remote_class.__name__ == object_type.__name__:
+                            relation_info[relation[2]] = {'class': object_class,
+                                                          'key': relation[0]}
         RelationMapper.cache[relation_key] = relation_info
         return relation_info
