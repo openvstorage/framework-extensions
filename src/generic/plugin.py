@@ -21,20 +21,23 @@ Plugincontroller parent class module
 import os
 import inspect
 import importlib
+from ovs_extensions.constants.modules import BASE_OVS, SOURCE_DAL_HYBRIDS
+
 
 class PluginController():
-
+    """
+    Base controller class to offload moduleimports for specific plugins
+    """
 
     @classmethod
-    def get_hybrids(cls):
-        for c in cls._fetch_classes(OVS_DAL_HYBRIDS): #todo ander pad
-            if 'Base' not in c[1].__name__:
-                raise NotImplementedError  #todo plugin namen moeten ergens meekomen
+    def get_hybrids(cls, source_folder=BASE_OVS):
+        # type: (Optional[str]) -> List[str]  #todo sourcefolder might need formatting to module path instead of filepath
+        return [c for c in cls._fetch_classes(SOURCE_DAL_HYBRIDS.format(source_folder)) if 'Base' in c[1].__name__]
 
 
     @classmethod
     def _fetch_classes(cls, path):
-        # type: (None) -> Dict[str, Module]
+        # type: (str) -> List[tuple(str, str)]
         classes = []
         major_mod = importlib.import_module(path)
         for filename in os.listdir(major_mod.__path__[0]):
@@ -44,11 +47,4 @@ class PluginController():
                 for member in inspect.getmembers(mod, predicate=inspect.isclass):
                     if member[1].__module__ == name:
                         classes.append(member)
-
-    @classmethod
-    def module_to_filepath(cls, path):
-        return path.replace('.', '/')
-
-    @classmethod
-    def file_to_module_path(cls, path):
-        return path.replace('/', '.')
+        return classes

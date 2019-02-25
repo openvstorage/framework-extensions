@@ -38,7 +38,7 @@ class RelationMapper(object):
         if relation_key in RelationMapper.cache:
             return RelationMapper.cache[relation_key]
         relation_info = {}
-        for current_class in PluginController.get_hybrids(): # todo fix hoe objects meegeven voor source.dal
+        for current_class in PluginController.get_hybrids(source_folder=object_type.SOURCE_FOLDER):
                 object_class = None
                 base_class_found = False
                 # __mro__ for dal.base.Base extended classes should look something like this:
@@ -46,7 +46,7 @@ class RelationMapper(object):
                 #       <class 'source.dal.asdbase.ASDBase'>,
                 #       <class 'ovs_extensions.dal.base.Base'>,
                 #       < type 'object'> ]
-                for this_class in current_class.__mro__: #todo check if current_class has mro?
+                for this_class in current_class.__mro__:
                     if object_class is None:
                         object_class = this_class  # The class we need is always the top class in __mro__
                     if 'Base' == this_class.__name__:  # Make sure we're inspecting classes which inherit from 'Base' class
