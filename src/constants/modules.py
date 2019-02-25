@@ -26,8 +26,7 @@ OVS_DAL = '.'.join([BASE_OVS, 'dal'])
 OVS_DAL_HYBRIDS = '.'.join([OVS_DAL, 'hybrids'])                        # ovs.dal.hybrids
 OVS_DAL_HYBRIDS_FILE = '.'.join([OVS_DAL_HYBRIDS, '{0}'])               # ovs.dal.hybrids.{0}
 
-SOURCE_DAL_HYBRIDS = '.'.join(['{0}', 'dal', 'hybrids'])                # {0}.dal.hybrids
-
+SOURCE_DAL_OBJECTS = '.'.join(['{0}', 'dal', 'objects'])                # {0}.dal.objects
 
 
 OVS_DAL_MIGRATION = '.'.join([OVS_DAL, 'migration'])
@@ -35,5 +34,3 @@ OVS_DAL_MIGRATION = '.'.join([OVS_DAL, 'migration'])
 OVS_LIB = '.'.join([BASE_OVS, 'lib'])
 
 API_VIEWS = '.'.join([BASE_API, 'backend', 'views' ])
-
-modulemap = {'ovs_hybrids': OVS_DAL_HYBRIDS }

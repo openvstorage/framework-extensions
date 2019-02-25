@@ -21,7 +21,8 @@ Plugincontroller parent class module
 import os
 import inspect
 import importlib
-from ovs_extensions.constants.modules import BASE_OVS, SOURCE_DAL_HYBRIDS
+from ovs_extensions.constants.file_extensions import PY
+from ovs_extensions.constants.modules import SOURCE_DAL_OBJECTS
 
 
 class PluginController():
@@ -30,9 +31,16 @@ class PluginController():
     """
 
     @classmethod
-    def get_hybrids(cls, source_folder=BASE_OVS):
-        # type: (Optional[str]) -> List[str]  #todo sourcefolder might need formatting to module path instead of filepath
-        return [c for c in cls._fetch_classes(SOURCE_DAL_HYBRIDS.format(source_folder)) if 'Base' in c[1].__name__]
+    def get_hybrids(cls, source_folder):
+        # type: (Optional[str]) -> List[str]
+
+        """
+        Fetch the hybrids module in the wanted source folder. This is either ovs core or one of the plugins
+        :param source_folder: folder to fetch hybrids from. Defaults to ovs core
+        :return: list with hybrids
+        """
+        # todo sourcefolder might need formatting to module path instead of filepath
+        return [c for c in cls._fetch_classes(SOURCE_DAL_OBJECTS.format(source_folder)) if 'Base' in c[1].__name__]
 
 
     @classmethod
@@ -41,8 +49,8 @@ class PluginController():
         classes = []
         major_mod = importlib.import_module(path)
         for filename in os.listdir(major_mod.__path__[0]):
-            if os.path.isfile('/'.join([path, filename])) and filename.endswith('.py') and filename != '__init__.py':
-                name = '.'.join([path, filename.replace('.py', '')])
+            if os.path.isfile('/'.join([path, filename])) and filename.endswith(PY) and filename != '__init__.py':
+                name = '.'.join([path, filename.replace(PY, '')])
                 mod = importlib.import_module(name)
                 for member in inspect.getmembers(mod, predicate=inspect.isclass):
                     if member[1].__module__ == name:
