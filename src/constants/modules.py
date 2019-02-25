@@ -19,6 +19,7 @@ OVS pathing constants
 """
 
 
+BASE = '/opt/OpenvStorage'
 BASE_OVS = 'ovs'
 BASE_API = 'api'
 

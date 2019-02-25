@@ -48,11 +48,13 @@ class PluginController():
         # type: (str) -> List[tuple(str, str)]
         classes = []
         major_mod = importlib.import_module(path)
-        for filename in os.listdir(major_mod.__path__[0]):
-            if os.path.isfile('/'.join([path, filename])) and filename.endswith(PY) and filename != '__init__.py':
-                name = '.'.join([path, filename.replace(PY, '')])
-                mod = importlib.import_module(name)
-                for member in inspect.getmembers(mod, predicate=inspect.isclass):
-                    if member[1].__module__ == name:
+        filepath = major_mod.__path__[0]
+        for filename in os.listdir(filepath):
+            if os.path.isfile('/'.join([filepath, filename])) and filename.endswith(PY) and filename != '__init__.py':
+                name = filename.replace(PY, '')
+                mod_path = '.'.join([path, name])
+                mod = importlib.import_module(mod_path)
+                for member_name, member in inspect.getmembers(mod, predicate=inspect.isclass):
+                    if member.__module__ == mod_path:
                         classes.append(member)
         return classes
