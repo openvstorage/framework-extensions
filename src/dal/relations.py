@@ -46,11 +46,8 @@ class RelationMapper(object):
             #       <class 'ovs_extensions.dal.base.Base'>,
             #       < type 'object'> ]
             for relation in object_class._relations:
-                key, remote_class, class_relation = relation
-                if relation[1] is None:
-                    remote_class = object_class
-                else:
-                    remote_class = remote_class
+                key, remote, class_relation = relation
+                remote_class = remote if remote else object_class
                 if remote_class.__name__ == object_type.__name__:
                     relation_info[class_relation] = {'class': object_class,
                                                      'key': key}
