@@ -19,7 +19,6 @@ OVS pathing constants
 """
 
 
-BASE = '/opt/OpenvStorage'
 BASE_OVS = 'ovs'
 BASE_API = 'api'
 
@@ -27,11 +26,13 @@ OVS_DAL = '.'.join([BASE_OVS, 'dal'])
 OVS_DAL_HYBRIDS = '.'.join([OVS_DAL, 'hybrids'])                        # ovs.dal.hybrids
 OVS_DAL_HYBRIDS_FILE = '.'.join([OVS_DAL_HYBRIDS, '{0}'])               # ovs.dal.hybrids.{0}
 
-SOURCE_DAL_OBJECTS = '.'.join(['{0}', 'dal', 'objects'])                # {0}.dal.objects
-
+SOURCE_DAL_OBJECTS = '.'.join(['source', 'dal', 'objects'])                # {0}.dal.objects
 
 OVS_DAL_MIGRATION = '.'.join([OVS_DAL, 'migration'])
 
 OVS_LIB = '.'.join([BASE_OVS, 'lib'])
+OVS_LIB_HELPERS = '.'.join([OVS_LIB, 'helpers'])
 
 API_VIEWS = '.'.join([BASE_API, 'backend', 'views' ])
+
+RABBIT_MQ_MAPPINGS = '.'.join([BASE_OVS, 'extensions', 'rabbitmq', 'mappings'])

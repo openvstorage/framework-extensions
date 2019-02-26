@@ -25,27 +25,25 @@ from ovs_extensions.constants.file_extensions import PY
 from ovs_extensions.constants.modules import SOURCE_DAL_OBJECTS
 
 
-class PluginController():
+class PluginController:
     """
     Base controller class to offload moduleimports for specific plugins
     """
 
     @classmethod
-    def get_hybrids(cls, source_folder):
+    def get_dal_objects(cls):
         # type: (Optional[str]) -> List[str]
-
         """
         Fetch the hybrids module in the wanted source folder. This is either ovs core or one of the plugins
         :param source_folder: folder to fetch hybrids from. Defaults to ovs core
         :return: list with hybrids
         """
-        # todo sourcefolder might need formatting to module path instead of filepath
-        return [c for c in cls._fetch_classes(SOURCE_DAL_OBJECTS.format(source_folder)) if 'Base' in c[1].__name__]
-
+        from ovs_extensions.dal.base import Base
+        return cls._fetch_classes(SOURCE_DAL_OBJECTS, filter_class=Base)
 
     @classmethod
-    def _fetch_classes(cls, path):
-        # type: (str) -> List[tuple(str, str)]
+    def _fetch_classes(cls, path, filter_class=None):
+        # type: (str) -> List[str]
         classes = []
         major_mod = importlib.import_module(path)
         filepath = major_mod.__path__[0]
@@ -56,5 +54,9 @@ class PluginController():
                 mod = importlib.import_module(mod_path)
                 for member_name, member in inspect.getmembers(mod, predicate=inspect.isclass):
                     if member.__module__ == mod_path:
-                        classes.append(member)
+                        if filter_class:
+                            if filter_class in inspect.getmro(member):
+                                classes.append(member)
+                        else:
+                            classes.append(member)
         return classes
