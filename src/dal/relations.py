@@ -46,12 +46,13 @@ class RelationMapper(object):
             #       <class 'ovs_extensions.dal.base.Base'>,
             #       < type 'object'> ]
             for relation in object_class._relations:
-                if relation[1] is None:  #todo check objects of relation tuple
+                key, remote_class, class_relation = relation
+                if relation[1] is None:
                     remote_class = object_class
                 else:
-                    remote_class = relation[1]
+                    remote_class = remote_class
                 if remote_class.__name__ == object_type.__name__:
-                    relation_info[relation[2]] = {'class': object_class,
-                                                  'key': relation[0]}
+                    relation_info[class_relation] = {'class': object_class,
+                                                     'key': key}
         RelationMapper.cache[relation_key] = relation_info
         return relation_info

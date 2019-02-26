@@ -33,6 +33,6 @@ OVS_DAL_MIGRATION = '.'.join([OVS_DAL, 'migration'])
 OVS_LIB = '.'.join([BASE_OVS, 'lib'])
 OVS_LIB_HELPERS = '.'.join([OVS_LIB, 'helpers'])
 
-API_VIEWS = '.'.join([BASE_API, 'backend', 'views' ])
+API_VIEWS = '.'.join([BASE_API, 'backend', 'views'])
 
 RABBIT_MQ_MAPPINGS = '.'.join([BASE_OVS, 'extensions', 'rabbitmq', 'mappings'])
