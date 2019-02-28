@@ -60,13 +60,14 @@ class remote(object):
         self.modules = modules
         self._remote_modules = {}
         self._unittest_mode = is_unittest_mode()
-        self.config = {'sync_request_timeout': timeout}
+        self.timeout = timeout
+        self.config = {'sync_request_timeout': self.timeout}
         if self._unittest_mode is False:
             ssh_opts = []
             if strict_host_key_checking is False:
                 ssh_opts.append('-o StrictHostKeyChecking=no')
             self.username = username if username is not None else check_output('whoami').strip()
-            self.machines = [SshMachine(ip, user=self.username, password=password, ssh_opts=tuple(ssh_opts)) for ip in self.ips]
+            self.machines = [SshMachine(ip, user=self.username, password=password, ssh_opts=tuple(ssh_opts), connect_timeout=self.timeout) for ip in self.ips]
             self.servers = [DeployedServer(machine) for machine in self.machines]
 
     def __iter__(self):
