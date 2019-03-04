@@ -35,3 +35,7 @@ NBD_ID = os.path.join(NBD, '{0}')                                               
 
 SCRUB_KEY = os.path.join(FRAMEWORK_BASE, 'jobs', 'scrub')                                           # /ovs/framework/jobs/scrub
 SCRUB_JOB = os.path.join(SCRUB_KEY, '{0}', 'job_info')                                              # /ovs/framework/jobs/scrub/{0}/job_info
+
+PLUGINS_BASE = os.path.join(FRAMEWORK_BASE, 'plugins')
+PLUGINS_INSTALLED = os.path.join(PLUGINS_BASE, 'installed')                                         # /ovs/framework/plugins/installed
+PLUGINS_ALBA_CONFIG = os.path.join(PLUGINS_BASE, 'alba', 'config')                                  # /ovs/framework/plugins/alba/config
