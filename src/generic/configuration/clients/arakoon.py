@@ -120,6 +120,11 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
         :return: Cleaned key
         :rtype: str
         """
+        # This check and casting needs to be done because the Pyrakoonclient cannot cope with unicode strings. Due to a bug in it's type checking
+        # (https://github.com/openvstorage/pyrakoon/issues/23), this may seem as if the PyrakoonClient (self) is used as a key. Be not fooled however,
+        # joke's on the PyrakoonClient as they pass the wrong parameter to the error message ([i](==self) should be [i+1](==effective key))
+        if isinstance(key, unicode):
+            key = str(key)
         return key.lstrip('/')
 
     @classmethod
