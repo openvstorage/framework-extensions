@@ -21,6 +21,7 @@ import os
 import sys
 from plumbum import SshMachine
 from rpyc.utils.zerodeploy import DeployedServer
+from rpyc.core.service import SlaveService
 from subprocess import check_output
 from ovs_extensions.constants import is_unittest_mode
 
@@ -38,7 +39,7 @@ class remote(object):
     Each module mentioned in the initialization of the remote object will be made available locally (remote1.module1), but will actually be executed remotely on the respective IP (ip1)
     """
 
-    def __init__(self, ip_info, modules, username=None, password=None, strict_host_key_checking=True):
+    def __init__(self, ip_info, modules, username=None, password=None, strict_host_key_checking=True, timeout=30):
         """
         Initializes the context
         """
@@ -59,12 +60,14 @@ class remote(object):
         self.modules = modules
         self._remote_modules = {}
         self._unittest_mode = is_unittest_mode()
+        self.timeout = timeout
+        self.config = {'sync_request_timeout': self.timeout}
         if self._unittest_mode is False:
             ssh_opts = []
             if strict_host_key_checking is False:
                 ssh_opts.append('-o StrictHostKeyChecking=no')
             self.username = username if username is not None else check_output('whoami').strip()
-            self.machines = [SshMachine(ip, user=self.username, password=password, ssh_opts=tuple(ssh_opts)) for ip in self.ips]
+            self.machines = [SshMachine(ip, user=self.username, password=password, ssh_opts=tuple(ssh_opts), connect_timeout=self.timeout) for ip in self.ips]
             self.servers = [DeployedServer(machine) for machine in self.machines]
 
     def __iter__(self):
@@ -77,8 +80,8 @@ class remote(object):
         if self._unittest_mode is True:
             self.connections = self.ips
         else:
-            self.connections = [server.classic_connect() for server in self.servers]
-        if self.direct_mode is True:
+            self.connections = [server.connect(service=SlaveService, config=self.config) for server in self.servers]
+        if self.direct_mode:
             return self._build_remote_module(self.connections[0])
         return self
 
@@ -108,5 +111,5 @@ class remote(object):
         return type('remote', (), remote_modules)
 
     def _get_connection(self, ip):
-        self.connection = self.servers[self.ips.index(ip)].classic_connect()
+        self.connection = self.servers[self.ips.index(ip)].connect(service=SlaveService, config=self.config)
         return self._build_remote_module(self.connection)
