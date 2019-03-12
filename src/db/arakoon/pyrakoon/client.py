@@ -74,6 +74,11 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
         @wraps(f)
         def wrapped(self, *args, **kwargs):
             # type: (PyrakoonClient, list, dict) -> any
+
+            def drop_connection():
+                self._client._client.master_id = None
+                self._client.dropConnections()
+
             start = time.time()
             tries = 0
             retries = self._retries
@@ -82,24 +87,32 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
             identifier = 'Process {0}, thread {1}, clientid {2}'.format(os.getpid(), current_thread().ident, self._identifier)
             try:
                 while retries > tries:
+                    sleep_time = retry_interval_sec * (retry_back_off_multiplier ** tries)
                     try:
                         result = f(self, *args, **kwargs)
                         duration = time.time() - start
                         if duration > max_duration:
                             self._logger.warning('Pyrakoon call {0} took {1}s'.format(f.__name__, round(duration, 2)))
                         return result
-                    except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
-                        # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
-                        if not is_read_only and not override_retry and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and \
-                                not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
-                            raise
+                    # The try-except contain some redundant code but make it much more readable in general
+                    except (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError) as ex:
                         # Drop all master connections and master related information
-                        self._client._client.master_id = None
-                        self._client.dropConnections()
-                        sleep_time = retry_interval_sec * retry_back_off_multiplier ** tries
-                        tries += 1.0
+                        drop_connection()
                         self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
                         time.sleep(sleep_time)
+                    except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonNotConnected) as ex:
+                        drop_connection()
+                        self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
+                        time.sleep(sleep_time)
+                    except (ArakoonSocketException, ArakoonGoingDown) as ex:
+                        if not is_read_only and not override_retry:
+                            raise
+                        # Drop all master connections and master related information
+                        drop_connection()
+                        self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
+                        time.sleep(sleep_time)
+                    finally:
+                        tries += 1
             except (ArakoonNotFound, ArakoonAssertionFailed):
                 # No extra logging for some errors
                 raise
@@ -107,6 +120,7 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
                 # Log any exception that might be thrown for debugging purposes
                 self._logger.error('Error during {0}. {1}'.format(f.__name__, identifier))
                 raise
+
         return wrapped
     return wrap
 
