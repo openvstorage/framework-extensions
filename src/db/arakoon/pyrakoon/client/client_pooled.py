@@ -16,19 +16,16 @@
 import uuid
 import time
 import random
-import gevent
-from collections import deque
-from contextlib import contextmanager
-from gevent.coros import BoundedSemaphore
 from .base_client import PyrakoonBase
-from .client import PyrakoonClient
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, Consistency
+from .client_pool import PyrakoonPool
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, Consistency
 from ovs_extensions.log.logger import Logger
 
 
 class PyrakoonClientPooled(PyrakoonBase):
     """
-    Arakoon client wrapper. Keep a number of Pyrakoon clients open
+    Pooled arakoon client wrapper
+    Exposes the same API as the base PyrakoonClient while using a pool underneath
     """
 
     _logger = Logger('extensions')
@@ -53,76 +50,8 @@ class PyrakoonClientPooled(PyrakoonBase):
         :param retry_interval_sec: Seconds to wait before retrying. Exponentially increases with every retry.
         :type retry_interval_sec: int
         """
-        cleaned_nodes = {}
-        for node, info in nodes.iteritems():
-            cleaned_nodes[str(node)] = ([str(entry) for entry in info[0]], int(info[1]))
-
-        self.pool_size = pool_size
-        self._batch_size = 500
-        self._config = ArakoonClientConfig(str(cluster), cleaned_nodes)
-        self._identifier = int(round(random.random() * 10000000))
-        self._pyrakoon_args = (cluster, nodes, retries, retry_back_off_multiplier, retry_interval_sec)
+        self._pool = PyrakoonPool(cluster, nodes, pool_size, retries, retry_back_off_multiplier, retry_interval_sec)
         self._sequences = {}
-
-        self._retries = retries
-        self._retry_back_off_multiplier = retry_back_off_multiplier
-        self._retry_interval_sec = retry_interval_sec
-
-        self._lock = BoundedSemaphore(pool_size)
-
-        self._clients = deque()
-        for i in xrange(pool_size):
-            # No clients as of yet. Decrease the count
-            self._lock.acquire()
-        for i in xrange(pool_size):
-            gevent.spawn_later(self.SPAWN_FREQUENCY * i, self._add_client)
-
-    def _create_new_client(self):
-        # type: () -> PyrakoonClient
-        """
-        Create a new Arakoon client
-        Using PyrakoonClient as it has retries on master loss
-        :return: The created PyrakoonClient client
-        :rtype: PyrakoonClient
-        """
-        return PyrakoonClient(*self._pyrakoon_args)
-
-    def _add_client(self):
-        # type: () -> None
-        """
-        Add a new client to the pool
-        :return: None
-        """
-        sleep_time = 0.1
-        while True:
-            client = self._create_new_client()
-            if client:
-                break
-            gevent.sleep(sleep_time)
-
-        self._clients.append(client)
-        self._lock.release()
-
-    @contextmanager
-    def get_client(self):
-        # type: () -> Iterable[PyrakoonClient]
-        """
-        Get a client from the pool. Used as context manager
-        """
-        self._lock.acquire()
-        # Client should always be present as we acquire the semaphore which would block until the are clients the in the
-        # queue but checking if it's None makes the IDE not complain
-        client = None
-        try:
-            client = self._clients.popleft()
-            yield client
-        # Possible catch exception that require a new client to be spawned.
-        # When creating a new client, the semaphore will have to be released when spawning a new one
-        # You won't be able to use the finally statement then but will have to rely on try except else
-        finally:
-            if client:
-                self._clients.append(client)
-                self._lock.release()
 
     def get(self, key, consistency=None):
         # type: (str, Consistency) -> Any
@@ -135,7 +64,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return: The value associated with the given key
         :rtype: any
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.get(key, consistency)
 
     def get_multi(self, keys, must_exist=True):
@@ -149,7 +78,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return: Generator that yields key value pairs
         :rtype: iterable[Tuple[str, any]
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.get_multi(keys, must_exist=True)
 
     def set(self, key, value, transaction=None):
@@ -169,7 +98,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         if transaction is not None:
             return self._sequences[transaction].addSet(key, value)
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.set(key, value)
 
     def prefix(self, prefix):
@@ -181,7 +110,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return: Generator that yields keys
         :rtype: iterable[str]
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.prefix(prefix)
 
     def prefix_entries(self, prefix):
@@ -193,7 +122,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return: Generator that yields key, value pairs
         :rtype: iterable[Tuple[str, any]
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.prefix_entries(prefix)
 
     def delete(self, key, must_exist=True, transaction=None):
@@ -214,7 +143,7 @@ class PyrakoonClientPooled(PyrakoonBase):
                 return self._sequences[transaction].addDelete(key)
             else:
                 return self._sequences[transaction].addReplace(key, None)
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.delete(key, must_exist)
 
     def delete_prefix(self, prefix, transaction=None):
@@ -230,7 +159,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         if transaction is not None:
             return self._sequences[transaction].addDeletePrefix(prefix)
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.delete_prefix(prefix)
 
     def nop(self):
@@ -238,7 +167,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         Executes a nop command
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.nop()
 
     def exists(self, key):
@@ -250,7 +179,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return True if key exists else False
         :rtype: bool
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.exists(key)
 
     def assert_value(self, key, value, transaction=None):
@@ -269,7 +198,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         if transaction is not None:
             return self._sequences[transaction].addAssert(key, value)
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.assert_value(key, value)
 
     def assert_exists(self, key, transaction=None):
@@ -286,7 +215,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         if transaction is not None:
             return self._sequences[transaction].addAssertExists(key)
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             return client.assert_exists(key)
 
     def begin_transaction(self):
@@ -312,7 +241,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :return: None
         :rtype: NoneType
         """
-        with self.get_client() as client:
+        with self._pool.get_client() as client:
             try:
                 sequence = self._sequences[transaction]
                 return client._apply_transaction(sequence)
