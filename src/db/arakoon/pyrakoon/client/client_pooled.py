@@ -75,7 +75,7 @@ class PyrakoonClientPooled(PyrakoonBase):
             # No clients as of yet. Decrease the count
             self._lock.acquire()
         for i in xrange(pool_size):
-            gevent.spawn_later(self.SPAWN_FREQUENCY * i, self._add_client())
+            gevent.spawn_later(self.SPAWN_FREQUENCY * i, self._add_client)
 
     def _create_new_client(self):
         # type: () -> PyrakoonClient
