@@ -229,7 +229,7 @@ class PyrakoonClient(PyrakoonBase):
         :return: Generator that yields keys
         :rtype: iterable[str]
         """
-        next_prefix = PyrakoonClient._next_key(prefix)
+        next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
             batch = self._client.range(beginKey=prefix if batch is None else batch[-1],
@@ -251,7 +251,7 @@ class PyrakoonClient(PyrakoonBase):
         :return: Generator that yields key, value pairs
         :rtype: iterable[Tuple[str, any]
         """
-        next_prefix = PyrakoonClient._next_key(prefix)
+        next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
             batch = self._client.range_entries(beginKey=prefix if batch is None else batch[-1][0],

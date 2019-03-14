@@ -195,25 +195,32 @@ class PyrakoonBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _next_key(key):
-        # type: (str) -> str
+    def _next_prefix(prefix):
         """
-        Calculates the next key (to be used in range queries)
-        :param key: Key to calucate of
-        :type key: str
+        Calculates the next key which is no longer part of the given prefix
+        :param prefix: prefix to calculate of
+        :type prefix: str
         :return: The next key
         :rtype: str
         """
-        encoding = 'ascii'  # For future python 3 compatibility
-        array = bytearray(str(key), encoding)
-        for index in range(len(array) - 1, -1, -1):
-            array[index] += 1
-            if array[index] < 128:
-                while array[-1] == 0:
-                    array = array[:-1]
-                return str(array.decode(encoding))
-            array[index] = 0
-        return '\xff'
+        array = list(prefix)
+        pos = len(array) - 1
+        carry = True
+        while carry and pos >= 0:
+            digit = ord(array[pos]) + 1
+            if digit == 256:
+                # New digit would go out of the char range
+                array[pos] = chr(0)
+                pos = pos - 1
+            else:
+                # New char found which won't be part of the next prefix
+                array[pos] = chr(digit)
+                carry = False
+
+        if pos >= 0:
+            return ''.join(array)
+        # Can occur when all the prefix is composed of \xff
+        raise ValueError('Prefix {0} has no next'.format(prefix))
 
     def lock(self, name, wait=None, expiration=60):
         # type: (str, float, float) -> PyrakoonLock
