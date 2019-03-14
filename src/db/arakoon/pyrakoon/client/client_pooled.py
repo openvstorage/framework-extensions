@@ -79,7 +79,7 @@ class PyrakoonClientPooled(PyrakoonBase):
         :rtype: iterable[Tuple[str, any]
         """
         with self._pool.get_client() as client:
-            return client.get_multi(keys, must_exist=True)
+            return client.get_multi(keys, must_exist=must_exist)
 
     def set(self, key, value, transaction=None):
         # type: (str, any, str) -> None
