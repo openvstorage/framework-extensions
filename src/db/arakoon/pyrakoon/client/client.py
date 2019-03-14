@@ -25,7 +25,9 @@ import ujson
 import random
 from functools import wraps
 from threading import RLock, current_thread
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
+from .base_client import PyrakoonBase
+from .exceptions import NoLockAvailableException
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
     ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
@@ -125,14 +127,7 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
     return wrap
 
 
-class NoLockAvailableException(Exception):
-    """
-    Raised when the lock could not be acquired
-    """
-    pass
-
-
-class PyrakoonClient(object):
+class PyrakoonClient(PyrakoonBase):
     """
     Arakoon client wrapper
     """
@@ -380,6 +375,18 @@ class PyrakoonClient(object):
         self._sequences[key] = self._client.makeSequence()
         return key
 
+    @handle_arakoon_errors(is_read_only=False, max_duration=1)
+    def _apply_transaction(self, sequence):
+        # type: (Sequence) -> None
+        """
+        Does the retrying aspect to avoid deleting the transaction in a finally clause. Paried with apply_transaction
+        :param sequence: Sequence to execute
+        :type sequence: Sequence
+        :return: None
+        :rtype: NoneType
+        """
+        self._client.sequence(sequence)
+
     @locked()
     def apply_transaction(self, transaction, delete=True):
         # type: (str, Optional[bool]) -> None
@@ -393,21 +400,9 @@ class PyrakoonClient(object):
         :return: None
         :rtype: NoneType
         """
-        @handle_arakoon_errors(is_read_only=False, max_duration=1)
-        def apply_transaction(pyrakoon_client):
-            # type: (PyrakoonClient) -> None
-            """
-            Decorated inner function. Used to shadow the name of the outer function so the decorator provides
-            useful logging
-            :param pyrakoon_client: The pyrakoon client to use. (Captured by the decorator. Cannot use self of outer scope)
-            :type pyrakoon_client: PyrakoonClient
-            :return: None
-            :rtype: NoneType
-            """
-            pyrakoon_client._client.sequence(pyrakoon_client._sequences[transaction])
-
         try:
-            return apply_transaction(self)
+            sequence = self._sequences[transaction]
+            return self._apply_transaction(sequence)
         finally:
             if delete:
                 self.delete_transaction(transaction)
@@ -421,27 +416,6 @@ class PyrakoonClient(object):
         :rtype: NoneType
         """
         self._sequences.pop(transaction, None)
-
-    @staticmethod
-    def _next_key(key):
-        # type: (str) -> str
-        """
-        Calculates the next key (to be used in range queries)
-        :param key: Key to calucate of
-        :type key: str
-        :return: The next key
-        :rtype: str
-        """
-        encoding = 'ascii'  # For future python 3 compatibility
-        array = bytearray(str(key), encoding)
-        for index in range(len(array) - 1, -1, -1):
-            array[index] += 1
-            if array[index] < 128:
-                while array[-1] == 0:
-                    array = array[:-1]
-                return str(array.decode(encoding))
-            array[index] = 0
-        return '\xff'
 
     def lock(self, name, wait=None, expiration=60):
         # type: (str, float, float) -> PyrakoonLock
