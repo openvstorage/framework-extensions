@@ -14,6 +14,27 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+from functools import wraps
+
+
+def locked():
+    """
+    Locking decorator.
+    """
+    def wrap(f):
+        """
+        Returns a wrapped function
+        """
+        @wraps(f)
+        def new_function(self, *args, **kw):
+            """
+            Executes the decorated function in a locked context
+            """
+            with self._lock:
+                return f(self, *args, **kw)
+        return new_function
+    return wrap
+
 
 class PyrakoonBase(object):
     """
@@ -185,6 +206,7 @@ class PyrakoonBase(object):
         raise NotImplementedError()
 
     def delete_transaction(self, transaction):
+        # type: (str) -> None
         """
         Deletes a transaction
         :param transaction: Identifier of the transaction
@@ -196,11 +218,12 @@ class PyrakoonBase(object):
 
     @staticmethod
     def _next_prefix(prefix):
+        # type: (str) -> str
         """
         Calculates the next key which is no longer part of the given prefix
         :param prefix: prefix to calculate of
         :type prefix: str
-        :return: The next key
+        :return: The next prefix which is no longer part of the given one
         :rtype: str
         """
         array = list(prefix)
@@ -213,7 +236,7 @@ class PyrakoonBase(object):
                 array[pos] = chr(0)
                 pos = pos - 1
             else:
-                # New char found which won't be part of the next prefix
+                # New char found which is not part of the current prefix
                 array[pos] = chr(digit)
                 carry = False
 
@@ -242,7 +265,6 @@ class PyrakoonBase(object):
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
-        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
         Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
         :param transaction_callback: Callback function which returns the transaction ID to apply
         :type transaction_callback: callable

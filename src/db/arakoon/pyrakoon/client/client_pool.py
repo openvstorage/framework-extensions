@@ -30,7 +30,7 @@ class PyrakoonPool(object):
 
     _logger = Logger('extensions')
 
-    # Frequency at which the pool is populated at startup
+    # Frequency with which the pool is populated at startup
     SPAWN_FREQUENCY = 0.1
 
     def __init__(self, cluster, nodes, pool_size=10, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):

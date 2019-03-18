@@ -438,7 +438,6 @@ class PyrakoonClient(PyrakoonBase):
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
-        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
         Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
         :param transaction_callback: Callback function which returns the transaction ID to apply
         :type transaction_callback: callable
@@ -456,8 +455,7 @@ class PyrakoonClient(PyrakoonBase):
 
         retry_wait_func = retry_wait_function or default_retry_wait
         tries = 0
-        success = False
-        while success is False:
+        while True:
             tries += 1
             try:
                 transaction = transaction_callback()  # type: str

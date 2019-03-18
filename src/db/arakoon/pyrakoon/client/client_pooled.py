@@ -30,9 +30,6 @@ class PyrakoonClientPooled(PyrakoonBase):
 
     _logger = Logger('extensions')
 
-    # Frequency at which the pool is populated at startup
-    SPAWN_FREQUENCY = 0.1
-
     def __init__(self, cluster, nodes, pool_size=10, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):
         # type: (str, Dict[str, Tuple[str, int]], int, int, int, int) -> None
         """
@@ -279,7 +276,6 @@ class PyrakoonClientPooled(PyrakoonBase):
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
-        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
         Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
         :param transaction_callback: Callback function which returns the transaction ID to apply
         :type transaction_callback: callable
@@ -297,8 +293,7 @@ class PyrakoonClientPooled(PyrakoonBase):
 
         retry_wait_func = retry_wait_function or default_retry_wait
         tries = 0
-        success = False
-        while success is False:
+        while True:
             tries += 1
             try:
                 transaction = transaction_callback()  # type: str
