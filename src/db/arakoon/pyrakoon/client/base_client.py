@@ -14,6 +14,27 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+from functools import wraps
+
+
+def locked():
+    """
+    Locking decorator.
+    """
+    def wrap(f):
+        """
+        Returns a wrapped function
+        """
+        @wraps(f)
+        def new_function(self, *args, **kw):
+            """
+            Executes the decorated function in a locked context
+            """
+            with self._lock:
+                return f(self, *args, **kw)
+        return new_function
+    return wrap
+
 
 class PyrakoonBase(object):
     """
@@ -185,6 +206,7 @@ class PyrakoonBase(object):
         raise NotImplementedError()
 
     def delete_transaction(self, transaction):
+        # type: (str) -> None
         """
         Deletes a transaction
         :param transaction: Identifier of the transaction
@@ -195,25 +217,33 @@ class PyrakoonBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _next_key(key):
+    def _next_prefix(prefix):
         # type: (str) -> str
         """
-        Calculates the next key (to be used in range queries)
-        :param key: Key to calucate of
-        :type key: str
-        :return: The next key
+        Calculates the next key which is no longer part of the given prefix
+        :param prefix: prefix to calculate of
+        :type prefix: str
+        :return: The next prefix which is no longer part of the given one
         :rtype: str
         """
-        encoding = 'ascii'  # For future python 3 compatibility
-        array = bytearray(str(key), encoding)
-        for index in range(len(array) - 1, -1, -1):
-            array[index] += 1
-            if array[index] < 128:
-                while array[-1] == 0:
-                    array = array[:-1]
-                return str(array.decode(encoding))
-            array[index] = 0
-        return '\xff'
+        array = list(prefix)
+        pos = len(array) - 1
+        carry = True
+        while carry and pos >= 0:
+            digit = ord(array[pos]) + 1
+            if digit == 256:
+                # New digit would go out of the char range
+                array[pos] = chr(0)
+                pos = pos - 1
+            else:
+                # New char found which is not part of the current prefix
+                array[pos] = chr(digit)
+                carry = False
+
+        if pos >= 0:
+            return ''.join(array)
+        # Can occur when all the prefix is composed of \xff
+        raise ValueError('Prefix {0} has no next'.format(prefix))
 
     def lock(self, name, wait=None, expiration=60):
         # type: (str, float, float) -> PyrakoonLock
@@ -235,7 +265,6 @@ class PyrakoonBase(object):
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
-        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
         Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
         :param transaction_callback: Callback function which returns the transaction ID to apply
         :type transaction_callback: callable
