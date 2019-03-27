@@ -25,7 +25,9 @@ import ujson
 import random
 from functools import wraps
 from threading import RLock, current_thread
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
+from .base_client import PyrakoonBase
+from .exceptions import NoLockAvailableException
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
     ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
@@ -74,6 +76,11 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
         @wraps(f)
         def wrapped(self, *args, **kwargs):
             # type: (PyrakoonClient, list, dict) -> any
+
+            def drop_connection():
+                self._client._client.master_id = None
+                self._client.dropConnections()
+
             start = time.time()
             tries = 0
             retries = self._retries
@@ -82,24 +89,32 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
             identifier = 'Process {0}, thread {1}, clientid {2}'.format(os.getpid(), current_thread().ident, self._identifier)
             try:
                 while retries > tries:
+                    sleep_time = retry_interval_sec * (retry_back_off_multiplier ** tries)
                     try:
                         result = f(self, *args, **kwargs)
                         duration = time.time() - start
                         if duration > max_duration:
                             self._logger.warning('Pyrakoon call {0} took {1}s'.format(f.__name__, round(duration, 2)))
                         return result
-                    except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonSocketException, ArakoonNotConnected, ArakoonGoingDown) as ex:
-                        # (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)  are the socket exception that can be retried
-                        if not is_read_only and not override_retry and isinstance(ex, (ArakoonSocketException, ArakoonGoingDown)) and \
-                                not isinstance(ex, (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError)):
-                            raise
+                    # The try-except contain some redundant code but make it much more readable in general
+                    except (ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError) as ex:
                         # Drop all master connections and master related information
-                        self._client._client.master_id = None
-                        self._client.dropConnections()
-                        sleep_time = retry_interval_sec * retry_back_off_multiplier ** tries
-                        tries += 1.0
+                        drop_connection()
                         self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
                         time.sleep(sleep_time)
+                    except (ArakoonNoMaster, ArakoonNodeNotMaster, ArakoonNotConnected) as ex:
+                        drop_connection()
+                        self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
+                        time.sleep(sleep_time)
+                    except (ArakoonSocketException, ArakoonGoingDown) as ex:
+                        if not is_read_only and not override_retry:
+                            raise
+                        # Drop all master connections and master related information
+                        drop_connection()
+                        self._logger.warning("Master not found ({0}) during {1} ({2}). Retrying in {3:.2f} sec.".format(ex, f.__name__, identifier, sleep_time))
+                        time.sleep(sleep_time)
+                    finally:
+                        tries += 1
             except (ArakoonNotFound, ArakoonAssertionFailed):
                 # No extra logging for some errors
                 raise
@@ -107,18 +122,12 @@ def handle_arakoon_errors(is_read_only=False, max_duration=0.5, override_retry=F
                 # Log any exception that might be thrown for debugging purposes
                 self._logger.error('Error during {0}. {1}'.format(f.__name__, identifier))
                 raise
+
         return wrapped
     return wrap
 
 
-class NoLockAvailableException(Exception):
-    """
-    Raised when the lock could not be acquired
-    """
-    pass
-
-
-class PyrakoonClient(object):
+class PyrakoonClient(PyrakoonBase):
     """
     Arakoon client wrapper:
     - Easier sequence management
@@ -221,7 +230,7 @@ class PyrakoonClient(object):
         :return: Generator that yields keys
         :rtype: iterable[str]
         """
-        next_prefix = PyrakoonClient._next_key(prefix)
+        next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
             batch = self._client.range(beginKey=prefix if batch is None else batch[-1],
@@ -243,7 +252,7 @@ class PyrakoonClient(object):
         :return: Generator that yields key, value pairs
         :rtype: iterable[Tuple[str, any]
         """
-        next_prefix = PyrakoonClient._next_key(prefix)
+        next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
             batch = self._client.range_entries(beginKey=prefix if batch is None else batch[-1][0],
@@ -367,6 +376,18 @@ class PyrakoonClient(object):
         self._sequences[key] = self._client.makeSequence()
         return key
 
+    @handle_arakoon_errors(is_read_only=False, max_duration=1)
+    def _apply_transaction(self, sequence):
+        # type: (Sequence) -> None
+        """
+        Does the retrying aspect to avoid deleting the transaction in a finally clause. Paried with apply_transaction
+        :param sequence: Sequence to execute
+        :type sequence: Sequence
+        :return: None
+        :rtype: NoneType
+        """
+        self._client.sequence(sequence)
+
     @locked()
     def apply_transaction(self, transaction, delete=True):
         # type: (str, Optional[bool]) -> None
@@ -380,21 +401,9 @@ class PyrakoonClient(object):
         :return: None
         :rtype: NoneType
         """
-        @handle_arakoon_errors(is_read_only=False, max_duration=1)
-        def apply_transaction(pyrakoon_client):
-            # type: (PyrakoonClient) -> None
-            """
-            Decorated inner function. Used to shadow the name of the outer function so the decorator provides
-            useful logging
-            :param pyrakoon_client: The pyrakoon client to use. (Captured by the decorator. Cannot use self of outer scope)
-            :type pyrakoon_client: PyrakoonClient
-            :return: None
-            :rtype: NoneType
-            """
-            pyrakoon_client._client.sequence(pyrakoon_client._sequences[transaction])
-
         try:
-            return apply_transaction(self)
+            sequence = self._sequences[transaction]
+            return self._apply_transaction(sequence)
         finally:
             if delete:
                 self.delete_transaction(transaction)
@@ -408,27 +417,6 @@ class PyrakoonClient(object):
         :rtype: NoneType
         """
         self._sequences.pop(transaction, None)
-
-    @staticmethod
-    def _next_key(key):
-        # type: (str) -> str
-        """
-        Calculates the next key (to be used in range queries)
-        :param key: Key to calucate of
-        :type key: str
-        :return: The next key
-        :rtype: str
-        """
-        encoding = 'ascii'  # For future python 3 compatibility
-        array = bytearray(str(key), encoding)
-        for index in range(len(array) - 1, -1, -1):
-            array[index] += 1
-            if array[index] < 128:
-                while array[-1] == 0:
-                    array = array[:-1]
-                return str(array.decode(encoding))
-            array[index] = 0
-        return '\xff'
 
     def lock(self, name, wait=None, expiration=60):
         # type: (str, float, float) -> PyrakoonLock
@@ -451,7 +439,6 @@ class PyrakoonClient(object):
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
-        the Arakoon might only have partially applied all actions therefore all asserts must be re-evaluated
         Handles all Arakoon errors by re-executing the callback until it finished or until no more retries can be made
         :param transaction_callback: Callback function which returns the transaction ID to apply
         :type transaction_callback: callable
@@ -469,8 +456,7 @@ class PyrakoonClient(object):
 
         retry_wait_func = retry_wait_function or default_retry_wait
         tries = 0
-        success = False
-        while success is False:
+        while True:
             tries += 1
             try:
                 transaction = transaction_callback()  # type: str
