@@ -7,7 +7,7 @@ Build-Depends: python (>= 2.7.2), debhelper (>= 9)
 
 Package: openvstorage-extensions
 Architecture: amd64
-Pre-Depends: apt, freeipmi, python (>= 2.7.2), python-apt, python-click, python-paramiko, python-rpyc, python-protobuf,
+Pre-Depends: apt, freeipmi, python (>= 2.7.2), python (<< 3.0.0), python-gevent (>= 0.13.0-1build2), python-apt, python-click, python-paramiko, python-rpyc, python-protobuf,
              python-requests (>=2.9.1), python-yaml, python-ujson, volumedriver-nbd
 Depends: ipython
 Description: Extensions for Open vStorage
