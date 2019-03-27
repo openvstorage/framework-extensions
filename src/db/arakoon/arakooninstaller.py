@@ -141,35 +141,38 @@ class ArakoonClusterConfig(object):
                 contents = client.file_read(self.internal_config_path)
 
         parser = RawConfigParser()
-        parser.readfp(StringIO(contents))
-        self.nodes = []
-        self._extra_globals = {}
-        preferred_masters = []
-        for key in parser.options('global'):
-            if key == 'plugins':
-                self.plugins = [plugin.strip() for plugin in parser.get('global', 'plugins').split(',')]
-            elif key == 'cluster_id':
-                self.cluster_id = parser.get('global', 'cluster_id')
-            elif key == 'cluster':
-                pass  # Ignore these
-            elif key == 'preferred_masters':
-                preferred_masters = parser.get('global', key).split(',')
-            else:
-                self._extra_globals[key] = parser.get('global', key)
-        for node in parser.get('global', 'cluster').split(','):
-            node = node.strip()
-            self.nodes.append(ArakoonNodeConfig(ip=parser.get(node, 'ip'),
-                                                name=node,
-                                                home=parser.get(node, 'home'),
-                                                fsync=parser.getboolean(node, 'fsync'),
-                                                tlog_dir=parser.get(node, 'tlog_dir'),
-                                                log_sinks=parser.get(node, 'log_sinks'),
-                                                log_level=parser.get(node, 'log_level'),
-                                                client_port=parser.getint(node, 'client_port'),
-                                                messaging_port=parser.getint(node, 'messaging_port'),
-                                                crash_log_sinks=parser.get(node, 'crash_log_sinks'),
-                                                tlog_compression=parser.get(node, 'tlog_compression'),
-                                                preferred_master=node in preferred_masters))
+        try:
+            parser.readfp(StringIO(contents))
+            self.nodes = []
+            self._extra_globals = {}
+            preferred_masters = []
+            for key in parser.options('global'):
+                if key == 'plugins':
+                    self.plugins = [plugin.strip() for plugin in parser.get('global', 'plugins').split(',')]
+                elif key == 'cluster_id':
+                    self.cluster_id = parser.get('global', 'cluster_id')
+                elif key == 'cluster':
+                    pass  # Ignore these
+                elif key == 'preferred_masters':
+                    preferred_masters = parser.get('global', key).split(',')
+                else:
+                    self._extra_globals[key] = parser.get('global', key)
+            for node in parser.get('global', 'cluster').split(','):
+                node = node.strip()
+                self.nodes.append(ArakoonNodeConfig(ip=parser.get(node, 'ip'),
+                                                    name=node,
+                                                    home=parser.get(node, 'home'),
+                                                    fsync=parser.getboolean(node, 'fsync'),
+                                                    tlog_dir=parser.get(node, 'tlog_dir'),
+                                                    log_sinks=parser.get(node, 'log_sinks'),
+                                                    log_level=parser.get(node, 'log_level'),
+                                                    client_port=parser.getint(node, 'client_port'),
+                                                    messaging_port=parser.getint(node, 'messaging_port'),
+                                                    crash_log_sinks=parser.get(node, 'crash_log_sinks'),
+                                                    tlog_compression=parser.get(node, 'tlog_compression'),
+                                                    preferred_master=node in preferred_masters))
+        except Exception as ex:
+            raise NoSectionError('{0} on {1}'.format(ex, self.cluster_id))
 
     def write_config(self, ip=None):
         """
