@@ -172,7 +172,7 @@ class ArakoonClusterConfig(object):
                                                     tlog_compression=parser.get(node, 'tlog_compression'),
                                                     preferred_master=node in preferred_masters))
         except Exception as ex:
-            raise NoSectionError('{0} on {1}'.format(ex, self.cluster_id))
+            raise ValueError('Unable to parse config on {0} with {1}'.format(self.cluster_id, ex))
 
     def write_config(self, ip=None):
         """
