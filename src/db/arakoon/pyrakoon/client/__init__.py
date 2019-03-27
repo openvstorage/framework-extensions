@@ -1,4 +1,4 @@
-# Copyright (C) 2016 iNuron NV
+# Copyright (C) 2019 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -14,9 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-Arakoon store module, using pyrakoon
-"""
-
-# Backwards compatibility
-from ..pyrakoon.client import MockPyrakoonClient
+from .exceptions import NoLockAvailableException
+from .client import locked, handle_arakoon_errors, PyrakoonClient, PyrakoonLock
+from .client_pooled import PyrakoonClientPooled
+from .mock import MockPyrakoonClient
