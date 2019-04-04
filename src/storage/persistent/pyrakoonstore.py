@@ -22,7 +22,7 @@ import ujson
 from ConfigParser import RawConfigParser
 from functools import wraps
 from StringIO import StringIO
-from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient, PyrakoonClientPooled
+from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
 from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundException
 
@@ -66,7 +66,7 @@ class PyrakoonStore(object):
         for node in parser.get('global', 'cluster').split(','):
             node = node.strip()
             nodes[node] = ([parser.get(node, 'ip')], parser.get(node, 'client_port'))
-        self._client = PyrakoonClientPooled(cluster, nodes)
+        self._client = PyrakoonClient(cluster, nodes)
 
     @convert_exception()
     def get(self, key):

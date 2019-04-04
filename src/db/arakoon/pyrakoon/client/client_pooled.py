@@ -26,6 +26,13 @@ class PyrakoonClientPooled(PyrakoonBase):
     """
     Pooled arakoon client wrapper
     Exposes the same API as the base PyrakoonClient while using a pool underneath
+
+    NOTE: this client won't work in a thread except the main thread when not monkey patching gevent
+    Monkey patching can be done using
+    from gevent import monkey
+    monkey.patch_all()
+
+    This has to be called at the start of the application.
     """
 
     _logger = Logger('extensions')
