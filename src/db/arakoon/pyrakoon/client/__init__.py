@@ -18,3 +18,7 @@ from .exceptions import NoLockAvailableException
 from .client import locked, handle_arakoon_errors, PyrakoonClient, PyrakoonLock
 from .client_pooled import PyrakoonClientPooled
 from .mock import MockPyrakoonClient
+# Backwards compatibility imports
+from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
+    ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
+    ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
