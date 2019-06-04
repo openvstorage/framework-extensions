@@ -18,8 +18,8 @@ import time
 import random
 from .base_client import PyrakoonBase
 from .client_pool import PyrakoonPool
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, Consistency
 from ovs_extensions.log.logger import Logger
+from pyrakoon.compat import Sequence, ArakoonAssertionFailed, Consistency
 
 
 class PyrakoonClientPooled(PyrakoonBase):
@@ -221,6 +221,21 @@ class PyrakoonClientPooled(PyrakoonBase):
             return self._sequences[transaction].addAssertExists(key)
         with self._pool.get_client() as client:
             return client.assert_exists(key)
+
+    def assert_range(self, prefix, keys, transaction):
+        """
+        Asserts that a given prefix yields the given keys
+        :param prefix: Prefix of the key
+        :type prefix: str
+        :param keys: List of keys to assert
+        :type keys: List[str]
+        :param transaction: Transaction to apply the assert too
+        :type transaction: str
+        :raises: ArakoonAssertionFailed if the value could not be asserted
+        :return: None
+        :rtype: NoneType
+        """
+        return self._sequences[transaction].addAssertPrefixContainsExactly(prefix=prefix, keys=keys)
 
     def begin_transaction(self):
         # type: () -> str

@@ -19,6 +19,8 @@ Generic module for managing configuration somewhere
 """
 import os
 import json
+from pyrakoon.compat import ArakoonNotFound
+from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
 
 
 class NotFoundException(Exception):
@@ -325,8 +327,6 @@ class Configuration(object):
     def _passthrough(cls, method, *args, **kwargs):
         store, params = cls.get_store_info()
         if store == 'arakoon':
-            from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonNotFound
-            from ovs_extensions.db.arakoon.configuration import ArakoonConfiguration
             try:
                 instance = ArakoonConfiguration(**params)
                 return getattr(instance, method)(*args, **kwargs)

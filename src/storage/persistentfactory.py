@@ -18,6 +18,8 @@
 Generic persistent factory.
 """
 import os
+from ovs_extensions.storage.persistent.dummystore import DummyPersistentStore
+from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
 
 
 class PersistentFactory(object):
@@ -31,6 +33,7 @@ class PersistentFactory(object):
         Returns a persistent storage client
         :param client_type: Type of store client
         """
+        # @todo Transition to PyrakoonStore in all cases. Not doing it in this hotfix due to the required mocking of arakoonclusters
         if not hasattr(cls, 'store') or cls.store is None:
             if os.environ.get('RUNNING_UNITTESTS') == 'True':
                 client_type = 'dummy'
@@ -40,7 +43,6 @@ class PersistentFactory(object):
 
             cls.store = None
             if client_type in ['pyrakoon', 'arakoon']:
-                from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
                 store_info = cls._get_store_info()
                 cls.store = PyrakoonStore(**store_info)
             if client_type == 'dummy':

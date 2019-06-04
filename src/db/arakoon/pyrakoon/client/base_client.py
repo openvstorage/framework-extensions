@@ -182,6 +182,22 @@ class PyrakoonBase(object):
         """
         raise NotImplementedError()
 
+    def assert_range(self, prefix, keys, transaction):
+        # type: (str, List[str], str) -> None
+        """
+        Asserts that a given prefix yields the given keys
+        :param prefix: Prefix of the key
+        :type prefix: str
+        :param keys: List of keys to assert
+        :type keys: List[str]
+        :param transaction: Transaction to apply the assert too
+        :type transaction: str
+        :raises: ArakoonAssertionFailed if the value could not be asserted
+        :return: None
+        :rtype: NoneType
+        """
+        raise NotImplementedError()
+
     def begin_transaction(self):
         # type: () -> str
         """
@@ -277,3 +293,11 @@ class PyrakoonBase(object):
         :rtype: NoneType
         """
         raise NotImplementedError()
+
+    def _clean(self):
+        """
+        Clean the database
+        :return: None
+        """
+        # No implementation
+        _ = self

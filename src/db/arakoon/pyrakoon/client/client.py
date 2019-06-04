@@ -27,7 +27,7 @@ from functools import wraps
 from threading import RLock, current_thread
 from .base_client import PyrakoonBase
 from .exceptions import NoLockAvailableException
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig, \
+from pyrakoon.compat import Sequence, ArakoonAssertionFailed, ArakoonClient, ArakoonClientConfig,\
     ArakoonGoingDown, ArakoonNotFound, ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, \
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
@@ -131,6 +131,7 @@ class PyrakoonClient(PyrakoonBase):
     """
     Arakoon client wrapper
     """
+
     _logger = Logger('extensions')
 
     def __init__(self, cluster, nodes, retries=10, retry_back_off_multiplier=2, retry_interval_sec=2):
@@ -363,6 +364,23 @@ class PyrakoonClient(PyrakoonBase):
         if transaction is not None:
             return self._sequences[transaction].addAssertExists(key)
         return self._client.aSSert_exists(key)
+
+    @locked()
+    @handle_arakoon_errors(is_read_only=True)
+    def assert_range(self, prefix, keys, transaction):
+        """
+        Asserts that a given prefix yields the given keys
+        :param prefix: Prefix of the key
+        :type prefix: str
+        :param keys: List of keys to assert
+        :type keys: List[str]
+        :param transaction: Transaction to apply the assert too
+        :type transaction: str
+        :raises: ArakoonAssertionFailed if the value could not be asserted
+        :return: None
+        :rtype: NoneType
+        """
+        return self._sequences[transaction].addAssertPrefixContainsExactly(prefix=prefix, keys=keys)
 
     def begin_transaction(self):
         # type: () -> str

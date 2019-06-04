@@ -265,7 +265,7 @@ class DummyPersistentStore(object):
         return file_mutex(name, wait)
 
     def apply_callback_transaction(self, transaction_callback, max_retries=0, retry_wait_function=None):
-        # type: (callable) -> None
+        # type: (callable, int, callable) -> None
         """
         Apply a transaction which is the result of the callback.
         The callback should build the complete transaction again to handle the asserts. If the possible previous run was interrupted,
@@ -302,3 +302,34 @@ class DummyPersistentStore(object):
                 if tries > max_retries:
                     raise last_exception
                 retry_wait_func(tries)
+
+    def _sequence_assert_range(self, prefix, keys):
+        """
+        Asserts that a given prefix yields the given keys
+        :param prefix: Prefix of the key
+        :type prefix: str
+        :param keys: List of keys to assert
+        :type keys: List[str]
+        :raises: ArakoonAssertionFailed if the value could not be asserted
+        :return: None
+        :rtype: NoneType
+        """
+        if keys != self.prefix(prefix):
+            raise AssertException(prefix)
+
+    @synchronize()
+    def assert_range(self, prefix, keys, transaction):
+        """
+        Asserts that a given prefix yields the given keys
+        Only usable with a transaction
+        :param prefix: Prefix of the key
+        :type prefix: str
+        :param keys: List of keys to assert
+        :type keys: List[str]
+        :param transaction: Transaction to apply the assert too
+        :type transaction: str
+        :raises: ArakoonAssertionFailed if the value could not be asserted
+        :return: None
+        :rtype: NoneType
+        """
+        return self._sequences[transaction].append((self._sequence_assert_range, dict(prefix=prefix, keys=keys)))

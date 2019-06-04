@@ -17,14 +17,14 @@
 """
 Arakoon store module, using pyrakoon
 """
-
+import os
 import ujson
 from ConfigParser import RawConfigParser
 from functools import wraps
 from StringIO import StringIO
-from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient
-from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
+from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient, MockPyrakoonClient
 from ovs_extensions.storage.exceptions import AssertException, KeyNotFoundException
+from pyrakoon.compat import ArakoonAssertionFailed, ArakoonNotFound
 
 
 def convert_exception():
@@ -66,7 +66,11 @@ class PyrakoonStore(object):
         for node in parser.get('global', 'cluster').split(','):
             node = node.strip()
             nodes[node] = ([parser.get(node, 'ip')], parser.get(node, 'client_port'))
-        self._client = PyrakoonClient(cluster, nodes)
+        # @todo this code path is never hit due to the persistent factory getting the dummystore
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            self._client = MockPyrakoonClient(cluster, nodes)
+        else:
+            self._client = PyrakoonClient(cluster, nodes)
 
     @convert_exception()
     def get(self, key):
@@ -202,3 +206,11 @@ class PyrakoonStore(object):
         :rtype: NoneType
         """
         return self._client.apply_callback_transaction(transaction_callback, max_retries, retry_wait_function)
+
+    def _clean(self):
+        # type: () -> None
+        """
+        Clean the database (if supported)
+        :return: None
+        """
+        self._client._clean()
