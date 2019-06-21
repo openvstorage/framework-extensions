@@ -1,10 +1,25 @@
+# Copyright (C) 2019 iNuron NV
+#
+# This file is part of Open vStorage Open Source Edition (OSE),
+# as available from
+#
+#      http://www.openvstorage.org and
+#      http://www.openvstorage.com.
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License v3 (GNU AGPLv3)
+# as published by the Free Software Foundation, in version 3 as it comes
+# in the LICENSE.txt file of the Open vStorage OSE distribution.
+#
+# Open vStorage is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY of any kind.
+
 import re
 import os
 import time
 import logging
-from abc import abstractmethod
 from distutils.version import LooseVersion
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
 from ovs_extensions.services.interfaces.systemd import SystemdUnitParser, Systemd
@@ -15,6 +30,12 @@ from StringIO import StringIO
 logger = logging.getLogger(__name__)
 
 
+class NoMasterFoundException(EnvironmentError):
+    """
+    Raise this error when no arakoon master can be found after a couple of attempts
+    """
+
+
 class AlbaComponentUpdater(component_updater):
     """
     Implementation of abstract class to update alba
@@ -23,7 +44,7 @@ class AlbaComponentUpdater(component_updater):
     COMPONENT = 'alba'
     BINARIES = [('alba-ee', 'alba', '/usr/bin/alba')]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
-    alba_binary_base_path = '/opt'
+    alba_binary_base_path = os.path.join(os.path.sep, 'opt')
 
     re_abm = re.compile('^ovs-arakoon.*-abm$')
     re_nsm = re.compile('^ovs-arakoon.*-nsm_[0-9]*$')
@@ -36,19 +57,18 @@ class AlbaComponentUpdater(component_updater):
     SERVICE_TEMPLATE = '{0}/{{0}}{1}'.format(Systemd.SERVICE_DIR, Systemd.SERVICE_SUFFIX)
 
     @staticmethod
-    @abstractmethod
     def get_persistent_client():
         # type: () -> PyrakoonStore
         """
         Retrieve a persistent client which needs
         Needs to be implemented by the callee
         """
-        return NotImplementedError
+        raise NotImplementedError()
 
     @classmethod
     def get_node_id(cls):
         # type: () -> str
-        return NotImplementedError
+        raise NotImplementedError()
 
     @classmethod
     def update_alternatives(cls):
@@ -154,17 +174,15 @@ class AlbaComponentUpdater(component_updater):
         """
         attempt = 0
         while True:
+            try:
+                return check_output(['arakoon', '--who-master', '-config', arakoon_config_url])
+            except CalledProcessError:
+                attempt += 1
 
-            master = check_output(['arakoon', '--who-master', '-config', arakoon_config_url])
-            attempt += 1
-
-            if master:
-                break
             if max_attempts == attempt:
-                raise RuntimeError("Couldn't find arakoon master node after {0} attempts".format(max_attempts))
+                raise NoMasterFoundException("Couldn't find arakoon master node after {0} attempts".format(max_attempts))
 
             time.sleep(5)
-        return master
 
     @classmethod
     def drop_arakoon_master(cls):
