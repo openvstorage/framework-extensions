@@ -20,11 +20,10 @@ import time
 import logging
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
-from ovs_extensions.services.interfaces.systemd import SystemdUnitParser, Systemd
-from ovs_extensions.update.base import ComponentUpdater as component_updater
-
+from ovs_extensions.services.interfaces.systemd import SystemdUnitParser
+from ovs_extensions.update.base import ComponentUpdater
+from ovs_extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig
 from StringIO import StringIO
 
 logger = logging.getLogger(__name__)
@@ -35,8 +34,13 @@ class NoMasterFoundException(EnvironmentError):
     Raise this error when no arakoon master can be found after a couple of attempts
     """
 
+class InvalidAlbaVersionException(EnvironmentError):
+    """
+    Will be called if no valid alba version has been found and the update-alternatives call has failed with this alba version
+    """
 
-class AlbaComponentUpdater(component_updater):
+
+class AlbaComponentUpdater(ComponentUpdater):
     """
     Implementation of abstract class to update alba
     """
@@ -53,8 +57,6 @@ class AlbaComponentUpdater(component_updater):
     re_alba_asd = re.compile('^alba-asd-[0-9a-zA-Z]{32}$')
     re_exec_start = re.compile('.* -config (?P<config>\S*) .*')
     re_alba_maintenance = re.compile('^alba-maintenance_.*-[0-9a-zA-Z]{16}$')
-
-    SERVICE_TEMPLATE = '{0}/{{0}}{1}'.format(Systemd.SERVICE_DIR, Systemd.SERVICE_SUFFIX)
 
     @staticmethod
     def get_persistent_client():
@@ -81,8 +83,14 @@ class AlbaComponentUpdater(component_updater):
 
         :return: None
         """
-        version = max([LooseVersion(i) for i in os.listdir(cls.alba_binary_base_path) if cls.re_alba_binary.match(i)])
-        check_output(['update-alternatives', '--set', 'alba', os.path.join('{0}/{1}'.format(cls.alba_binary_base_path, str(version)))])
+        try:
+            version = max([LooseVersion(i) for i in os.listdir(cls.alba_binary_base_path) if cls.re_alba_binary.match(i)])
+            try:
+                check_output(['update-alternatives', '--set', 'alba', os.path.join(os.path.sep, cls.alba_binary_base_path, str(version))])
+            except CalledProcessError:
+                raise InvalidAlbaVersionException('Invalid alba version has been found and used for updating alternatives: {0}'.format(version or 'None'))
+        except ValueError:
+            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'.format(cls.alba_binary_base_path))
 
     @classmethod
     def update_binaries(cls):
@@ -99,18 +107,7 @@ class AlbaComponentUpdater(component_updater):
             cls.update_alternatives()
 
     @classmethod
-    def get_service_file_path(cls, name):
-        # type: (str) -> str
-        """
-        Get the path to a service
-        :param name: Name of the service
-        :return: The path to the service file
-        :rtype: str
-        """
-        return cls.SERVICE_TEMPLATE.format(name)
-
-    @classmethod
-    def get_arakoon_config_file(cls, service):
+    def get_arakoon_config_url(cls, service):
         # type: (str) -> str
         """
         Fetches the local file path of a given arakoon service, and parses the execstart configfile location
@@ -119,7 +116,7 @@ class AlbaComponentUpdater(component_updater):
         """
         local_client = cls.get_local_root_client()
 
-        file_path = cls.get_service_file_path(service)
+        file_path = cls.SERVICE_MANAGER.get_service_file_path(service)
         file_contents = local_client.file_read(file_path)
         parser = SystemdUnitParser()
         parser.readfp(StringIO(file_contents))
@@ -143,10 +140,10 @@ class AlbaComponentUpdater(component_updater):
         # restart arakoons first, drop master if this node is master
         arakoon_services = [i for i in all_services if i.startswith('ovs-arakoon')]
         for service in arakoon_services:
-            arakoon_config = cls.get_arakoon_config_file(service)
-            if node_id == cls.get_arakoon_master(arakoon_config):
-                cls.drop_arakoon_master()
-            master_node = cls.get_arakoon_master(arakoon_config)
+            arakoon_config_url = cls.get_arakoon_config_url(service)
+            if node_id == cls.get_arakoon_master(arakoon_config_url):
+                cls.drop_arakoon_master(arakoon_config_url)
+            master_node = cls.get_arakoon_master(arakoon_config_url)
             if master_node:
                 cls.SERVICE_MANAGER.restart_service(service, local_client)
 
@@ -170,6 +167,7 @@ class AlbaComponentUpdater(component_updater):
         """
         Fetches the master node id, based on the arakoon config url
         :param arakoon_config_url: str
+        :param max_attempts: int
         :return: str
         """
         attempt = 0
@@ -185,22 +183,30 @@ class AlbaComponentUpdater(component_updater):
             time.sleep(5)
 
     @classmethod
-    def drop_arakoon_master(cls):
-        # type: () -> str
+    def drop_arakoon_master(cls, config_url):
+        # type: (str) -> str
         """
-        Drops the master node id, based on the arakoon config url
-        :param arakoon_config_url: str
+        Drops this node as arakoon master node, for safe updating
         :return: str
         """
         node_id = cls.get_node_id()
-        return check_output(['arakoon', '--drop-master', node_id, '127.0.0.1', 'port'])
+        # We don't really need any automation. It's just for casting into an object
+        cluster_config = ArakoonClusterConfig(None)
+        cluster_config.read_config(contents=cls.read_arakoon_config(config_url))
+        for node in cluster_config.nodes:
+            if node.name == node_id:
+                return check_output(['arakoon', '--drop-master', node_id, '127.0.0.1', node.port])
 
-    @staticmethod
-    def get_local_root_client():
-        # type: () -> SSHClient
-        """
-        Return a local root client
-        :return: The root client
-        :rtype: SSHClient
-        """
-        return SSHClient('127.0.0.1', username='root')
+        raise RuntimeError('No arakoon node ID matched the local machine ID, no arakoon master have been dropped.')
+
+
+    @classmethod
+    def read_arakoon_config(cls, config_url):
+        # type: (str) -> str
+        if config_url.startswith('arakoon://'):
+            content = check_output(['alba', 'dev-extract-config', '--config', config_url])
+        else:
+            with open(config_url, 'r') as fh:
+                content = fh.read()
+        return content
+
