@@ -13,3 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+
+from .base import PackageManagerBase
+from .debian import DebianPackage
+from .rpm import RpmPackage
