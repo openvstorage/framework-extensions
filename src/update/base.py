@@ -154,10 +154,11 @@ class ComponentUpdater(object):
                 yield
             finally:
                 # End lock
+                transaction = persistent.begin_transaction()
+                persistent.assert_value(registration_key, node_identifier, transaction)
+                persistent.delete(registration_key, False, transaction)
                 try:
-                    transaction = persistent.begin_transaction()
-                    persistent.assert_value(registration_key, node_identifier, transaction)
-                    persistent.delete(registration_key, False, transaction)
+                    persistent.apply_transaction(transaction)
                 except AssertException:
                     # Something overwrote our value
                     pass
