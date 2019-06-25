@@ -34,6 +34,7 @@ class NoMasterFoundException(EnvironmentError):
     Raise this error when no arakoon master can be found after a couple of attempts
     """
 
+
 class InvalidAlbaVersionException(EnvironmentError):
     """
     Will be called if no valid alba version has been found and the update-alternatives call has failed with this alba version
@@ -48,8 +49,6 @@ class AlbaComponentUpdater(ComponentUpdater):
     COMPONENT = 'alba'
     BINARIES = [('alba-ee', 'alba', '/usr/bin/alba')]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
-    alba_binary_base_path = os.path.join(os.path.sep, 'opt')
-
     re_abm = re.compile('^ovs-arakoon.*-abm$')
     re_nsm = re.compile('^ovs-arakoon.*-nsm_[0-9]*$')
     re_alba_proxy = re.compile('^ovs-albaproxy_.*$')
@@ -57,6 +56,14 @@ class AlbaComponentUpdater(ComponentUpdater):
     re_alba_asd = re.compile('^alba-asd-[0-9a-zA-Z]{32}$')
     re_exec_start = re.compile('.* -config (?P<config>\S*) .*')
     re_alba_maintenance = re.compile('^alba-maintenance_.*-[0-9a-zA-Z]{16}$')
+
+    ALBA_BINARY_BASE_PATH = os.path.join(os.path.sep, 'opt')
+    ALBA_LIB_PATH = os.path.join(os.path.sep, 'usr', 'lib', 'alba')
+    ALBA_OPT_PATH = os.path.join(os.path.sep, ALBA_BINARY_BASE_PATH, '{0}')
+    ALBA_ABM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'plugin', 'albamgr_plugin')
+    ALBA_NSM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'plugin', 'nsm_host_plugin')
+    ARAKOON_ALBA_BINARY_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'bin', 'arakoon')
+    ARAKOON_BINARY_PATH = os.path.join(os.path.sep, 'usr', 'bin', 'arakoon')
 
     @staticmethod
     def get_persistent_client():
@@ -69,6 +76,10 @@ class AlbaComponentUpdater(ComponentUpdater):
 
     @classmethod
     def get_node_id(cls):
+        """
+        Fetch the local id. should be implemented by ovs or the asd manager
+        :return:
+        """
         # type: () -> str
         raise NotImplementedError()
 
@@ -76,21 +87,62 @@ class AlbaComponentUpdater(ComponentUpdater):
     def update_alternatives(cls):
         # type: () -> None
         """
+        update all required links regarding changes from andes update 3 towards andes updates 4.
+        includes:
+        - usage of /etc/alternatives
+        - arakoon packages to match the alba package
+        - update the plugin symlinks
+        :return: None
+        """
+        cls.update_alba_alternatives()
+        cls.update_arakoon_links()
+        cls.update_plugins()
+
+    @classmethod
+    def update_arakoon_links(cls):
+        """
+        arakoon binary needs to be updated to latest greatest, as present in the install folder of the alba package.
+        :return:
+        """
+        try:
+            old_arakoon_version = LooseVersion(cls.PACKAGE_MANAGER.get_installed_versions(package_names=['arakoon'])['arakoon'])
+            new_arakoon_version = max([LooseVersion(i) for i in os.listdir(cls.ALBA_BINARY_BASE_PATH) if cls.re_alba_binary.match(i)])
+            if new_arakoon_version > old_arakoon_version:
+                os.link(cls.ARAKOON_BINARY_PATH, cls.ARAKOON_ALBA_BINARY_PATH.format(new_arakoon_version))
+        except ValueError:
+            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'
+                               'This might be caused by running this code before placing alba binaries in /opt.'.format(cls.ALBA_BINARY_BASE_PATH))
+
+    @classmethod
+    def update_plugins(cls):
+        """
+        Alba plugin paths need to be updated with a symlink to the new paths
+        :return:
+        """
+        max_alba_version = str(max([LooseVersion(i) for i in os.listdir(cls.ALBA_BINARY_BASE_PATH) if cls.re_alba_binary.match(i)]))
+        os.symlink(cls.ALBA_ABM_PLUGIN_PATH.format(max_alba_version), cls.ALBA_LIB_PATH)
+        os.symlink(cls.ALBA_NSM_PLUGIN_PATH.format(max_alba_version),  cls.ALBA_LIB_PATH)
+
+    @classmethod
+    def update_alba_alternatives(cls):
+        """
         update the /etc/alternatives alba symlink to the most recent alba version.
         the alba in /usr/bin/alba is a symlink to file in /etc/alternatives, as set by ops or this function.
         the /etc/alternatives files are in turn a symlink to /opt/alba-*.
         The alternatives are used to be able to run multiple alba instances on the same node
-
-        :return: None
+        :return:
         """
         try:
-            version = max([LooseVersion(i) for i in os.listdir(cls.alba_binary_base_path) if cls.re_alba_binary.match(i)])
+            current_alba_version = LooseVersion(cls.PACKAGE_MANAGER.get_installed_versions(package_names=['alba-ee'])['alba-ee'])
+            new_alba_version = max([LooseVersion(i.lstrip('alba-')) for i in os.listdir(cls.ALBA_BINARY_BASE_PATH) if cls.re_alba_binary.match(i)])
             try:
-                check_output(['update-alternatives', '--set', 'alba', os.path.join(os.path.sep, cls.alba_binary_base_path, str(version))])
+                if new_alba_version > current_alba_version:
+                    check_output(['update-alternatives', '--set', 'alba', cls.ALBA_OPT_PATH.format(str(new_alba_version))])
             except CalledProcessError:
-                raise InvalidAlbaVersionException('Invalid alba version has been found and used for updating alternatives: {0}'.format(version or 'None'))
+                raise InvalidAlbaVersionException('Invalid alba version has been found and used for updating alternatives: {0}'.format(new_alba_version or 'None'))
         except ValueError:
-            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'.format(cls.alba_binary_base_path))
+            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'
+                               'This might be caused by running this code before placing alba binaries in /opt.'.format(cls.ALBA_BINARY_BASE_PATH))
 
     @classmethod
     def update_binaries(cls):
@@ -145,14 +197,12 @@ class AlbaComponentUpdater(ComponentUpdater):
                 cls.drop_arakoon_master(arakoon_config_url)
             master_node = cls.get_arakoon_master(arakoon_config_url)
             if master_node:
+
                 cls.SERVICE_MANAGER.restart_service(service, local_client)
 
         # restart other alba related services after making sure arakoons are ok
         maintenance_services = [i for i in all_services if cls.re_alba_maintenance.match(i)]
         for service in maintenance_services:
-            cls.SERVICE_MANAGER.restart_service(service, local_client)
-        abm_nsm_services = [i for i in all_services if cls.re_nsm.match(i) or cls.re_abm.match(i)]
-        for service in abm_nsm_services:
             cls.SERVICE_MANAGER.restart_service(service, local_client)
         asd_services = [i for i in all_services if cls.re_alba_asd.match(i)]
         for service in asd_services:
@@ -173,7 +223,7 @@ class AlbaComponentUpdater(ComponentUpdater):
         attempt = 0
         while True:
             try:
-                return check_output(['arakoon', '--who-master', '-config', arakoon_config_url])
+                return check_output(['arakoon', '--who-master', '-config', arakoon_config_url]).rstrip('/n')
             except CalledProcessError:
                 attempt += 1
 
@@ -198,7 +248,6 @@ class AlbaComponentUpdater(ComponentUpdater):
                 return check_output(['arakoon', '--drop-master', node_id, '127.0.0.1', node.port])
 
         raise RuntimeError('No arakoon node ID matched the local machine ID, no arakoon master have been dropped.')
-
 
     @classmethod
     def read_arakoon_config(cls, config_url):
