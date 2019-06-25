@@ -27,7 +27,7 @@ from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
 
 # noinspection PyUnreachableCode
 if False:
-    from typing import List
+    from typing import List, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -104,8 +104,9 @@ class ComponentUpdater(object):
     UPDATE_KEY_BASE = 'ovs_updates'
     PACKAGE_MANAGER = PackageFactory.get_manager()
     SERVICE_MANAGER = ServiceFactory.get_manager()
-    COMPONENT = None
-    BINARIES = None  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
+    COMPONENT = None  # type: str
+    # List with tuples. [([package_name_0], binary_name, binary_location, [service_prefix_0]]
+    BINARIES = None  # type: List[Tuple[List[str], str, str, List[str]]]
 
     @classmethod
     def get_registration_key(cls):
@@ -179,7 +180,8 @@ class ComponentUpdater(object):
         """
         if cls.BINARIES is None:
             raise NotImplementedError('Unable to update packages. Binaries are not included')
-        for package_name, _, _ in cls.BINARIES:
+        all_package_names = chain.from_iterable([b[0] for b in cls.BINARIES])
+        for package_name in all_package_names:
             logging.info('Updating {}'.format(package_name))
             cls.install_package(package_name)
 
@@ -199,20 +201,32 @@ class ComponentUpdater(object):
     def restart_services(cls):
         # type: () -> List[str]
         """
-        Restart related services
+        Restart related services.
+        :return: List of restarted services
+        :rtype: List[str]
+        """
+        all_prefixes = tuple(chain.from_iterable(b[3] for b in cls.BINARIES))
+        return cls.restart_services_by_prefixes(all_prefixes)
+
+    @classmethod
+    def restart_services_by_prefixes(cls, prefixes):
+        # type: (Tuple[str]) -> List[str]
+        """
+        Restart the services that match the given prefixes
+        :param prefixes: Tuple of prefixes
+        :type prefixes: Tuple[str]
         :return: List of restarted services
         :rtype: List[str]
         """
         local_client = cls.get_local_root_client()
         services = cls.SERVICE_MANAGER.list_services(local_client)
-        all_prefixes = tuple(chain.from_iterable(b[3] for b in cls.BINARIES))
         restarted_services = []
         for service in services:  # type: str
-            if service.startswith(all_prefixes):
+            if service.startswith(prefixes):
                 try:
                     cls.SERVICE_MANAGER.restart_service(service, local_client)
                     restarted_services.append(service)
-                except:
+                except Exception:
                     logger.warning('Failed to restart service {}'.format(service))
         return restarted_services
 
