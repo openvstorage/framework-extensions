@@ -23,23 +23,25 @@ from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
 from ovs_extensions.services.interfaces.systemd import SystemdUnitParser
-from ovs_extensions.update.base import ComponentUpdater
+from ovs_extensions.update.base import ComponentUpdater, UpdateException
 from ovs_extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig
 from StringIO import StringIO
 
 logger = logging.getLogger(__name__)
 
 
-class NoMasterFoundException(EnvironmentError):
+class NoMasterFoundException(UpdateException):
     """
     Raise this error when no arakoon master can be found after a couple of attempts
     """
+    error_code = 64
 
 
-class InvalidAlbaVersionException(EnvironmentError):
+class InvalidAlbaVersionException(UpdateException):
     """
     Will be called if no valid alba version has been found and the update-alternatives call has failed with this alba version
     """
+    error_code = 65
 
 
 class AlbaComponentUpdater(ComponentUpdater):
@@ -109,6 +111,7 @@ class AlbaComponentUpdater(ComponentUpdater):
         mimics https://github.com/openvstorage/alba_ee/blob/master-ee/for_debian/alba-ee.postinst
         :return: None
         """
+        logger.info('Updating alternatives')
         alba_versions = cls.get_local_alba_versions()
         latest_alba_version = [(k, v) for k, v in alba_versions.iteritems() if v == max(alba_versions.values())][0]
         if not os.path.islink(cls.ALBA_BIN_PATH):
@@ -123,6 +126,7 @@ class AlbaComponentUpdater(ComponentUpdater):
         :param latest_alba_version: tuple containing albaversion and parsed version comparison eg. (alba-ee.1.5.35, 1.5.35)
         :return:
         """
+        logger.info('Updating arakoon alternatives')
         # dpkg-divert will give arakoon ownership on arakoon.old instead of arakoon
         check_output(['dpkg-divert', '--package', str(latest_alba_version[0]), '--divert', cls._to_old(cls.ARAKOON_BIN_PATH), '--rename', cls.ARAKOON_BIN_PATH])
         arakoon_old_binary_path_exists = os.path.exists(cls._to_old(cls.ARAKOON_BIN_PATH))
@@ -148,6 +152,8 @@ class AlbaComponentUpdater(ComponentUpdater):
         The alternatives are used to be able to run multiple alba instances on the same node
         :return:
         """
+        logger.info('Updating alba alternatives')
+
         try:
             check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_BIN_PATH), '--rename', cls.ALBA_BIN_PATH])
             check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_ABM_PLUGIN_PATH])
