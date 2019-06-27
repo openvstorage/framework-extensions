@@ -50,16 +50,19 @@ class AlbaComponentUpdater(ComponentUpdater):
     COMPONENT = 'alba'
     BINARIES = [(['alba-ee'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
+    ## Regexes
     re_abm = re.compile('^ovs-arakoon.*-abm$')
     re_nsm = re.compile('^ovs-arakoon.*-nsm_[0-9]*$')
     re_alba_proxy = re.compile('^ovs-albaproxy_.*$')
     re_alba_binary = re.compile('^alba-[0-9.a-z]*$')
+    re_alba_binary_version = re.compile('alba(-|-..\.)?(?P<version>[0-9.a-z]*)$')
     re_alba_asd = re.compile('^alba-asd-[0-9a-zA-Z]{32}$')
     re_exec_start = re.compile('.* -config (?P<config>\S*) .*')
     re_alba_maintenance = re.compile('^alba-maintenance_.*-[0-9a-zA-Z]{16}$')
 
     PRIORITY = str(42)
 
+    ## Pathing variables
     OPT = os.path.join(os.path.sep, 'opt')
     ALBA_OPT_PATH = os.path.join(os.path.sep, OPT, '{0}')
     ALBA_OPT_ALBA_BINARY_PATH = os.path.join(os.path.join(ALBA_OPT_PATH, 'bin', 'alba'))
@@ -106,31 +109,36 @@ class AlbaComponentUpdater(ComponentUpdater):
         mimics https://github.com/openvstorage/alba_ee/blob/master-ee/for_debian/alba-ee.postinst
         :return: None
         """
-        cls.update_alba_alternatives()
-        cls.update_arakoon_links()
+        alba_versions = cls.get_local_alba_versions()
+        latest_alba_version = [(k, v) for k, v in alba_versions.iteritems() if v == max(alba_versions.values())][0]
+        if not os.path.islink(cls.ALBA_BIN_PATH):
+            cls.update_alba_alternatives(latest_alba_version)
+        if not os.path.islink(cls.ARAKOON_BIN_PATH):
+            cls.update_arakoon_links(latest_alba_version)
 
     @classmethod
-    def update_arakoon_links(cls):
+    def update_arakoon_links(cls, latest_alba_version):
         """
         arakoon binary needs to be updated to latest greatest, as present in the install folder of the alba package.
+        :param latest_alba_version: tuple containing albaversion and parsed version comparison eg. (alba-ee.1.5.35, 1.5.35)
         :return:
         """
-        try:
-            old_arakoon_version = LooseVersion(cls.PACKAGE_MANAGER.get_installed_versions(package_names=['arakoon'])['arakoon'])
-            new_arakoon_version = max([LooseVersion(i) for i in os.listdir(cls.OPT) if cls.re_alba_binary.match(i)])
-            if new_arakoon_version > old_arakoon_version:
-                arakoon_old_binary_path_exists = os.path.exists(cls._to_old(cls.ARAKOON_BIN_PATH))
-                check_output(['dpkg-divert', '--package', str(new_arakoon_version), '--divert', cls._to_old(cls.ARAKOON_BIN_PATH), '--rename', cls.ARAKOON_BIN_PATH])
-                if arakoon_old_binary_path_exists:
-                    check_output(['update-alternatives', '--install', cls.ARAKOON_BIN_PATH, 'arakoon', cls._to_old(cls.ARAKOON_BIN_PATH), cls.PRIORITY])
-                check_output(['update-alternatives', '--install', cls.ARAKOON_BIN_PATH, 'arakoon', cls.ALBA_OPT_ARAKOON_BINARY_PATH.format(new_arakoon_version), cls.PRIORITY])
+        # dpkg-divert will give arakoon ownership on arakoon.old instead of arakoon
+        check_output(['dpkg-divert', '--package', str(latest_alba_version[0]), '--divert', cls._to_old(cls.ARAKOON_BIN_PATH), '--rename', cls.ARAKOON_BIN_PATH])
+        arakoon_old_binary_path_exists = os.path.exists(cls._to_old(cls.ARAKOON_BIN_PATH))
+        if arakoon_old_binary_path_exists:
+            check_output(['update-alternatives', '--install', cls.ARAKOON_BIN_PATH, 'arakoon', cls._to_old(cls.ARAKOON_BIN_PATH), cls.PRIORITY])
+        # install new arakoon
+        check_output(['update-alternatives', '--install', cls.ARAKOON_BIN_PATH, 'arakoon', cls.ALBA_OPT_ARAKOON_BINARY_PATH.format(latest_alba_version[0]), cls.PRIORITY])
+        # update links (/usr/bin/arakoon will be discarded
+        check_output(['update-alternatives', '--auto', 'arakoon'])
+        # place link to /opt/alba.x/bin/arakoon
+        check_output(['update-alternatives', '--auto', 'arakoon'])
 
-        except ValueError:
-            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'
-                               'This might be caused by running this code before placing alba binaries in /opt.'.format(cls.OPT))
+
 
     @classmethod
-    def update_alba_alternatives(cls):
+    def update_alba_alternatives(cls, latest_alba_version):
         """
         # Use for alba-ee <= 1.5.28
 
@@ -141,28 +149,22 @@ class AlbaComponentUpdater(ComponentUpdater):
         :return:
         """
         try:
-            current_alba_version = LooseVersion(cls.PACKAGE_MANAGER.get_installed_versions(package_names=['alba-ee'])['alba-ee'])
-            new_alba_version = max([LooseVersion(i.lstrip('alba-')) for i in os.listdir(cls.OPT) if cls.re_alba_binary.match(i)])
-            try:
-                if new_alba_version > current_alba_version:
-                    check_output(['dpkg-divert', '--package', str(new_alba_version), '--divert', cls._to_old(cls.ALBA_BIN_PATH), '--rename', cls.ALBA_BIN_PATH])
-                    check_output(['dpkg-divert', '--package', str(new_alba_version), '--divert', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_ABM_PLUGIN_PATH])
-                    check_output(['dpkg-divert', '--package', str(new_alba_version), '--divert', cls._to_old(cls.ALBA_LIB_NSM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_NSM_PLUGIN_PATH])
-                    os.mkdir(cls.ALBA_LIB_PATH)
-                    alba_old_binary_path_exists = os.path.exists(cls._to_old(cls.ALBA_BIN_PATH))
-                    if alba_old_binary_path_exists:
-                        check_output(['update-alternatives', '--install', cls.ALBA_BIN_PATH, 'alba', cls._to_old(cls.ALBA_BIN_PATH), cls.PRIORITY,
-                                      '--slave', cls.ALBA_LIB_ABM_PLUGIN_PATH, 'albamgr_plugin.cmxs', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH),
-                                      '--slave', cls.ALBA_LIB_NSM_PLUGIN_PATH, 'nsm_host_plugin.cmxs', cls._to_old(cls.ALBA_LIB_NSM_PLUGIN_PATH)
-                                      ])
-                    check_output(['update-alternatives', '--install', cls.ALBA_BIN_PATH, 'alba', cls.ALBA_OPT_ALBA_BINARY_PATH.format(new_alba_version), cls.PRIORITY,
-                                  '--slave', cls.ALBA_LIB_ABM_PLUGIN_PATH, 'albamgr_plugin.cmxs', cls.ALBA_OPT_ABM_PLUGIN_PATH,
-                                  '--slave', cls.ALBA_LIB_NSM_PLUGIN_PATH, 'nsm_host_plugin.cmxs', cls.ALBA_OPT_NSM_PLUGIN_PATH])
-            except CalledProcessError:
-                raise InvalidAlbaVersionException('Invalid alba version has been found and used for updating alternatives: {0}'.format(new_alba_version or 'None'))
-        except ValueError:
-            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'
-                               'This might be caused by running this code before placing alba binaries in /opt.'.format(cls.OPT))
+            check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_BIN_PATH), '--rename', cls.ALBA_BIN_PATH])
+            check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_ABM_PLUGIN_PATH])
+            check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_LIB_NSM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_NSM_PLUGIN_PATH])
+            os.mkdir(cls.ALBA_LIB_PATH)
+            alba_old_binary_path_exists = os.path.exists(cls._to_old(cls.ALBA_BIN_PATH))
+            if alba_old_binary_path_exists:
+                check_output(['update-alternatives', '--install', cls.ALBA_BIN_PATH, 'alba', cls._to_old(cls.ALBA_BIN_PATH), cls.PRIORITY,
+                              '--slave', cls.ALBA_LIB_ABM_PLUGIN_PATH, 'albamgr_plugin.cmxs', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH),
+                              '--slave', cls.ALBA_LIB_NSM_PLUGIN_PATH, 'nsm_host_plugin.cmxs', cls._to_old(cls.ALBA_LIB_NSM_PLUGIN_PATH)
+                              ])
+            check_output(['update-alternatives', '--install', cls.ALBA_BIN_PATH, 'alba', cls.ALBA_OPT_ALBA_BINARY_PATH.format(latest_alba_version[0]), cls.PRIORITY,
+                          '--slave', cls.ALBA_LIB_ABM_PLUGIN_PATH, 'albamgr_plugin.cmxs', cls.ALBA_OPT_ABM_PLUGIN_PATH,
+                          '--slave', cls.ALBA_LIB_NSM_PLUGIN_PATH, 'nsm_host_plugin.cmxs', cls.ALBA_OPT_NSM_PLUGIN_PATH])
+        except CalledProcessError:
+            raise InvalidAlbaVersionException('Invalid alba version has been found and used for updating alternatives: {0}'.format(latest_alba_version[0] or 'None'))
+
 
     @classmethod
     def update_binaries(cls):
@@ -294,3 +296,22 @@ class AlbaComponentUpdater(ComponentUpdater):
         :return:
         """
         return path+'.old'
+
+    @classmethod
+    def get_local_alba_versions(cls):
+        # type: () -> Dict[str, LooseVersion]
+        """
+        Fetch the local alba versions, placed in the directory cls.OPT
+        Return them in a dict eg. {'alba-1.5': LooseVersion(1.5)}
+        :return:
+        """
+        alba_versions = {}
+        try:
+            for f_d in os.listdir(cls.OPT):
+                match = cls.re_alba_binary_version.match(f_d)
+                if match:
+                    alba_versions[f_d] = LooseVersion(match.groupdict()['version'])
+            return alba_versions
+        except ValueError:
+            raise RuntimeError('No valid alba binaries have been found in {0}. Not updating alternatives.'
+                               'This might be caused by running this code before placing alba binaries in /opt.'.format(cls.OPT))
