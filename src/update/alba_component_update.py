@@ -21,27 +21,24 @@ import logging
 from itertools import chain
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore
 from ovs_extensions.services.interfaces.systemd import SystemdUnitParser
 from ovs_extensions.update.base import ComponentUpdater, UpdateException
 from ovs_extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig
 from StringIO import StringIO
 
-logger = logging.getLogger(__name__)
-
 
 class NoMasterFoundException(UpdateException):
     """
-    Raise this error when no arakoon master can be found after a couple of attempts
+    Raise this error when no arakoon master can be found after a couple of ComponentUpdaterattempts
     """
-    error_code = 64
+    error_code = 61
 
 
 class InvalidAlbaVersionException(UpdateException):
     """
     Will be called if no valid alba version has been found and the update-alternatives call has failed with this alba version
     """
-    error_code = 65
+    error_code = 62
 
 
 class AlbaComponentUpdater(ComponentUpdater):
@@ -50,7 +47,7 @@ class AlbaComponentUpdater(ComponentUpdater):
     """
 
     COMPONENT = 'alba'
-    BINARIES = [(['alba-ee'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
+    BINARIES = [(['alba'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
     ## Regexes
     re_abm = re.compile('^ovs-arakoon.*-abm$')
@@ -66,34 +63,27 @@ class AlbaComponentUpdater(ComponentUpdater):
 
     ## Pathing variables
     OPT = os.path.join(os.path.sep, 'opt')
-    ALBA_OPT_PATH = os.path.join(os.path.sep, OPT, '{0}')
+    ALBA_OPT_PATH = os.path.join(OPT, '{0}')
     ALBA_OPT_ALBA_BINARY_PATH = os.path.join(os.path.join(ALBA_OPT_PATH, 'bin', 'alba'))
-    ALBA_OPT_ARAKOON_BINARY_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'bin', 'arakoon')
-    ALBA_OPT_ABM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'plugin', 'albamgr_plugin.cmxs')
-    ALBA_OPT_NSM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_OPT_PATH, 'plugin', 'nsm_host_plugin.cmxs')
+    ALBA_OPT_ARAKOON_BINARY_PATH = os.path.join(ALBA_OPT_PATH, 'bin', 'arakoon')
+    ALBA_OPT_ABM_PLUGIN_PATH = os.path.join(ALBA_OPT_PATH, 'plugin', 'albamgr_plugin.cmxs')
+    ALBA_OPT_NSM_PLUGIN_PATH = os.path.join(ALBA_OPT_PATH, 'plugin', 'nsm_host_plugin.cmxs')
 
     USR = os.path.join(os.path.sep, 'usr')
-    ALBA_BIN_PATH = os.path.join(os.path.sep, USR, 'bin', 'alba')
-    ARAKOON_BIN_PATH = os.path.join(os.path.sep, USR, 'bin', 'arakoon')
+    ALBA_BIN_PATH = os.path.join(USR, 'bin', 'alba')
+    ARAKOON_BIN_PATH = os.path.join(USR, 'bin', 'arakoon')
 
-    ALBA_LIB_PATH = os.path.join(os.path.sep, USR, 'lib', 'alba')
-    ALBA_LIB_ABM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_LIB_PATH, 'albamgr_plugin.cmxs')
-    ALBA_LIB_NSM_PLUGIN_PATH = os.path.join(os.path.sep, ALBA_LIB_PATH, 'nsm_host_plugin.cmxs')
+    ALBA_LIB_PATH = os.path.join(USR, 'lib', 'alba')
+    ALBA_LIB_ABM_PLUGIN_PATH = os.path.join(ALBA_LIB_PATH, 'albamgr_plugin.cmxs')
+    ALBA_LIB_NSM_PLUGIN_PATH = os.path.join(ALBA_LIB_PATH, 'nsm_host_plugin.cmxs')
 
-    @staticmethod
-    def get_persistent_client():
-        # type: () -> PyrakoonStore
-        """
-        Retrieve a persistent client which needs
-        Needs to be implemented by the callee
-        """
-        raise NotImplementedError()
+    logger = logging.getLogger(__name__)
 
     @classmethod
     def get_node_id(cls):
         """
         Fetch the local id. should be implemented by ovs or the asd manager
-        :return:
+        :return: The local node id
         """
         # type: () -> str
         raise NotImplementedError()
@@ -102,8 +92,8 @@ class AlbaComponentUpdater(ComponentUpdater):
     def update_alternatives(cls):
         # type: () -> None
         """
-        update all required links regarding changes from andes update 3 towards andes updates 4.
-        includes:
+        Update all required links regarding changes from andes update 3 towards andes updates 4.
+        Includes:
         - usage of /etc/alternatives
         - arakoon packages to match the alba package
         - update the plugin symlinks
@@ -111,22 +101,22 @@ class AlbaComponentUpdater(ComponentUpdater):
         mimics https://github.com/openvstorage/alba_ee/blob/master-ee/for_debian/alba-ee.postinst
         :return: None
         """
-        logger.info('Updating alternatives')
+        cls.logger.info('Updating alternatives')
         alba_versions = cls.get_local_alba_versions()
         latest_alba_version = [(k, v) for k, v in alba_versions.iteritems() if v == max(alba_versions.values())][0]
-        if not os.path.islink(cls.ALBA_BIN_PATH):
+        if os.path.exists(cls.ALBA_BIN_PATH) and not os.path.islink(cls.ALBA_BIN_PATH):
             cls.update_alba_alternatives(latest_alba_version)
-        if not os.path.islink(cls.ARAKOON_BIN_PATH):
+        if os.path.exists(cls.ALBA_BIN_PATH) and not os.path.islink(cls.ARAKOON_BIN_PATH):
             cls.update_arakoon_links(latest_alba_version)
 
     @classmethod
     def update_arakoon_links(cls, latest_alba_version):
         """
-        arakoon binary needs to be updated to latest greatest, as present in the install folder of the alba package.
+        Arakoon binary needs to be updated to latest greatest, as present in the install folder of the alba package.
         :param latest_alba_version: tuple containing albaversion and parsed version comparison eg. (alba-ee.1.5.35, 1.5.35)
-        :return:
+        :return: None
         """
-        logger.info('Updating arakoon alternatives')
+        cls.logger.info('Updating arakoon alternatives')
         # dpkg-divert will give arakoon ownership on arakoon.old instead of arakoon
         check_output(['dpkg-divert', '--package', str(latest_alba_version[0]), '--divert', cls._to_old(cls.ARAKOON_BIN_PATH), '--rename', cls.ARAKOON_BIN_PATH])
         arakoon_old_binary_path_exists = os.path.exists(cls._to_old(cls.ARAKOON_BIN_PATH))
@@ -146,19 +136,20 @@ class AlbaComponentUpdater(ComponentUpdater):
         """
         # Use for alba-ee <= 1.5.28
 
-        update the /etc/alternatives alba symlink to the most recent alba version.
+        Update the /etc/alternatives alba symlink to the most recent alba version.
         the alba in /usr/bin/alba is a symlink to file in /etc/alternatives, as set by ops or this function.
         the /etc/alternatives files are in turn a symlink to /opt/alba-*.
         The alternatives are used to be able to run multiple alba instances on the same node
         :return:
         """
-        logger.info('Updating alba alternatives')
+        cls.logger.info('Updating alba alternatives')
 
         try:
             check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_BIN_PATH), '--rename', cls.ALBA_BIN_PATH])
             check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_LIB_ABM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_ABM_PLUGIN_PATH])
             check_output(['dpkg-divert', '--package', latest_alba_version[0], '--divert', cls._to_old(cls.ALBA_LIB_NSM_PLUGIN_PATH), '--rename', cls.ALBA_LIB_NSM_PLUGIN_PATH])
-            os.mkdir(cls.ALBA_LIB_PATH)
+            if not os.path.exists(cls.ALBA_LIB_PATH):
+                os.mkdir(cls.ALBA_LIB_PATH)
             alba_old_binary_path_exists = os.path.exists(cls._to_old(cls.ALBA_BIN_PATH))
             if alba_old_binary_path_exists:
                 check_output(['update-alternatives', '--install', cls.ALBA_BIN_PATH, 'alba', cls._to_old(cls.ALBA_BIN_PATH), cls.PRIORITY,
