@@ -30,9 +30,6 @@ if False:
     from typing import List, Tuple
 
 
-logger = logging.getLogger(__name__)
-
-
 class UpdateInProgressException(EnvironmentError):
     """
     Thrown when an update couldn't start as another is already in progress
@@ -101,6 +98,8 @@ class ComponentUpdater(object):
                     'arakoon': "arakoon --version | grep version: | awk '{print $2}'",
                     'storagedriver': "volumedriver_fs --version | grep version: | awk '{print $2}'"}
 
+    logger = logging.getLogger(__name__)
+
     UPDATE_KEY_BASE = 'ovs_updates'
     PACKAGE_MANAGER = PackageFactory.get_manager()
     SERVICE_MANAGER = ServiceFactory.get_manager()
@@ -152,6 +151,7 @@ class ComponentUpdater(object):
                     identifier = persistent.get(registration_key)
                     raise UpdateInProgressException('An update is already in progress for component {} with identifier {}'.format(cls.COMPONENT, identifier))
                 # Start code execution
+                cls.logger.info("Got a hold of the lock")
                 yield
             finally:
                 # End lock
@@ -165,6 +165,7 @@ class ComponentUpdater(object):
                     pass
         except NotImplementedError:
             # Fallback to file mutex
+            cls.logger.warning("Falling back to a file lock. No distributed lock available")
             mutex = file_mutex(registration_key)
             try:
                 mutex.acquire()
@@ -178,11 +179,12 @@ class ComponentUpdater(object):
         Update the binary
         :return:
         """
+        cls.logger.info("Starting to update all binaries")
         if cls.BINARIES is None:
             raise NotImplementedError('Unable to update packages. Binaries are not included')
         all_package_names = chain.from_iterable([b[0] for b in cls.BINARIES])
         for package_name in all_package_names:
-            logging.info('Updating {}'.format(package_name))
+            cls.logger.info('Updating package {}'.format(package_name))
             cls.install_package(package_name)
 
     @classmethod
@@ -205,6 +207,7 @@ class ComponentUpdater(object):
         :return: List of restarted services
         :rtype: List[str]
         """
+        cls.logger.info("Restarting all related services")
         all_prefixes = tuple(chain.from_iterable(b[3] for b in cls.BINARIES))
         return cls.restart_services_by_prefixes(all_prefixes)
 
@@ -227,7 +230,7 @@ class ComponentUpdater(object):
                     cls.SERVICE_MANAGER.restart_service(service, local_client)
                     restarted_services.append(service)
                 except Exception:
-                    logger.warning('Failed to restart service {}'.format(service))
+                    cls.logger.warning('Failed to restart service {}'.format(service))
         return restarted_services
 
     @classmethod
