@@ -20,51 +20,63 @@ Service Factory module
 
 import os
 from subprocess import check_output
+from .interfaces.base import ServiceAbstract
+from .interfaces.systemd import Systemd
+from .interfaces.upstart import Upstart
+from .mockups.systemd import SystemdMock
 from ovs_extensions.log.logger import Logger
-from ovs_extensions.services.interfaces.systemd import Systemd
-from ovs_extensions.services.interfaces.upstart import Upstart
-from ovs_extensions.services.mockups.systemd import SystemdMock
+
+
+INIT = 'init'
+UPSTART = 'upstart'
+SYSTEMD = 'systemd'
+MOCK = 'mock'
 
 
 class ServiceFactory(object):
     """
     Factory class returning specialized classes
     """
+    # Singleton holder
+    manager = None
+
     RUN_FILE_DIR = None
     MONITOR_PREFIXES = None
     SERVICE_CONFIG_KEY = None
     CONFIG_TEMPLATE_DIR = None
 
+    TYPE_IMPLEMENTATION_MAP = {UPSTART: Upstart,
+                               SYSTEMD: Systemd,
+                               MOCK: SystemdMock}
+
     @classmethod
     def get_service_type(cls):
+        # type: () -> str
         """
         Gets the service manager type
         """
-        init_info = check_output('cat /proc/1/comm', shell=True)
-        if 'init' in init_info:
-            version_info = check_output('init --version', shell=True)
-            if 'upstart' in version_info:
-                return 'upstart'
-        elif 'systemd' in init_info:
-            return 'systemd'
-        return None
+        if os.environ.get('RUNNING_UNITTESTS') == 'True':
+            return MOCK
+
+        init_info = check_output(['cat', '/proc/1/comm'])
+        if INIT in init_info:
+            version_info = check_output(['init', '--version'])
+            if UPSTART in version_info:
+                return UPSTART
+        elif SYSTEMD in init_info:
+            return SYSTEMD
+        raise EnvironmentError('Unable to determine service management type')
 
     @classmethod
     def get_manager(cls):
+        # type: () -> ServiceAbstract
         """
         Returns a service manager
         """
-        if not hasattr(cls, 'manager') or cls.manager is None:
-            implementation_class = None
-            if os.environ.get('RUNNING_UNITTESTS') == 'True':
-                implementation_class = SystemdMock
-            else:
-                service_type = cls.get_service_type()
-                if service_type == 'upstart':
-                    implementation_class = Upstart
-                elif service_type == 'systemd':
-                    implementation_class = Systemd
-            if implementation_class is not None:
+        if cls.manager is None:
+            service_type = cls.get_service_type()
+            implementation_class = cls.TYPE_IMPLEMENTATION_MAP.get(service_type)
+            if implementation_class:
                 cls.manager = implementation_class(system=cls._get_system(),
                                                    logger=cls._get_logger_instance(),
                                                    configuration=cls._get_configuration(),

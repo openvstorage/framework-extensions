@@ -19,22 +19,20 @@ Rpm Package module
 """
 import time
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.log.logger import Logger
+from .base import PackageManagerBase
 
 
-class RpmPackage(object):
+class RpmPackage(PackageManagerBase):
     """
     Contains all logic related to Rpm packages (used in e.g. Centos)
     """
-    _logger = Logger('extensions')
+    PACKAGES_VOLUMEDRIVER = ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
+                             'volumedriver-ee-base', 'volumedriver-ee-no-server']
 
-    def __init__(self, packages, versions):
-        self._packages = packages
-        self._versions = versions
-
-    @property
-    def package_names(self):
-        return self._packages['names']
+    # @todo same todo applies as in the base manager
+    VERSION_PACKAGE_MAPPING = {'alba': PackageManagerBase.PACKAGES_ALBA,
+                               'arakoon': PackageManagerBase.PACKAGES_ARAKOON,
+                               'storagedriver': PACKAGES_VOLUMEDRIVER}
 
     @staticmethod
     def get_release_name(client=None):
@@ -86,7 +84,7 @@ class RpmPackage(object):
         :return: Package candidate versions
         :rtype: dict
         """
-        RpmPackage.update(client=client)
+        cls.update(client=client)
         versions = {}
         for package_name in package_names:
             installed = None
@@ -106,31 +104,7 @@ class RpmPackage(object):
                 pass
         return versions
 
-    def get_binary_versions(self, client, package_names):
-        """
-        Retrieve the versions for the binaries related to the package_names
-        :param client: Root client on which to retrieve the binary versions
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param package_names: Names of the packages
-        :type package_names: list
-        :return: Binary versions
-        :rtype: dict
-        """
-        versions = {}
-        for package_name in package_names:
-            if package_name in ['alba', 'alba-ee']:
-                versions[package_name] = client.run(self._versions['alba'], allow_insecure=True)
-            elif package_name == 'arakoon':
-                versions[package_name] = client.run(self._versions['arakoon'], allow_insecure=True)
-            elif package_name in ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
-                                  'volumedriver-ee-base', 'volumedriver-ee-no-server']:
-                versions[package_name] = client.run(self._versions['storagedriver'], allow_insecure=True)
-            else:
-                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(self._packages['binaries'])))
-        return versions
-
-    @staticmethod
-    def install(package_name, client):
+    def install(self, package_name, client):
         """
         Install the specified package
         :param package_name: Name of the package to install
@@ -139,8 +113,7 @@ class RpmPackage(object):
         :type client: SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can install packages')
+        self.validate_client(client, 'Only the "root" user can install packages')
 
         counter = 0
         max_counter = 3
@@ -151,27 +124,27 @@ class RpmPackage(object):
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
                 if counter == max_counter:
-                    RpmPackage._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
+                    self._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
                     raise cpe
             except Exception as ex:
                 raise ex
             counter += 1
             time.sleep(1)
 
-    @staticmethod
-    def update(client):
+    @classmethod
+    def update(cls, client):
         """
         Run the 'yum check-update' command on the specified node to update the package information
         :param client: Root client on which to update the package information
         :type client: SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can update packages')
+        cls.validate_client(client, 'Only the "root" user can update packages')
+
         try:
             client.run(['yum', 'check-update'])
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
-                RpmPackage._logger.error('Update failed. Error: {0}'.format(cpe.output))
+                cls._logger.error('Update failed. Error: {0}'.format(cpe.output))
                 raise cpe
