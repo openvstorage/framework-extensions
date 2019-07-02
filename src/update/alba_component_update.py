@@ -47,7 +47,7 @@ class AlbaComponentUpdater(ComponentUpdater):
     """
 
     COMPONENT = 'alba'
-    BINARIES = [(['alba'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
+    BINARIES = [(['alba-ee'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
     ## Regexes
     re_abm = re.compile('^ovs-arakoon.*-abm$')
