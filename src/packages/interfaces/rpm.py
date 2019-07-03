@@ -29,11 +29,7 @@ class RpmPackage(PackageManagerBase):
     """
     Contains all logic related to RPM packages (used in e.g. CentOS)
     """
-    PACKAGES_VOLUMEDRIVER = ['volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
-                             'volumedriver-ee-base', 'volumedriver-ee-no-server']
 
-    def __init__(self, package_info):
-        self.package_info = package_info
     @staticmethod
     def get_release_name(client=None):
         """

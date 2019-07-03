@@ -20,10 +20,11 @@ Systemd module
 
 import os
 import time
+from ConfigParser import ConfigParser, DEFAULTSECT
 from subprocess import CalledProcessError, check_output
-from .base import ServiceAbstract
+from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
-from ConfigParser import ConfigParser, NoOptionError, DEFAULTSECT
+from .base import ServiceAbstract
 
 
 class Systemd(ServiceAbstract):
@@ -52,21 +53,6 @@ class Systemd(ServiceAbstract):
         else:
             for service_info in client.run(['systemctl', '--type=service', '--no-legend', '--no-pager', '--full']).splitlines():
                 yield service_info
-
-    def _get_name(self, name, client, path=None, log=True):
-        """
-        Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
-        """
-        if self._service_exists(name, client, path):
-            return name
-        if self._service_exists(name, client, '/lib/systemd/system/'):
-            return name
-        name = 'ovs-{0}'.format(name)
-        if self._service_exists(name, client, path):
-            return name
-        if log is True:
-            self._logger.info('Service {0} could not be found.'.format(name))
-        raise ValueError('Service {0} could not be found.'.format(name))
 
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         # type: (str, SSHClient, dict, str, str, bool, str) -> dict
@@ -101,7 +87,7 @@ class Systemd(ServiceAbstract):
 
         if not client.file_exists(template_file):
             # Given template doesn't exist so we are probably using system init scripts
-            return
+            return {}
 
         if target_name is not None:
             service_name = target_name
@@ -365,7 +351,6 @@ class SystemdUnitParser(ConfigParser):
         self.optionxform = lambda x: x  # Return the value passed
 
     def write(self, fp):
-        # type: (str, SSHClient) -> str
         """
         Write an Systemd .ini-alike format representation of the configuration state.
         """

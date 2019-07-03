@@ -108,7 +108,7 @@ class ServiceFactory(object):
 
     @classmethod
     def _get_logger_instance(cls):
-         return Logger('extensions-services')
+        return Logger('extensions-services')
 
     @classmethod
     def change_service_state(cls, client, name, state, logger=None):

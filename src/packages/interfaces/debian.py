@@ -33,9 +33,6 @@ class DebianPackage(PackageManagerBase):
 
     APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
-    def __init__(self, package_info):
-        self.package_info = package_info
-
     @staticmethod
     def get_release_name(client=None):
         """

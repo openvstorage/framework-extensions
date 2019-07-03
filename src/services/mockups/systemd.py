@@ -29,10 +29,12 @@ class SystemdMock(Systemd):
     """
     services = {}
 
-    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
         Adds a mocked service
         """
+        _ = path
+
         if params is None:
             params = {}
 

@@ -36,21 +36,6 @@ class Upstart(ServiceAbstract):
     # Contains the Systems services. Differ from /etc/init
     SYSTEM_SERVICE_DIR = os.path.join(os.path.sep, 'etc', 'init.d')
 
-    def _get_name(self, name, client, path=None, log=True):
-        """
-        Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
-        """
-        if self._service_exists(name, client, path):
-            return name
-        if client.file_exists('/etc/init.d/{0}'.format(name)):
-            return name
-        name = 'ovs-{0}'.format(name)
-        if self._service_exists(name, client, path):
-            return name
-        if log is True:
-            self._logger.info('Service {0} could not be found.'.format(name))
-        raise ValueError('Service {0} could not be found.'.format(name))
-
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
         Add a service
