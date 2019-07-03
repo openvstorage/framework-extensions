@@ -30,18 +30,18 @@ if False:
     from typing import List, Tuple
 
 
-class UpdateInProgressException(EnvironmentError):
-    """
-    Thrown when an update couldn't start as another is already in progress
-    """
-    error_code = 3
-
-
 class UpdateException(EnvironmentError):
     """
     Custom exception with custom error code for easy handling in the CLI
     """
     error_code = 1
+
+
+class UpdateInProgressException(UpdateException):
+    """
+    Thrown when an update couldn't start as another is already in progress
+    """
+    error_code = 3
 
 
 class ComponentUpdater(object):

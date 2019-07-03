@@ -26,6 +26,10 @@ from ovs_extensions.update.base import ComponentUpdater, UpdateException
 from ovs_extensions.db.arakoon.arakooninstaller import ArakoonClusterConfig
 from StringIO import StringIO
 
+# noinspection PyUnreachableCode
+if False:
+    from typing import Optional, Dict
+
 
 class NoMasterFoundException(UpdateException):
     """
@@ -49,7 +53,7 @@ class AlbaComponentUpdater(ComponentUpdater):
     COMPONENT = 'alba'
     BINARIES = [(['alba-ee'], 'alba', '/usr/bin/alba', [])]  # List with tuples. [(package_name, binary_name, binary_location, [service_prefix_0]]
 
-    ## Regexes
+    # Regexes
     re_abm = re.compile('^ovs-arakoon.*-abm$')
     re_nsm = re.compile('^ovs-arakoon.*-nsm_[0-9]*$')
     re_alba_proxy = re.compile('^ovs-albaproxy_.*$')
@@ -61,7 +65,7 @@ class AlbaComponentUpdater(ComponentUpdater):
 
     PRIORITY = str(42)
 
-    ## Pathing variables
+    # Pathing variables
     OPT = os.path.join(os.path.sep, 'opt')
     ALBA_OPT_PATH = os.path.join(OPT, '{0}')
     ALBA_OPT_ALBA_BINARY_PATH = os.path.join(os.path.join(ALBA_OPT_PATH, 'bin', 'alba'))
@@ -77,15 +81,13 @@ class AlbaComponentUpdater(ComponentUpdater):
     ALBA_LIB_ABM_PLUGIN_PATH = os.path.join(ALBA_LIB_PATH, 'albamgr_plugin.cmxs')
     ALBA_LIB_NSM_PLUGIN_PATH = os.path.join(ALBA_LIB_PATH, 'nsm_host_plugin.cmxs')
 
-    logger = logging.getLogger(__name__)
-
     @classmethod
     def get_node_id(cls):
+        # type: () -> str
         """
         Fetch the local id. should be implemented by ovs or the asd manager
         :return: The local node id
         """
-        # type: () -> str
         raise NotImplementedError()
 
     @classmethod
@@ -233,7 +235,7 @@ class AlbaComponentUpdater(ComponentUpdater):
 
     @staticmethod
     def get_arakoon_master(arakoon_config_url, max_attempts=10):
-        # type: (str) -> str
+        # type: (str, Optional[int]) -> str
         """
         Fetches the master node id, based on the arakoon config url
         :param arakoon_config_url: str
