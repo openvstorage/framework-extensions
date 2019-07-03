@@ -122,8 +122,7 @@ class ComponentUpdater(object):
         :return: The complete key
         :rtype: str
         """
-        if cls.COMPONENT is None:
-            raise NotImplementedError('Unable to build a registration key for an unknown component')
+        cls.validate_component()
         return '{}_{}'.format(cls.UPDATE_KEY_BASE, cls.COMPONENT)
 
     @staticmethod
@@ -188,8 +187,7 @@ class ComponentUpdater(object):
         :return:
         """
         cls.logger.info("Starting to update all binaries")
-        if cls.BINARIES is None:
-            raise NotImplementedError('Unable to update packages. Binaries are not included')
+        cls.validate_binaries()
         all_package_names = chain.from_iterable([b[0] for b in cls.BINARIES])
         for package_name in all_package_names:
             cls.logger.info('Updating package {}'.format(package_name))
@@ -242,15 +240,30 @@ class ComponentUpdater(object):
         return restarted_services
 
     @classmethod
-    def do_update(cls, node_identifier):
+    def do_update(cls, node_identifier, exit_code=False):
+        # type: (str, bool) -> None
         """
         Do the update for the volumedriver update
         :param node_identifier: Identifier of the node
         :type node_identifier: str
+        :param exit_code: Exit the code on exceptions
+        :type exit_code: bool
         """
-        with cls.update_registration(node_identifier):
-            cls.update_binaries()
-            cls.restart_services()
+        cls.validate_component()
+        cls.logger.info('Starting {0} update for {1}'.format(cls.COMPONENT, node_identifier))
+        try:
+            with cls.update_registration(node_identifier):
+                cls.update_binaries()
+                cls.restart_services()
+        except Exception as ex:
+            cls.logger.exception('Exception during update of {0} for {1}'.format(cls.COMPONENT, node_identifier))
+            if exit_code:
+                if isinstance(ex, UpdateException):
+                    exit(ex.error_code)
+                else:
+                    exit(1)
+            else:
+                raise
 
     @staticmethod
     def get_local_root_client():
@@ -261,3 +274,21 @@ class ComponentUpdater(object):
         :rtype: SSHClient
         """
         return SSHClient('127.0.0.1', username='root')
+
+    @classmethod
+    def validate_component(cls):
+        """
+        Validate the existence of the component field
+        :return: None
+        """
+        if cls.COMPONENT is None:
+            raise NotImplementedError('Unable to build a registration key for an unknown component')
+
+    @classmethod
+    def validate_binaries(cls):
+        """
+        Validate the existence of the binaries
+        :return: None
+        """
+        if cls.BINARIES is None:
+            raise NotImplementedError('Unable to update packages. Binaries are not included')
