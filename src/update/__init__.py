@@ -1,4 +1,4 @@
-# Copyright (C) 2017 iNuron NV
+# Copyright (C) 2019 iNuron NV
 #
 # This file is part of Open vStorage Open Source Edition (OSE),
 # as available from
@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from .base import PackageManagerBase
-from .debian import DebianPackage
-from .rpm import RpmPackage
+"""
+Update module - contains logic to update components separately within the cluster
+Not associated with the full cluster update exposed in the ovs.lib.update module for forward merging reasons
+"""

@@ -20,14 +20,17 @@ Global Package Factory module inherited by all plugins
 
 import os
 from subprocess import check_output
-from ovs_extensions.packages.interfaces.debian import DebianPackage
-from ovs_extensions.packages.interfaces.rpm import RpmPackage
+from .interfaces import PackageManagerBase, DebianPackage, RpmPackage
 
 
 class PackageFactory(object):
     """
     Factory class returning specialized classes
     """
+    manager = None
+    DISTRIBUTION_MAP = {'Ubuntu': DebianPackage,
+                        'CentOS': RpmPackage}
+
     # Version commands
     VERSION_CMD_SD = "volumedriver_fs --version | grep version\: | grep -o [a-zA-Z0-9\.\-]*$"
     VERSION_CMD_ALBA = 'alba version --terse'
@@ -67,26 +70,35 @@ class PackageFactory(object):
     PKG_VOLDRV_SERVER = 'volumedriver-no-dedup-server'
     PKG_VOLDRV_SERVER_EE = 'volumedriver-ee-server'
 
+    @staticmethod
+    def get_package_type():
+        # type: () -> str
+        """
+        Determine the packager type
+        :return: The package type
+        :rtype: str
+        """
+        distributor = None
+        check_lsb = check_output('which lsb_release 2>&1 || true', shell=True).strip()
+        if "no lsb_release in" in check_lsb:
+            if os.path.exists('/etc/centos-release'):
+                distributor = 'CentOS'
+        else:
+            distributor = check_output('lsb_release -i', shell=True)
+            distributor = distributor.replace('Distributor ID:', '').strip()
+        return distributor
+
     @classmethod
     def get_manager(cls):
+        # type: () -> PackageManagerBase
         """
         Returns a package manager
         """
-        if not hasattr(cls, 'manager') or cls.manager is None:
-            distributor = None
-            check_lsb = check_output('which lsb_release 2>&1 || true', shell=True).strip()
-            if "no lsb_release in" in check_lsb:
-                if os.path.exists('/etc/centos-release'):
-                    distributor = 'CentOS'
-            else:
-                distributor = check_output('lsb_release -i', shell=True)
-                distributor = distributor.replace('Distributor ID:', '').strip()
-
-            if distributor in ['Ubuntu']:
-                cls.manager = DebianPackage(package_info=cls.get_package_info())
-            elif distributor in ['CentOS']:
-                cls.manager = RpmPackage(package_info=cls.get_package_info())
-
+        if cls.manager is None:
+            distributor = cls.get_package_type()
+            implementation_class = cls.DISTRIBUTION_MAP.get(distributor)
+            if implementation_class:
+                cls.manager = implementation_class(package_info=cls.get_package_info())
         if cls.manager is None:
             raise RuntimeError('Unknown PackageManager')
 

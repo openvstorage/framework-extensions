@@ -18,38 +18,22 @@
 Systemd module
 """
 
-import re
+import os
 import time
 from subprocess import CalledProcessError, check_output
+from .base import ServiceAbstract
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
+from ConfigParser import ConfigParser, NoOptionError, DEFAULTSECT
 
 
-
-class Systemd(object):
+class Systemd(ServiceAbstract):
     """
     Contains all logic related to Systemd services
     """
-    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir, logger):
-        """
-        Init method
-        """
-        self._logger = logger
-        self._system = system
-        self._run_file_dir = run_file_dir
-        self._configuration = configuration
-        self._monitor_prefixes = monitor_prefixes
-        self.service_config_key = service_config_key
-        self._config_template_dir = config_template_dir
 
-    @classmethod
-    def _service_exists(cls, name, client, path):
-        # type: (str, SSHClient, str) -> bool
-        if path is None:
-            path = '/lib/systemd/system/'
-        else:
-            path = '{0}/'.format(path.rstrip('/'))
-        file_to_check = '{0}{1}.service'.format(path, name)
-        return client.file_exists(file_to_check)
+    SERVICE_DIR = os.path.join(os.path.sep, 'lib', 'systemd', 'system')
+    SERVICE_SUFFIX = '.service'
+    SYSTEM_SERVICE_DIR = SERVICE_DIR
 
     @classmethod
     def list_services(cls, client, add_status_info=False):
@@ -70,7 +54,6 @@ class Systemd(object):
                 yield service_info
 
     def _get_name(self, name, client, path=None, log=True):
-        # type: (str, SSHClient, str, bool) -> str
         """
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
@@ -129,7 +112,8 @@ class Systemd(object):
         template_content = client.file_read(template_file)
         for key, value in params.iteritems():
             template_content = template_content.replace('<{0}>'.format(key), str(value))
-        client.file_write('/lib/systemd/system/{0}.service'.format(service_name), template_content)
+        service_path = self.get_service_file_path(service_name)
+        client.file_write(service_path, template_content)
 
         try:
             client.run(['systemctl', 'daemon-reload'])
@@ -141,39 +125,6 @@ class Systemd(object):
         if delay_registration is False:
             self.register_service(service_metadata=params, node_name=self._system.get_my_machine_id(client))
         return params
-
-    def regenerate_service(self, name, client, target_name):
-        # type: (str, SSHClient, str) -> None
-        """
-        Regenerates the service files of a service.
-        :param name: Template name of the service to regenerate
-        :type name: str
-        :param client: Client on which to regenerate the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param target_name: The current service name eg ovs-volumedriver_flash01.service
-        :type target_name: str
-        :return: None
-        :rtype: NoneType
-        """
-        configuration_key = self.service_config_key.format(self._system.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
-        # If the entry is stored in arakoon, it means the service file was previously made
-        if not self._configuration.exists(configuration_key):
-            raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
-        # Rewrite the service file
-        service_params = self._configuration.get(configuration_key)
-        startup_dependency = service_params['STARTUP_DEPENDENCY']
-        if startup_dependency == '':
-            startup_dependency = None
-        else:
-            startup_dependency = '.'.join(startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
-        output = self.add_service(name=name,
-                                  client=client,
-                                  params=service_params,
-                                  target_name=target_name,
-                                  startup_dependency=startup_dependency,
-                                  delay_registration=True)
-        if output is None:
-            raise RuntimeError('Regenerating files for service {0} has failed'.format(target_name))
 
     def get_service_status(self, name, client):
         """
@@ -202,14 +153,15 @@ class Systemd(object):
         :rtype: NoneType
         """
         name = self._get_name(name, client)
-        run_file_name = '{0}/{1}.version'.format(self._run_file_dir, ExtensionsToolbox.remove_prefix(name, 'ovs-'))
-        if client.file_exists(run_file_name):
-            client.file_delete(run_file_name)
+        run_file_path = self.get_run_file_path(name)
+        if client.file_exists(run_file_path):
+            client.file_delete(run_file_path)
         try:
             client.run(['systemctl', 'disable', '{0}.service'.format(name)])
         except CalledProcessError:
             pass  # Service already disabled
-        client.file_delete('/lib/systemd/system/{0}.service'.format(name))
+        service_path = self.get_service_file_path(name)
+        client.file_delete(service_path)
         client.run(['systemctl', 'daemon-reload'])
 
         if delay_unregistration is False:
@@ -317,23 +269,6 @@ class Systemd(object):
             raise
         raise RuntimeError('Did not manage to restart service {0} on node with IP {1}'.format(name, client.ip))
 
-    def has_service(self, name, client):
-        # type: (str, SSHClient) -> bool
-        """
-        Verify existence of a service
-        :param name: Name of the service to verify
-        :type name: str
-        :param client: Client on which to check for the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: Whether the service exists
-        :rtype: bool
-        """
-        try:
-            self._get_name(name, client, log=False)
-        except ValueError:
-            return False
-        return True
-
     def get_service_pid(self, name, client):
         # type: (str, SSHClient) -> int
         """
@@ -354,25 +289,6 @@ class Systemd(object):
                 if not pid.isdigit():
                     pid = 0
         return int(pid)
-
-    def send_signal(self, name, signal, client):
-        # type: (str, int, SSHClient) -> None
-        """
-        Send a signal to a service
-        :param name: Name of the service to send a signal
-        :type name: str
-        :param signal: Signal to pass on to the service
-        :type signal: int
-        :param client: Client on which to send a signal to the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: None
-        :rtype: NoneType
-        """
-        name = self._get_name(name, client)
-        pid = self.get_service_pid(name, client)
-        if pid == 0:
-            raise RuntimeError('Could not determine PID to send signal to')
-        client.run(['kill', '-s', signal, pid])
 
     def monitor_services(self):
         # type: () -> None
@@ -426,124 +342,44 @@ class Systemd(object):
         except KeyboardInterrupt:
             pass
 
-    def register_service(self, node_name, service_metadata):
-        # type: (str, Dict[str, Union[str, int]]) -> None
+    @staticmethod
+    def get_config_parser():
+        # type: () -> ConfigParser
         """
-        Register the metadata of the service to the configuration management
-        :param node_name: Name of the node on which the service is running
-        :type node_name: str
-        :param service_metadata: Metadata of the service
-        :type service_metadata: dict
-        :return: None
-        :rtype: NoneType
+        Retrieve the config parser for the implementation type
+        :return: A config parser instance
+        :rtype: ConfigParser
         """
-        service_name = service_metadata['SERVICE_NAME']
-        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
-                                value=service_metadata)
+        raise SystemdUnitParser()
 
-    def unregister_service(self, node_name, service_name):
-        # type: (str, str) -> None
+
+class SystemdUnitParser(ConfigParser):
+    # @TODO handle multiple options!!!
+    # Not an issue for Andes (no multiple options in config files)
+
+    def __init__(self):
         """
-        Un-register the metadata of a service from the configuration management
-        :param node_name: Name of the node on which to un-register the service
-        :type node_name: str
-        :param service_name: Name of the service to clean from the configuration management
-        :type service_name: str
-        :return: None
-        :rtype: NoneType
+        All option names are passed through the optionxform() method. Its default implementation converts option names to lower case.
         """
-        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
+        ConfigParser.__init__(self)
+        self.optionxform = lambda x: x  # Return the value passed
 
-    def is_rabbitmq_running(self, client):
-        # type: (SSHClient) -> Tuple[bool]
-        """
-        Check if rabbitmq is correctly running
-        :param client: Client on which to check the rabbitmq process
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: The PID of the process and a bool indicating everything runs as expected
-        :rtype: tuple
-        """
-        rabbitmq_running = False
-        rabbitmq_pid_ctl = -1
-        rabbitmq_pid_sm = -1
-        output = client.run(['rabbitmqctl', 'status'], allow_nonzero=True)
-        if output:
-            match = re.search('\{pid,(?P<pid>\d+?)\}', output)
-            if match is not None:
-                match_groups = match.groupdict()
-                if 'pid' in match_groups:
-                    rabbitmq_running = True
-                    rabbitmq_pid_ctl = match_groups['pid']
-
-        if self.has_service('rabbitmq-server', client) and self.get_service_status('rabbitmq-server', client) == 'active':
-            rabbitmq_running = True
-            rabbitmq_pid_sm = self.get_service_pid('rabbitmq-server', client)
-
-        same_process = rabbitmq_pid_ctl == rabbitmq_pid_sm
-        self._logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
-                                                                                       rabbitmq_pid_ctl,
-                                                                                       rabbitmq_pid_sm))
-        return rabbitmq_running, same_process
-
-    def extract_from_service_file(self, name, client, entries=None):
-        # type: (str, SSHClient, list) -> list
-        """
-        Extract an entry, multiple entries or the entire service file content for a service
-        :param name: Name of the service
-        :type name: str
-        :param client: Client on which to extract something from the service file
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param entries: Entries to extract
-        :type entries: list
-        :return: The requested entry information or entire service file content if entry=None
-        :rtype: list
-        """
-        if self.has_service(name=name, client=client) is False:
-            return []
-
-        try:
-            name = self._get_name(name=name, client=client)
-            contents = client.file_read('/lib/systemd/system/{0}.service'.format(name)).splitlines()
-        except Exception:
-            self._logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))
-            return []
-
-        if entries is None:
-            return contents
-
-        return_value = []
-        for line in contents:
-            for entry in entries:
-                if entry in line:
-                    return_value.append(line)
-        return return_value
-
-    def get_service_fd(self, name, client):
+    def write(self, fp):
         # type: (str, SSHClient) -> str
         """
-        Returns the open file descriptors for a service that is running
-        :param name: name of the service
-        :type name: str
-        :param client: Client on which to extract something from the service file
-        :type client: ovs_extensions.generic.sshclient.SSHClient
+        Write an Systemd .ini-alike format representation of the configuration state.
         """
-        pid = self.get_service_pid(name, client)
-        file_descriptors = client.run(['lsof',  '-i', '-a', '-p', pid])
-        return file_descriptors.split('\n')[1:]
-
-    def get_service_start_time(self, name, client):
-        # type: (str, SSHClient) -> str
-        """
-        Retrieves the start time of the service
-        :param name: Name of the service to retrieve the PID for
-        :type name: str
-        :param client: Client on which to retrieve the PID for the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :raises ValueError when no PID could be found for the given process
-        :return: A string representing the datetime of when the service was started eg Mon Jan 1 3:30:00 2018
-        :rtype: str
-        """
-        pid = self.get_service_pid(name, client)
-        if pid in [0, -1]:
-            raise ValueError('No PID could be found for service {0} on node with IP {1}'.format(name, client.ip))
-        return client.run(['ps', '-o', 'lstart', '-p', pid]).strip().splitlines()[-1]
+        if self._defaults:
+            fp.write("[{0}]\n".format(DEFAULTSECT))
+            for key, value in self._defaults.iteritems():
+                fp.write("{0}={1}\n".format(key, str(value).replace('\n', '\n\t')))
+            fp.write("\n")
+        for section in self._sections:
+            fp.write("[{0}]\n".format(section))
+            for key, value in self._sections[section].iteritems():
+                if key == "__name__":
+                    continue
+                if value is not None or self._optcre == self.OPTCRE:
+                    key = "{0}={1}".format(key, str(value).replace('\n', '\n\t'))
+                fp.write("{0}\n".format(key))
+            fp.write("\n")
