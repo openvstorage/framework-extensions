@@ -19,7 +19,7 @@ from itertools import chain
 from contextlib import contextmanager
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.packages.packagefactory import PackageFactory as _PackageFactory
+from ovs_extensions.packages.packagefactory import PackageFactory
 from ovs_extensions.services.interfaces.base import ServiceAbstract
 from ovs_extensions.services.servicefactory import ServiceFactory as _ServiceFactory
 from ovs_extensions.storage.exceptions import AssertException
@@ -86,25 +86,6 @@ class ComponentUpdater(object):
         @classmethod
         def _get_configuration(cls):
             return None
-
-    class PackageFactory(_PackageFactory):
-        """
-        Contains all package related information regarding OVS
-        """
-        @classmethod
-        def _get_packages(cls):
-            return {'names': ['alba', 'alba-ee', 'arakoon',
-                              'openvstorage', 'openvstorage-backend', 'openvstorage-sdm',
-                              'volumedriver-no-dedup-base', 'volumedriver-no-dedup-server',
-                              'volumedriver-ee-base', 'volumedriver-ee-server'],
-                    'binaries': ['alba', 'alba-ee', 'arakoon',
-                                 'volumedriver-no-dedup-server', 'volumedriver-ee-server']}
-
-        @classmethod
-        def _get_versions(cls):
-            return {'alba': 'alba version --terse',
-                    'arakoon': "arakoon --version | grep version: | awk '{print $2}'",
-                    'storagedriver': "volumedriver_fs --version | grep version: | awk '{print $2}'"}
 
     logger = logging.getLogger(__name__)
 

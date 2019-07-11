@@ -19,8 +19,14 @@ Global Package Factory module inherited by all plugins
 """
 
 import os
+import copy
 from subprocess import check_output
 from .interfaces import PackageManagerBase, DebianPackage, RpmPackage
+
+
+# noinspection PyUnreachableCode
+if False:
+    from typing import Set
 
 
 class PackageFactory(object):
@@ -70,6 +76,37 @@ class PackageFactory(object):
     PKG_VOLDRV_SERVER = 'volumedriver-no-dedup-server'
     PKG_VOLDRV_SERVER_EE = 'volumedriver-ee-server'
 
+    # Bundles
+    # Community bundle of the base FWK without plugins
+    BUNDLE_COMMUNITY = {'names': {COMP_FWK: {PKG_ARAKOON, PKG_OVS, PKG_OVS_EXTENSIONS},
+                                  COMP_SD: {PKG_ARAKOON, PKG_VOLDRV_BASE, PKG_VOLDRV_SERVER},
+                                  COMP_ALBA: {PKG_ALBA, PKG_ARAKOON}},
+                        'binaries': {COMP_FWK: {PKG_ARAKOON},
+                                     COMP_SD: {PKG_ARAKOON, PKG_VOLDRV_SERVER},
+                                     COMP_ALBA: {PKG_ALBA, PKG_ARAKOON}},
+                        'non_blocking': {PKG_OVS_EXTENSIONS},
+                        'version_commands': {PKG_ALBA: VERSION_CMD_ALBA,
+                                             PKG_ARAKOON: VERSION_CMD_ARAKOON,
+                                             PKG_VOLDRV_BASE: VERSION_CMD_SD,
+                                             PKG_VOLDRV_SERVER: VERSION_CMD_SD},
+                        'mutually_exclusive': {PKG_VOLDRV_BASE_EE, PKG_VOLDRV_SERVER_EE, PKG_ALBA_EE}}
+
+    BUNDLE_ENTERPRISE = {'names': {COMP_FWK: {PKG_ARAKOON, PKG_OVS, PKG_OVS_EXTENSIONS},
+                                   COMP_SD: {PKG_ARAKOON, PKG_VOLDRV_BASE_EE, PKG_VOLDRV_SERVER_EE},
+                                   COMP_ALBA: {PKG_ALBA_EE, PKG_ARAKOON}},
+                         'binaries': {COMP_FWK: {PKG_ARAKOON},
+                                      COMP_SD: {PKG_ARAKOON, PKG_VOLDRV_SERVER_EE},
+                                      COMP_ALBA: {PKG_ALBA_EE, PKG_ARAKOON}},
+                         'non_blocking': {PKG_OVS_EXTENSIONS},
+                         'version_commands': {PKG_ALBA_EE: VERSION_CMD_ALBA,
+                                              PKG_ARAKOON: VERSION_CMD_ARAKOON,
+                                              PKG_VOLDRV_BASE_EE: VERSION_CMD_SD,
+                                              PKG_VOLDRV_SERVER_EE: VERSION_CMD_SD},
+                         'mutually_exclusive': {PKG_VOLDRV_BASE, PKG_VOLDRV_SERVER, PKG_ALBA}}
+
+    BUNDLES = {EDITION_COMMUNITY: BUNDLE_COMMUNITY,
+               EDITION_ENTERPRISE: BUNDLE_ENTERPRISE}
+
     @staticmethod
     def get_package_type():
         # type: () -> str
@@ -106,11 +143,60 @@ class PackageFactory(object):
 
     @classmethod
     def get_package_info(cls):
-        raise NotImplementedError()
+        """
+        Retrieve the package information related to the framework and it's plugins
+        This must return a dictionary with keys: 'names', 'edition', 'binaries', 'non_blocking', 'version_commands' and 'mutually_exclusive'
+            Names: These are the names of the packages split up per component related to this repository (framework)
+                * Framework
+                    * PKG_ARAKOON            --> Used for arakoon-config cluster and arakoon-ovsdb cluster
+                    * PKG_OVS                --> base framework
+                    * PKG_OVS_EXTENSIONS     --> Extensions code is used by the framework repository
+                    * PKG_OVS_EXTENSIONS --> Extensions code is used by the framework-alba-plugin
+                * StorageDriver
+                    * PKG_ARAKOON            --> StorageDrivers make use of the arakoon-voldrv cluster
+                    * PKG_VOLDRV_BASE(_EE)   --> Code for StorageDriver itself
+                    * PKG_VOLDRV_SERVER(_EE) --> Code for StorageDriver itself
+                    * PKG_ARAKOON        --> Used for arakoon-abm clusters and arakoon-nsm clusters. These also have a dependency to changes in the ALBA binary
+                    * PKG_ALBA(_EE)      --> StorageDrivers deploy ALBA proxy services which depend on updates of the ALBA binary
+            Edition: Used for different purposes
+            Binaries: The names of the packages that come with a binary (also split up per component)
+            Non Blocking: Packages which are potentially not yet available on all releases. These should be removed once every release contains these packages by default
+            Version Commands: The commandos used to determine which binary version is currently active
+            Mutually Exclusive: Packages which are not allowed to be installed depending on the edition. Eg: ALBA_EE cannot be installed on a 'community' edition
+        :return: A dictionary containing information about the expected packages to be installed
+        :rtype: dict
+        """
+        edition = cls.get_edition()
+        bundle = copy.deepcopy(cls.BUNDLES[edition])
+        bundle['edition'] = edition
+        return edition
+
+    @staticmethod
+    def get_edition():
+        # type: () -> str
+        """
+        Retrieve the edition through analysing the packages
+        Fallback to community edition if nothing could be determined
+        Note: Only checks by analysing the packages on the local node!
+        :return: The edition
+        :rtype: str
+        """
+        for version_cmd in [PackageFactory.VERSION_CMD_SD, PackageFactory.VERSION_CMD_ALBA]:
+            try:
+                return PackageFactory.EDITION_ENTERPRISE if 'ee-' in check_output([version_cmd], shell=True) else PackageFactory.EDITION_COMMUNITY
+            except Exception:
+                pass
+        return PackageFactory.EDITION_COMMUNITY
 
     @classmethod
     def get_components(cls):
-        raise NotImplementedError()
+        # type: () -> Set[str]
+        """
+        Retrieve the components which relate to this repository
+        :return: A set of components
+        :rtype: set
+        """
+        return set()
 
     @classmethod
     def get_version_information(cls, client):
