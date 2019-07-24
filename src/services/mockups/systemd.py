@@ -17,32 +17,24 @@
 """
 Systemd Mock module
 """
+
 import random
+from ..interfaces.systemd import Systemd
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 
-class SystemdMock(object):
+class SystemdMock(Systemd):
     """
     Contains all logic related to Systemd Mock services
     """
     services = {}
 
-    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir, logger):
-        """
-        Init method
-        """
-        self._logger = logger
-        self._system = system
-        self._run_file_dir = run_file_dir
-        self._configuration = configuration
-        self._monitor_prefixes = monitor_prefixes
-        self.service_config_key = service_config_key
-        self._config_template_dir = config_template_dir
-
-    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False):
+    def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
         Adds a mocked service
         """
+        _ = path
+
         if params is None:
             params = {}
 
@@ -79,7 +71,7 @@ class SystemdMock(object):
         if delay_unregistration is False:
             self.unregister_service(service_name=name, node_name=self._system.get_my_machine_id(client))
 
-    def start_service(self, name, client):
+    def start_service(self, name, client, timeout=5):
         """
         Start a mocked service
         """
@@ -93,7 +85,7 @@ class SystemdMock(object):
         if self.get_service_status(name, client) != 'active':
             raise RuntimeError('Start {0} failed'.format(name))
 
-    def stop_service(self, name, client):
+    def stop_service(self, name, client, timeout=5):
         """
         Stop a mocked service
         """
@@ -106,7 +98,7 @@ class SystemdMock(object):
         if self.get_service_status(name, client) != 'inactive':
             raise RuntimeError('Stop {0} failed'.format(name))
 
-    def restart_service(self, name, client):
+    def restart_service(self, name, client, timeout=5):
         """
         Restart a mocked service
         """
@@ -124,30 +116,6 @@ class SystemdMock(object):
             return name in SystemdMock.services[key]
         except ValueError:
             return False
-
-    def register_service(self, node_name, service_metadata):
-        """
-        Register the metadata of the service to the configuration management
-        :param node_name: Name of the node on which the service is running
-        :type node_name: str
-        :param service_metadata: Metadata of the service
-        :type service_metadata: dict
-        :return: None
-        """
-        service_name = service_metadata['SERVICE_NAME']
-        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
-                                value=service_metadata)
-
-    def unregister_service(self, node_name, service_name):
-        """
-        Un-register the metadata of a service from the configuration management
-        :param node_name: Name of the node on which to un-register the service
-        :type node_name: str
-        :param service_name: Name of the service to clean from the configuration management
-        :type service_name: str
-        :return: None
-        """
-        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
 
     def get_service_pid(self, name, client):
         """
@@ -221,14 +189,7 @@ class SystemdMock(object):
         Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
         """
         _ = log
-        if self._service_exists(name, client, path):
-            return name
-        if self._service_exists(name, client, '/lib/systemd/system/'):
-            return name
-        name = 'ovs-{0}'.format(name)
-        if self._service_exists(name, client, path):
-            return name
-        raise ValueError('Service {0} could not be found.'.format(name))
+        return super(SystemdMock, self)._get_name(name, client, path, False)
 
     @classmethod
     def _clean(cls):

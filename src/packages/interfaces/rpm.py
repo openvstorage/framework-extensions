@@ -22,17 +22,13 @@ import time
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.log.logger import Logger
+from .base import PackageManagerBase
 
 
-class RpmPackage(object):
+class RpmPackage(PackageManagerBase):
     """
     Contains all logic related to RPM packages (used in e.g. CentOS)
     """
-    _logger = Logger('extensions')
-
-    def __init__(self, package_info):
-        self.package_info = package_info
 
     @staticmethod
     def get_release_name(client=None):
@@ -86,7 +82,7 @@ class RpmPackage(object):
         :return: Package candidate versions
         :rtype: dict
         """
-        RpmPackage.update(client=client)
+        cls.update(client=client)
         versions = collections.OrderedDict()
         for package_name in sorted(package_names):
             installed = None
@@ -106,31 +102,7 @@ class RpmPackage(object):
                 pass
         return versions
 
-    def get_binary_versions(self, client, package_names=None):
-        """
-        Retrieve the versions for the binaries related to the package_names
-        :param client: Root client on which to retrieve the binary versions
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param package_names: Names of the packages
-        :type package_names: list
-        :return: Binary versions
-        :rtype: dict
-        """
-        if package_names is None:
-            package_names = set()
-            for names in self.package_info['binaries'].itervalues():
-                package_names = package_names.union(names)
-
-        versions = collections.OrderedDict()
-        version_commands = self.package_info['version_commands']
-        for package_name in sorted(package_names):
-            if package_name not in version_commands:
-                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(sorted(version_commands.keys()))))
-            versions[package_name] = LooseVersion(client.run(version_commands[package_name], allow_insecure=True))
-        return versions
-
-    @staticmethod
-    def install(package_name, client):
+    def install(self, package_name, client):
         """
         Install the specified package
         :param package_name: Name of the package to install
@@ -139,8 +111,7 @@ class RpmPackage(object):
         :type client: SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can install packages')
+        self.validate_client(client, 'Only the "root" user can install packages')
 
         counter = 0
         max_counter = 3
@@ -151,27 +122,27 @@ class RpmPackage(object):
             except CalledProcessError as cpe:
                 # Retry 3 times if fail
                 if counter == max_counter:
-                    RpmPackage._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
+                    self._logger.error('Install {0} failed. Error: {1}'.format(package_name, cpe.output))
                     raise cpe
             except Exception as ex:
                 raise ex
             counter += 1
             time.sleep(1)
 
-    @staticmethod
-    def update(client):
+    @classmethod
+    def update(cls, client):
         """
         Run the 'yum check-update' command on the specified node to update the package information
         :param client: Root client on which to update the package information
         :type client: SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can update packages')
+        cls.validate_client(client, 'Only the "root" user can update packages')
+
         try:
             client.run(['yum', 'check-update'])
         except CalledProcessError as cpe:
             # Returns exit value of 100 if there are packages available for an update
             if cpe.returncode != 100:
-                RpmPackage._logger.error('Update failed. Error: {0}'.format(cpe.output))
+                cls._logger.error('Update failed. Error: {0}'.format(cpe.output))
                 raise cpe

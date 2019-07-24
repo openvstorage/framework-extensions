@@ -23,18 +23,15 @@ import re
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
-from ovs_extensions.log.logger import Logger
+from .base import PackageManagerBase
 
 
-class DebianPackage(object):
+class DebianPackage(PackageManagerBase):
     """
     Contains all logic related to Debian packages (used in e.g. Debian, Ubuntu)
     """
-    _logger = Logger('extensions')
-    APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
-    def __init__(self, package_info):
-        self.package_info = package_info
+    APT_CONFIG_STRING = '-o Dir::Etc::sourcelist="sources.list.d/ovsaptrepo.list"'
 
     @staticmethod
     def get_release_name(client=None):
@@ -92,7 +89,7 @@ class DebianPackage(object):
         cls.update(client=client)
         versions = collections.OrderedDict()
         for package_name in sorted(package_names):
-            output = client.run(['apt-cache', 'policy', package_name, DebianPackage.APT_CONFIG_STRING]).strip()
+            output = client.run(['apt-cache', 'policy', package_name, cls.APT_CONFIG_STRING]).strip()
             match = re.match(".*Installed: (?P<installed>\S+).*Candidate: (?P<candidate>\S+).*",
                              output, re.DOTALL)
             if match is not None:
@@ -100,29 +97,6 @@ class DebianPackage(object):
                 if groups['candidate'] == '(none)' and groups['installed'] == '(none)':
                     continue
                 versions[package_name] = LooseVersion(groups['candidate']) if groups['candidate'] != '(none)' else ''
-        return versions
-
-    def get_binary_versions(self, client, package_names=None):
-        """
-        Retrieve the versions for the binaries related to the package_names
-        :param client: Root client on which to retrieve the binary versions
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param package_names: Names of the packages
-        :type package_names: list
-        :return: Binary versions
-        :rtype: dict
-        """
-        if package_names is None:
-            package_names = set()
-            for names in self.package_info['binaries'].itervalues():
-                package_names = package_names.union(names)
-
-        versions = collections.OrderedDict()
-        version_commands = self.package_info['version_commands']
-        for package_name in sorted(package_names):
-            if package_name not in version_commands:
-                raise ValueError('Only the following packages in the OpenvStorage repository have a binary file: "{0}"'.format('", "'.join(sorted(version_commands.keys()))))
-            versions[package_name] = LooseVersion(client.run(version_commands[package_name], allow_insecure=True))
         return versions
 
     def install(self, package_name, client):
@@ -134,8 +108,7 @@ class DebianPackage(object):
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can install packages')
+        self.validate_client(client, 'Only the "root" user can install packages')
 
         command = "aptdcon --hide-terminal --allow-unauthenticated --install '{0}'".format(package_name.replace(r"'", r"'\''"))
         try:
@@ -150,16 +123,16 @@ class DebianPackage(object):
             if 'ERROR' in output:
                 raise Exception('Installing package {0} failed. Command used: "{1}". Output returned: {2}'.format(package_name, command, output))
 
-    @staticmethod
-    def update(client):
+    @classmethod
+    def update(cls, client):
         """
         Run the 'aptdcon --refresh' command on the specified node to update the package information
         :param client: Root client on which to update the package information
         :type client: ovs_extensions.generic.sshclient.SSHClient
         :return: None
         """
-        if client.username != 'root':
-            raise RuntimeError('Only the "root" user can update packages')
+        cls.validate_client(client, 'Only the "root" user can update packages')
+
         try:
             client.run(['which', 'aptdcon'])
         except CalledProcessError:
