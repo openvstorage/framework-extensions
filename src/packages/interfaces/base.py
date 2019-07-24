@@ -18,11 +18,11 @@
 Debian Package module
 """
 
+import logging
 import collections
 from distutils.version import LooseVersion
 from abc import ABCMeta, abstractmethod
 from ovs_extensions.generic.sshclient import SSHClient
-from ovs_extensions.log.logger import Logger
 
 # noinspection PyUnreachableCode
 if False:
@@ -35,7 +35,7 @@ class PackageManagerBase(object):
     """
     __metaclass__ = ABCMeta
 
-    _logger = Logger('extensions')
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, package_info):
         self.package_info = package_info

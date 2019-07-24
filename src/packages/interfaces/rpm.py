@@ -19,7 +19,6 @@ Rpm Package module
 """
 
 import time
-import logging
 import collections
 from distutils.version import LooseVersion
 from subprocess import check_output, CalledProcessError
@@ -30,7 +29,6 @@ class RpmPackage(PackageManagerBase):
     """
     Contains all logic related to RPM packages (used in e.g. CentOS)
     """
-    _logger = logging.getLogger(__name__)
 
     @staticmethod
     def get_release_name(client=None):
