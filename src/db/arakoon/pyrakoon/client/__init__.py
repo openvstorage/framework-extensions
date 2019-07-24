@@ -14,7 +14,11 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from .exceptions import NoLockAvailableException
+# Expose the Pyrakoon exceptions here too as the client uses them internally.
+# noinspection PyUnresolvedReferences
+from .exceptions import NoLockAvailableException, ArakoonAssertionFailed, ArakoonGoingDown, ArakoonNotFound,\
+    ArakoonNodeNotMaster, ArakoonNoMaster, ArakoonNotConnected, ArakoonSocketException, ArakoonSockNotReadable,\
+    ArakoonSockReadNoBytes, ArakoonSockSendError
 from .client import locked, handle_arakoon_errors, PyrakoonClient, PyrakoonLock
 from .client_pooled import PyrakoonClientPooled
 from .mock import MockPyrakoonClient

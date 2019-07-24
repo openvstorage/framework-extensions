@@ -28,6 +28,10 @@ from ovs_extensions.generic.configuration.clients.base_keyvalue import Configura
 from ovs_extensions.generic.configuration import NoLockAvailableException
 from ovs_extensions.db.arakoon.pyrakoon.client import PyrakoonClient, ArakoonAssertionFailed, ArakoonNotFound
 
+# noinspection PyUnreachableCode
+if False:
+    from typing import Any, Type
+
 
 class ArakoonConfiguration(ConfigurationBaseKeyValue):
     """
@@ -42,11 +46,11 @@ class ArakoonConfiguration(ConfigurationBaseKeyValue):
 
     @property
     def assertion_exception(self):
-        # type: () -> type[ArakoonAssertionFailed]
+        # type: () -> Type[ArakoonAssertionFailed]
         """
         Returns the used Exception class to indicate that an assertion failed
         :return: The underlying exception class
-        :rtype: type[ArakoonAssertionFailed]
+        :rtype: Type[ArakoonAssertionFailed]
         """
         return ArakoonAssertionFailed
 

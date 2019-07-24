@@ -18,49 +18,23 @@
 Upstart module
 """
 
+import os
 import re
 import time
+from ConfigParser import ConfigParser
 from subprocess import CalledProcessError, check_output
+from .base import ServiceAbstract
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 
-class Upstart(object):
+class Upstart(ServiceAbstract):
     """
     Contains all logic related to Upstart services
     """
-    def __init__(self, system, configuration, run_file_dir, monitor_prefixes, service_config_key, config_template_dir, logger):
-        """
-        Init method
-        """
-        self._logger = logger
-        self._system = system
-        self._run_file_dir = run_file_dir
-        self._configuration = configuration
-        self._monitor_prefixes = monitor_prefixes
-        self.service_config_key = service_config_key
-        self._config_template_dir = config_template_dir
-
-    @classmethod
-    def _service_exists(cls, name, client, path):
-        if path is None:
-            path = '/etc/init/'
-        file_to_check = '{0}{1}.conf'.format(path, name)
-        return client.file_exists(file_to_check)
-
-    def _get_name(self, name, client, path=None, log=True):
-        """
-        Make sure that for e.g. 'ovs-workers' the given service name can be either 'ovs-workers' as just 'workers'
-        """
-        if self._service_exists(name, client, path):
-            return name
-        if client.file_exists('/etc/init.d/{0}'.format(name)):
-            return name
-        name = 'ovs-{0}'.format(name)
-        if self._service_exists(name, client, path):
-            return name
-        if log is True:
-            self._logger.info('Service {0} could not be found.'.format(name))
-        raise ValueError('Service {0} could not be found.'.format(name))
+    SERVICE_DIR = os.path.join(os.path.sep, 'etc', 'init')
+    SERVICE_SUFFIX = '.conf'
+    # Contains the Systems services. Differ from /etc/init
+    SYSTEM_SERVICE_DIR = os.path.join(os.path.sep, 'etc', 'init.d')
 
     def add_service(self, name, client, params=None, target_name=None, startup_dependency=None, delay_registration=False, path=None):
         """
@@ -111,38 +85,6 @@ class Upstart(object):
             self.register_service(service_metadata=params, node_name=self._system.get_my_machine_id(client))
         return params
 
-    def regenerate_service(self, name, client, target_name):
-        """
-        Regenerates the service files of a service.
-        :param name: Template name of the service to regenerate
-        :type name: str
-        :param client: Client on which to regenerate the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param target_name: The current service name eg ovs-volumedriver_flash01.service
-        :type target_name: str
-        :return: None
-        :rtype: NoneType
-        """
-        configuration_key = self.service_config_key.format(self._system.get_my_machine_id(client), ExtensionsToolbox.remove_prefix(target_name, 'ovs-'))
-        # If the entry is stored in arakoon, it means the service file was previously made
-        if not self._configuration.exists(configuration_key):
-            raise RuntimeError('Service {0} was not previously added and cannot be regenerated.'.format(target_name))
-        # Rewrite the service file
-        service_params = self._configuration.get(configuration_key)
-        startup_dependency = service_params['STARTUP_DEPENDENCY']
-        if startup_dependency == '':
-            startup_dependency = None
-        else:
-            startup_dependency = '.'.join(startup_dependency.split('.')[:-1])  # Remove .service from startup dependency
-        output = self.add_service(name=name,
-                                  client=client,
-                                  params=service_params,
-                                  target_name=target_name,
-                                  startup_dependency=startup_dependency,
-                                  delay_registration=True)
-        if output is None:
-            raise RuntimeError('Regenerating files for service {0} has failed'.format(target_name))
-
     def get_service_status(self, name, client):
         """
         Retrieve the status of a service
@@ -171,27 +113,6 @@ class Upstart(object):
         except CalledProcessError as ex:
             self._logger.exception('Get {0}.service status failed: {1}'.format(name, ex))
             raise Exception('Retrieving status for service "{0}" failed'.format(name))
-
-    def remove_service(self, name, client, delay_unregistration=False):
-        """
-        Remove a service
-        :param name: Name of the service to remove
-        :type name: str
-        :param client: Client on which to remove the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param delay_unregistration: Un-register the service parameters in the config management right away or not
-        :type delay_unregistration: bool
-        :return: None
-        :rtype: NoneType
-        """
-        name = self._get_name(name, client)
-        run_file_name = '{0}/{1}.version'.format(self._run_file_dir, ExtensionsToolbox.remove_prefix(name, 'ovs-'))
-        if client.file_exists(run_file_name):
-            client.file_delete(run_file_name)
-        client.file_delete('/etc/init/{0}.conf'.format(name))
-
-        if delay_unregistration is False:
-            self.unregister_service(service_name=name, node_name=self._system.get_my_machine_id(client))
 
     def start_service(self, name, client, timeout=5):
         """
@@ -268,22 +189,6 @@ class Upstart(object):
         self.stop_service(name, client, timeout)
         self.start_service(name, client, timeout)
 
-    def has_service(self, name, client):
-        """
-        Verify existence of a service
-        :param name: Name of the service to verify
-        :type name: str
-        :param client: Client on which to check for the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: Whether the service exists
-        :rtype: bool
-        """
-        try:
-            self._get_name(name, client, log=False)
-        except ValueError:
-            return False
-        return True
-
     def get_service_pid(self, name, client):
         """
         Retrieve the PID of a service
@@ -309,24 +214,6 @@ class Upstart(object):
                     if 'pid' in match_groups:
                         return match_groups['pid']
         return -1
-
-    def send_signal(self, name, signal, client):
-        """
-        Send a signal to a service
-        :param name: Name of the service to send a signal
-        :type name: str
-        :param signal: Signal to pass on to the service
-        :type signal: int
-        :param client: Client on which to send a signal to the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: None
-        :rtype: NoneType
-        """
-        name = self._get_name(name, client)
-        pid = self.get_service_pid(name, client)
-        if pid == -1:
-            raise RuntimeError('Could not determine PID to send signal to')
-        client.run(['kill', '-s', signal, pid])
 
     @classmethod
     def list_services(cls, client, add_status_info=False):
@@ -393,107 +280,12 @@ class Upstart(object):
         except KeyboardInterrupt:
             pass
 
-    def register_service(self, node_name, service_metadata):
+    @staticmethod
+    def get_config_parser():
+        # type: () -> ConfigParser
         """
-        Register the metadata of the service to the configuration management
-        :param node_name: Name of the node on which the service is running
-        :type node_name: str
-        :param service_metadata: Metadata of the service
-        :type service_metadata: dict
-        :return: None
+        Retrieve the config parser for the implementation type
+        :return: A config parser instance
+        :rtype: ConfigParser
         """
-        service_name = service_metadata['SERVICE_NAME']
-        self._configuration.set(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')),
-                                value=service_metadata)
-
-    def unregister_service(self, node_name, service_name):
-        """
-        Un-register the metadata of a service from the configuration management
-        :param service_name: Name of the service to clean from the configuration management
-        :type service_name: str
-        :param node_name: Name of the node on which to un-register the service
-        :type node_name: str
-        :return: None
-        """
-        self._configuration.delete(key=self.service_config_key.format(node_name, ExtensionsToolbox.remove_prefix(service_name, 'ovs-')))
-
-    def is_rabbitmq_running(self, client):
-        """
-        Check if rabbitmq is correctly running
-        :param client: Client on which to check the rabbitmq process
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :return: The PID of the process and a bool indicating everything runs as expected
-        :rtype: tuple
-        """
-        rabbitmq_running = False
-        rabbitmq_pid_ctl = -1
-        rabbitmq_pid_sm = -1
-        output = client.run(['rabbitmqctl', 'status'], allow_nonzero=True)
-        if output:
-            match = re.search('\{pid,(?P<pid>\d+?)\}', output)
-            if match is not None:
-                match_groups = match.groupdict()
-                if 'pid' in match_groups:
-                    rabbitmq_running = True
-                    rabbitmq_pid_ctl = match_groups['pid']
-
-        if self.has_service('rabbitmq-server', client) and self.get_service_status('rabbitmq-server', client) == 'active':
-            rabbitmq_running = True
-            rabbitmq_pid_sm = self.get_service_pid('rabbitmq-server', client)
-
-        same_process = rabbitmq_pid_ctl == rabbitmq_pid_sm
-        self._logger.debug('Rabbitmq is reported {0}running, pids: {1} and {2}'.format('' if rabbitmq_running else 'not ',
-                                                                                       rabbitmq_pid_ctl,
-                                                                                       rabbitmq_pid_sm))
-        return rabbitmq_running, same_process
-
-    def extract_from_service_file(self, name, client, entries=None):
-        """
-        Extract an entry, multiple entries or the entire service file content for a service
-        :param name: Name of the service
-        :type name: str
-        :param client: Client on which to extract something from the service file
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :param entries: Entries to extract
-        :type entries: list
-        :return: The requested entry information or entire service file content if entry=None
-        :rtype: list
-        """
-        if self.has_service(name=name, client=client) is False:
-            return []
-
-        try:
-            name = self._get_name(name=name, client=client)
-            contents = client.file_read('/etc/init/{0}.conf'.format(name)).splitlines()
-        except Exception:
-            self._logger.exception('Failure to retrieve contents for service {0} on node with IP {1}'.format(name, client.ip))
-            return []
-
-        if entries is None:
-            return contents
-
-        return_value = []
-        for line in contents:
-            for entry in entries:
-                if entry in line:
-                    return_value.append(line)
-        return return_value
-
-    def get_service_fd(self, name, client):
-        raise NotImplementedError('Get_service_fd has not yet been implemented')
-
-    def get_service_start_time(self, name, client):
-        """
-        Retrieves the start time of the service
-        :param name: Name of the service to retrieve the PID for
-        :type name: str
-        :param client: Client on which to retrieve the PID for the service
-        :type client: ovs_extensions.generic.sshclient.SSHClient
-        :raises ValueError when no PID could be found for the given process
-        :return: A string representing the datetime of when the service was started eg Mon Jan 1 3:30:00 2018
-        :rtype: str
-        """
-        pid = self.get_service_pid(name, client)
-        if pid in [0, -1]:
-            raise ValueError('No PID could be found for service {0} on node with IP {1}'.format(name, client.ip))
-        return client.run(['ps', '-o', 'lstart', '-p', pid]).strip().splitlines()[-1]
+        raise NotImplementedError('No config parser for upstart. Use the `extract_from_service_file` instead or implement the config parser.')
