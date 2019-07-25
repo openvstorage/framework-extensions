@@ -33,6 +33,10 @@ from ovs_extensions.db.arakoon.pyrakoon.pyrakoon.compat import Sequence, Arakoon
     ArakoonSocketException, ArakoonSockNotReadable, ArakoonSockReadNoBytes, ArakoonSockSendError, Consistency
 from ovs_extensions.generic.repeatingtimer import RepeatingTimer
 
+# noinspection PyUnreachableCode
+if False:
+    from typing import Generator, Tuple, Optional, Any, Dict, List
+
 
 def locked():
     """
@@ -183,6 +187,21 @@ class PyrakoonClient(PyrakoonBase):
 
     @locked()
     @handle_arakoon_errors(is_read_only=True)
+    def _get_multi(self, keys, must_exist):
+        # type: (List[str], bool) -> List[Tuple[str, any]]
+        """
+        Get multiple keys at once
+        Serves as the arakoon error handling
+        :param keys: All keys to fetch
+        :type keys" List[str]
+        :param must_exist: Should all listed keys exist
+        :type must_exist: bool
+        :return: List with key value pairs
+        :rtype: List[Tuple[str, any]
+        """
+        func = self._client.multiGet if must_exist is True else self._client.multiGetOption
+        return func(keys)
+
     def get_multi(self, keys, must_exist=True):
         # type: (List[str], bool) -> Generator[Tuple[str, any]]
         """
@@ -194,8 +213,7 @@ class PyrakoonClient(PyrakoonBase):
         :return: Generator that yields key value pairs
         :rtype: iterable[Tuple[str, any]
         """
-        func = self._client.multiGet if must_exist is True else self._client.multiGetOption
-        for item in func(keys):
+        for item in self._get_multi(keys, must_exist):
             yield item
 
     @locked()
@@ -221,6 +239,30 @@ class PyrakoonClient(PyrakoonBase):
 
     @locked()
     @handle_arakoon_errors(is_read_only=True)
+    def _range(self, begin_key, begin_key_included, end_key, end_key_included, max_elements=None):
+        # type: (str, bool, str, bool, Optional[int]) -> List[str]
+        """
+        Get a range of keys from Arakoon
+        :param begin_key: Key to start range with
+        :type begin_key: str
+        :param begin_key_included: Should the key be included
+        :type begin_key_included: bool
+        :param end_key: Key to end the range with
+        :type end_key: str
+        :param end_key_included: Is the end key included
+        :type end_key_included: bool
+        :param max_elements: Maximum amount of elements to return. Defaults to the batch size of the class
+        :type max_elements: Optional[int]
+        :return: List of keys
+        :rtype: List[str]
+        """
+        max_elements = self._batch_size if max_elements is None else max_elements
+        return self._client.range(beginKey=begin_key,
+                                  beginKeyIncluded=begin_key_included,
+                                  endKey=end_key,
+                                  endKeyIncluded=end_key_included,
+                                  maxElements=max_elements)
+
     def prefix(self, prefix):
         # type: (str) -> Generator[str]
         """
@@ -228,21 +270,44 @@ class PyrakoonClient(PyrakoonBase):
         :param prefix: Prefix of the key
         :type prefix: str
         :return: Generator that yields keys
-        :rtype: iterable[str]
+        :rtype: Generator[str]
         """
         next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
-            batch = self._client.range(beginKey=prefix if batch is None else batch[-1],
-                                       beginKeyIncluded=batch is None,
-                                       endKey=next_prefix,
-                                       endKeyIncluded=False,
-                                       maxElements=self._batch_size)
+            batch = self._range(begin_key=prefix if batch is None else batch[-1],
+                                begin_key_included=batch is None,
+                                end_key=next_prefix,
+                                end_key_included=False)
             for item in batch:
                 yield item
 
     @locked()
     @handle_arakoon_errors(is_read_only=True)
+    def _range_entries(self, begin_key, begin_key_included, end_key, end_key_included, max_elements=None):
+        # type: (str, bool, str, bool, Optional[int]) -> List[Tuple[str, Any]]
+        """
+        Get a range of keys value pairs from Arakoon
+        :param begin_key: Key to start range with
+        :type begin_key: str
+        :param begin_key_included: Should the key be included
+        :type begin_key_included: bool
+        :param end_key: Key to end the range with
+        :type end_key: str
+        :param end_key_included: Is the end key included
+        :type end_key_included: bool
+        :param max_elements: Maximum amount of elements to return. Defaults to the batch size of the class
+        :type max_elements: Optional[int]
+        :return: List of keys
+        :rtype: List[Tuple[str, Any]]
+        """
+        max_elements = self._batch_size if max_elements is None else max_elements
+        return self._client.range_entries(beginKey=begin_key,
+                                          beginKeyIncluded=begin_key_included,
+                                          endKey=end_key,
+                                          endKeyIncluded=end_key_included,
+                                          maxElements=max_elements)
+
     def prefix_entries(self, prefix):
         # type: (str) -> Generator[Tuple[str, any]]
         """
@@ -250,16 +315,15 @@ class PyrakoonClient(PyrakoonBase):
         :param prefix: Prefix of the key
         :type prefix: str
         :return: Generator that yields key, value pairs
-        :rtype: iterable[Tuple[str, any]
+        :rtype: Generator[Tuple[str, any]
         """
         next_prefix = self._next_prefix(prefix)
         batch = None
         while batch is None or len(batch) > 0:
-            batch = self._client.range_entries(beginKey=prefix if batch is None else batch[-1][0],
-                                               beginKeyIncluded=batch is None,
-                                               endKey=next_prefix,
-                                               endKeyIncluded=False,
-                                               maxElements=self._batch_size)
+            batch = self._range_entries(begin_key=prefix if batch is None else batch[-1][0],
+                                        begin_key_included=batch is None,
+                                        end_key=next_prefix,
+                                        end_key_included=False)
             for item in batch:
                 yield item
 
