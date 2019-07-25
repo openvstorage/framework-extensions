@@ -17,6 +17,7 @@
 import logging
 from itertools import chain
 from contextlib import contextmanager
+from distutils.version import LooseVersion
 from ovs_extensions.generic.filemutex import file_mutex
 from ovs_extensions.generic.sshclient import SSHClient
 from ovs_extensions.packages.packagefactory import PackageFactory
@@ -103,8 +104,7 @@ class ComponentUpdater(object):
         :return: The complete key
         :rtype: str
         """
-        if cls.COMPONENT is None:
-            raise NotImplementedError('Unable to build a registration key for an unknown component')
+        cls.validate_component()
         return '{}_{}'.format(cls.UPDATE_KEY_BASE, cls.COMPONENT)
 
     @staticmethod
@@ -169,8 +169,7 @@ class ComponentUpdater(object):
         :return:
         """
         cls.logger.info("Starting to update all binaries")
-        if cls.BINARIES is None:
-            raise NotImplementedError('Unable to update packages. Binaries are not included')
+        cls.validate_binaries()
         all_package_names = chain.from_iterable([b[0] for b in cls.BINARIES])
         for package_name in all_package_names:
             cls.logger.info('Updating package {}'.format(package_name))
@@ -223,15 +222,64 @@ class ComponentUpdater(object):
         return restarted_services
 
     @classmethod
-    def do_update(cls, node_identifier):
+    def is_update_required(cls):
+        # type: () -> bool
+        """
+        Determine if the update is required
+        Checks if an updated package is available
+        :return: True if the update is required
+        :rtype: bool
+        """
+        cls.validate_binaries()
+        local_client = SSHClient('127.0.0.1', username='root')
+        # cls.PACKAGE_MANAGER.install(package, local_client)
+        all_package_names = list(chain.from_iterable([b[0] for b in cls.BINARIES]))
+        cls.logger.info('Retrieving installed versions for {}'.format(', '.join(all_package_names)))
+        installed_versions = cls.PACKAGE_MANAGER.get_installed_versions(local_client, all_package_names)
+        cls.logger.info('Retrieving candidate versions for {}'.format(', '.join(all_package_names)))
+        candidate_versions = cls.PACKAGE_MANAGER.get_candidate_versions(local_client, all_package_names)
+        if len(candidate_versions) != len(all_package_names):
+            raise ValueError('Not all packages were accounted for. Required {}. Found: {}'.format(', '.join(all_package_names), ', '.join(candidate_versions)))
+        for package_name, version in candidate_versions.iteritems():
+            if package_name not in installed_versions:
+                cls.logger.info('{} is not yet installed. Update required'.format(package_name))
+                return True
+            version_installed = installed_versions[package_name]
+            loose_version = LooseVersion(version) if not isinstance(version, LooseVersion) else version
+            loose_version_installed = LooseVersion(version_installed) if not isinstance(version_installed, LooseVersion) else version_installed
+            if loose_version_installed < loose_version:
+                cls.logger.info('{} can be updated'.format(package_name))
+                return True
+        return False
+
+    @classmethod
+    def do_update(cls, node_identifier, exit_code=False):
+        # type: (str, bool) -> None
         """
         Do the update for the volumedriver update
         :param node_identifier: Identifier of the node
         :type node_identifier: str
+        :param exit_code: Exit the code on exceptions
+        :type exit_code: bool
         """
-        with cls.update_registration(node_identifier):
-            cls.update_binaries()
-            cls.restart_services()
+        cls.validate_component()
+        cls.logger.info('Starting {0} update for {1}'.format(cls.COMPONENT, node_identifier))
+        if not cls.is_update_required():
+            cls.logger.info('No update is required')
+            return
+        try:
+            with cls.update_registration(node_identifier):
+                cls.update_binaries()
+                cls.restart_services()
+        except Exception as ex:
+            cls.logger.exception('Exception during update of {0} for {1}'.format(cls.COMPONENT, node_identifier))
+            if exit_code:
+                if isinstance(ex, UpdateException):
+                    exit(ex.error_code)
+                else:
+                    exit(1)
+            else:
+                raise
 
     @staticmethod
     def get_local_root_client():
@@ -242,3 +290,21 @@ class ComponentUpdater(object):
         :rtype: SSHClient
         """
         return SSHClient('127.0.0.1', username='root')
+
+    @classmethod
+    def validate_component(cls):
+        """
+        Validate the existence of the component field
+        :return: None
+        """
+        if cls.COMPONENT is None:
+            raise NotImplementedError('Unable to build a registration key for an unknown component')
+
+    @classmethod
+    def validate_binaries(cls):
+        """
+        Validate the existence of the binaries
+        :return: None
+        """
+        if cls.BINARIES is None:
+            raise NotImplementedError('Unable to update packages. Binaries are not included')
